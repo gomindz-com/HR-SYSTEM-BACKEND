@@ -17,6 +17,7 @@ export const sendInvitation = async (req, res) => {
     const existingUser = await prisma.employee.findUnique({
       where: {
         email,
+        companyId,
       },
     });
 
@@ -60,6 +61,7 @@ export const sendInvitation = async (req, res) => {
         token,
         expiresAt,
         status: "PENDING",
+        createdAt: new Date(),
       },
     });
 
@@ -100,6 +102,10 @@ export const acceptInvitation = async (req, res) => {
   try {
     if (!token) {
       return res.status(400).json({ message: "Token is required" });
+    }
+
+    if (confirmPassword !== password) {
+      return res.status(400).json({ message: "Passwords do not match" });
     }
 
     const invitation = await prisma.invitation.findFirst({
@@ -152,6 +158,7 @@ export const acceptInvitation = async (req, res) => {
         role: invitation.role,
         profilePic: randomAvatar,
         position: invitation.position,
+        createdAt: new Date(),
       },
     });
 

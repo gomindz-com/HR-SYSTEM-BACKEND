@@ -156,3 +156,42 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const checkAuth = async (req, res) => {
+  const { id } = req.user;
+
+  try {
+    const user = await prisma.employee.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        position: true,
+        profilePic: true,
+        name: true,
+        email: true,
+        role: true,
+        companyId: true,
+        createdAt: true,
+        company: {
+          select: {
+            companyName: true,
+            companyAddress: true,
+            companyDescription: true,
+            companyTin: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "User is authenticated",
+      data: {
+        user,
+      },
+    });
+  } catch (error) {
+    console.log("Error in checkAuth", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
