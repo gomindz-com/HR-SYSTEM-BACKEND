@@ -78,7 +78,7 @@ export const signUpCompany = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Company created and HR registered successfully",
-      company,
+      data: { newHR },
     });
   } catch (error) {
     console.log("Error in signUpCompany", error);

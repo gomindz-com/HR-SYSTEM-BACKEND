@@ -97,7 +97,7 @@ export const sendInvitation = async (req, res) => {
 
 export const acceptInvitation = async (req, res) => {
   const { token } = req.params;
-  const { name, email, password, confirmPassword, position } = req.body;
+  const { name,  password, confirmPassword, position } = req.body;
 
   try {
     if (!token) {
@@ -152,7 +152,7 @@ export const acceptInvitation = async (req, res) => {
     const newUser = await prisma.employee.create({
       data: {
         name,
-        email,
+        email: invitation.email,
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,
