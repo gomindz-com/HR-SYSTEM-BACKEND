@@ -51,6 +51,14 @@ export const signUpCompany = async (req, res) => {
       },
     });
 
+
+    const hrDepartment = await prisma.department.create({
+      data: {
+        name: "HR Department",
+        companyId: company.id,
+      },
+    });
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(HRPassword, salt);
     const idx = Math.floor(Math.random() * 100) + 1;
@@ -66,12 +74,18 @@ export const signUpCompany = async (req, res) => {
         role: "HR",
         companyId: company.id,
         profilePic: randomAvatar,
+        departmentId: hrDepartment.id,
       },
     });
 
     await prisma.company.update({
       where: { id: company.id },
       data: { hrId: newHR.id },
+    });
+
+    await prisma.department.update({
+      where: { id: hrDepartment.id },
+      data: { managerId: newHR.id },
     });
 
     generateToken(newHR.id, res);

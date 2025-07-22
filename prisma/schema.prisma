@@ -8,13 +8,14 @@ datasource db {
 }
 
 model Department {
-  id          Int        @id @default(autoincrement())
-  name        String     @unique
-  description String?
-  managerId   Int?
-  manager     Employee?  @relation("DepartmentManager", fields: [managerId], references: [id])
-  employees   Employee[]
-  createdAt   DateTime   @default(now())
+  id        Int        @id @default(autoincrement())
+  name      String
+  managerId Int?
+  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees Employee[]
+  createdAt DateTime   @default(now())
+  companyId Int
+  company   Company    @relation(fields: [companyId], references: [id]) // <--- And this line
 }
 
 model Employee {
@@ -30,7 +31,6 @@ model Employee {
   companyId            Int
   company              Company             @relation(fields: [companyId], references: [id])
   location             String?
-  startDate            DateTime
   status               EmployeeStatus      @default(ACTIVE)
   avatar               String?
   role                 Role
@@ -229,10 +229,11 @@ model Company {
   companyEmail       String              @unique
   companyTin         String              @unique
   companyAddress     String
-  hrId               Int
-  hr                 Employee            @relation("Company_hr", fields: [hrId], references: [id])
+  hrId               Int?
+  hr                 Employee?           @relation("Company_hr", fields: [hrId], references: [id])
   companyDescription String
   employees          Employee[]
+  departments        Department[]
   attendances        Attendance[]
   leaveRequests      LeaveRequest[]
   payrolls           Payroll[]

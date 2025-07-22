@@ -40,8 +40,6 @@ export const login = async (req, res) => {
   }
 };
 
-
-
 export const logout = async (req, res) => {
   try {
     res.cookie("jwt", "", {
@@ -94,7 +92,7 @@ export const forgotPassword = async (req, res) => {
 
     const baseUrl =
       process.env.NODE_ENV === "development"
-        ? "http://localhost:5173"
+        ? "http://localhost:8080"
         : process.env.CLIENT_URL || "https://hr-management-system.vercel.app";
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
@@ -211,3 +209,4 @@ export const checkAuth = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
