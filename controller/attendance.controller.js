@@ -1,6 +1,5 @@
 import prisma from "../config/prisma.config.js";
-import { verifyQrPayload } from "../lib/utils.js";
-
+import { verifyQrPayload , generateQrJwt} from "../lib/utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload } = req.body;
   const employeeId = req.user.id;
@@ -48,7 +47,9 @@ export const checkIn = async (req, res) => {
       },
     });
 
-    return res.status(201).json({ message: "Check-in successful", attendance });
+    return res
+      .status(201)
+      .json({ message: "Check-in successful", data: { attendance } });
   } catch (error) {
     console.error("Error in Checkin Controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -88,7 +89,7 @@ export const checkOut = async (req, res) => {
 
     return res
       .status(200)
-      .json({ message: "Check-out successful", attendance });
+      .json({ message: "Check-out successful", data: { attendance } });
   } catch (error) {
     console.log("Error in Checkout Controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -96,6 +97,6 @@ export const checkOut = async (req, res) => {
 };
 
 export const generateQrToken = async (req, res) => {
-  const token = generateQrJwt(req.user.id, req.user.companyId);
-  return res.status(200).json({ qrToken: token });
+  const token = generateQrJwt(req.user.companyId);
+  return res.status(200).json({ data: { qrToken: token } });
 };
