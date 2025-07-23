@@ -169,8 +169,6 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-
-
 export const checkAuth = async (req, res) => {
   const { id } = req.user;
 
@@ -197,6 +195,10 @@ export const checkAuth = async (req, res) => {
       },
     });
 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     res.status(200).json({
       success: true,
       message: "User is authenticated",
@@ -209,4 +211,3 @@ export const checkAuth = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-

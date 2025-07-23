@@ -1,17 +1,20 @@
 import prisma from "../config/prisma.config.js";
-import { generateToken } from "../emails/utils.js";
 import { transporter } from "../config/transporter.js";
-
+import crypto from "crypto";
+import bcrypt from "bcrypt";
 export const sendInvitation = async (req, res) => {
-  const { email, role, position } = req.body;
-  const { id } = req.user;
-  const { companyId } = req.user;
+  const { email, role, position, departmentId } = req.body;
+  const id = req.user.id;
+  const companyId = req.user.companyId;
 
   try {
     if (!companyId) {
       return res
         .status(400)
         .json({ message: "your session is not associated with any company" });
+    }
+    if (!departmentId) {
+      return res.status(400).json({ message: "departmentId is required" });
     }
 
     const existingUser = await prisma.employee.findUnique({
@@ -30,7 +33,7 @@ export const sendInvitation = async (req, res) => {
         email,
         companyId,
         status: "PENDING",
-        expiresAt: { $gt: new Date() },
+        expiresAt: { gt: new Date() },
       },
     });
 
@@ -51,7 +54,7 @@ export const sendInvitation = async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    const invitation = await prisma.invitation.create({
+    await prisma.invitation.create({
       data: {
         email,
         position,
@@ -62,21 +65,22 @@ export const sendInvitation = async (req, res) => {
         expiresAt,
         status: "PENDING",
         createdAt: new Date(),
+        departmentId
       },
     });
 
     const baseUrl =
       process.env.NODE_ENV === "development"
-        ? "http://localhost:5173"
+        ? "http://localhost:8080"
         : process.env.CLIENT_URL || "https://hr-management-system.vercel.app";
-    const invitationUrl = `${baseUrl}/invitation/${token}`;
+    const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
       subject: "Invitation to join company",
       html: `
-            <p>You are invited to join ${company.name} as ${
+            <p>You are invited to join ${company.companyName} as ${
         role || "EMPLOYEE"
       }.</p>
             <p>Click the link below to accept the invitation:</p>
@@ -97,7 +101,7 @@ export const sendInvitation = async (req, res) => {
 
 export const acceptInvitation = async (req, res) => {
   const { token } = req.params;
-  const { name,  password, confirmPassword, position } = req.body;
+  const { name, password, confirmPassword, } = req.body;
 
   try {
     if (!token) {
@@ -112,7 +116,7 @@ export const acceptInvitation = async (req, res) => {
       where: {
         token,
         status: "PENDING",
-        expiresAt: { $gt: new Date() },
+        expiresAt: { gt: new Date() },
       },
     });
 
@@ -121,7 +125,7 @@ export const acceptInvitation = async (req, res) => {
     }
 
     const existingUser = await prisma.employee.findUnique({
-      where: { email },
+      where: { email: invitation.email },
     });
 
     if (existingUser) {
@@ -149,7 +153,7 @@ export const acceptInvitation = async (req, res) => {
     const idx = Math.floor(Math.random() * 100) + 1;
     const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
 
-    const newUser = await prisma.employee.create({
+    await prisma.employee.create({
       data: {
         name,
         email: invitation.email,
@@ -159,6 +163,7 @@ export const acceptInvitation = async (req, res) => {
         profilePic: randomAvatar,
         position: invitation.position,
         createdAt: new Date(),
+        departmentId: invitation.departmentId,
       },
     });
 
@@ -171,7 +176,7 @@ export const acceptInvitation = async (req, res) => {
       message: "Account created successfully, please login to continue",
     });
   } catch (error) {
-    console.log("Error in AcceptInvite controller");
+    console.log("Error in AcceptInvite controller", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

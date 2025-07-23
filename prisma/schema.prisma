@@ -8,14 +8,15 @@ datasource db {
 }
 
 model Department {
-  id        Int        @id @default(autoincrement())
-  name      String
-  managerId Int?
-  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id])
-  employees Employee[]
-  createdAt DateTime   @default(now())
-  companyId Int
-  company   Company    @relation(fields: [companyId], references: [id]) // <--- And this line
+  id         Int          @id @default(autoincrement())
+  name       String
+  managerId  Int?
+  manager    Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees  Employee[]
+  createdAt  DateTime     @default(now())
+  companyId  Int
+  company    Company      @relation(fields: [companyId], references: [id]) // <--- And this line
+  Invitation Invitation[]
 }
 
 model Employee {
@@ -42,7 +43,7 @@ model Employee {
   lastLogin            DateTime?
   resetPasswordToken   String?
   resetPasswordExpires DateTime?
-  attendances          Attendance[]
+  attendances          Attendance[]        @relation("EmployeeAttendance")
   leaveRequests        LeaveRequest[]
   payrolls             Payroll[]
   performanceReviews   PerformanceReview[]
@@ -51,7 +52,6 @@ model Employee {
   createdAt            DateTime            @default(now())
 
   managedDepartments    Department[]        @relation("DepartmentManager")
-  approvedAttendances   Attendance[]        @relation("AttendanceApprover")
   approvedLeaveRequests LeaveRequest[]      @relation("LeaveApprover")
   reviewsGiven          PerformanceReview[] @relation("Reviewer")
   sentInvitations       Invitation[]
@@ -77,24 +77,17 @@ enum EmploymentType {
 }
 
 model Attendance {
-  id            Int              @id @default(autoincrement())
-  employeeId    Int
-  employee      Employee         @relation(fields: [employeeId], references: [id])
-  companyId     Int
-  company       Company          @relation(fields: [companyId], references: [id])
-  date          DateTime
-  timeIn        String
-  timeOut       String
-  status        AttendanceStatus
-  notes         String?
-  location      String?
-  approvedBy    Int?
-  approver      Employee?        @relation("AttendanceApprover", fields: [approvedBy], references: [id])
-  overtimeHours Float?
-  qrCheckIn     String? // Store QR code scan data or token
-  qrCheckOut    String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id         Int              @id @default(autoincrement())
+  employeeId Int
+  employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id])
+  companyId  Int
+  company    Company          @relation(fields: [companyId], references: [id])
+  date       DateTime
+  timeIn     DateTime? // Use DateTime for exact check-in time
+  timeOut    DateTime? // Use DateTime for exact check-out time
+  status     AttendanceStatus
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 }
 
 enum AttendanceStatus {
@@ -208,19 +201,21 @@ enum InvitationStatus {
 }
 
 model Invitation {
-  id        Int              @id @default(autoincrement())
-  email     String
-  role      Role
-  invitedBy Int
-  position  String
-  inviter   Employee         @relation(fields: [invitedBy], references: [id])
-  companyId Int
-  company   Company          @relation(fields: [companyId], references: [id])
-  status    InvitationStatus @default(PENDING)
-  token     String           @unique
-  expiresAt DateTime
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id           Int              @id @default(autoincrement())
+  email        String
+  role         Role
+  invitedBy    Int
+  position     String
+  inviter      Employee         @relation(fields: [invitedBy], references: [id])
+  companyId    Int
+  company      Company          @relation(fields: [companyId], references: [id])
+  departmentId Int
+  department   Department       @relation(fields: [departmentId], references: [id])
+  status       InvitationStatus @default(PENDING)
+  token        String           @unique
+  expiresAt    DateTime
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }
 
 model Company {
