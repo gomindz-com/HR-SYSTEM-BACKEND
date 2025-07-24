@@ -1,17 +1,20 @@
 import prisma from "../config/prisma.config.js";
-import { verifyQrPayload , generateQrJwt} from "../lib/utils.js";
+import { verifyQrPayloadOfflineAware, generateQrJwt } from "../lib/utils.js";
+
 export const checkIn = async (req, res) => {
-  const { qrPayload } = req.body;
+  const { qrPayload, scannedAt } = req.body;
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
   try {
-    const qrData = verifyQrPayload(qrPayload);
+    const qrData = verifyQrPayloadOfflineAware(qrPayload, scannedAt);
     if (!qrData) {
       return res.status(400).json({ message: "Invalid or expired QR code" });
     }
+
     const existingAttendance = await prisma.attendance.findFirst({
       where: {
         companyId,
@@ -29,7 +32,6 @@ export const checkIn = async (req, res) => {
     const now = new Date();
     const status = now.getHours() >= 9 ? "LATE" : "PRESENT";
 
-    // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
       where: {
         employeeId_date: { employeeId, date: today },
@@ -57,15 +59,16 @@ export const checkIn = async (req, res) => {
 };
 
 export const checkOut = async (req, res) => {
-  const { qrPayload } = req.body;
+  const { qrPayload, scannedAt } = req.body;
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
   try {
-    const qrData = verifyQrPayload(qrPayload);
+    const qrData = verifyQrPayloadOfflineAware(qrPayload, scannedAt);
     if (!qrData) {
       return res.status(400).json({ message: "Invalid or expired QR code" });
     }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
