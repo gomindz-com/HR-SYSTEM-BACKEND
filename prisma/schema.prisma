@@ -88,6 +88,8 @@ model Attendance {
   status     AttendanceStatus
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+
+  @@unique([employeeId, date])
 }
 
 enum AttendanceStatus {
