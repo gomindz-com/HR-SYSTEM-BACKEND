@@ -50,3 +50,8 @@ export const listEmployees = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
+
+
+export const myAttendance = async (req, res) => {}
