@@ -20,37 +20,36 @@ model Department {
 }
 
 model Employee {
-  id                   Int                 @id @default(autoincrement())
-  name                 String
-  email                String              @unique
-  phone                String?
-  profilePic           String?
-  password             String
-  position             String?
-  departmentId         Int
-  department           Department          @relation(fields: [departmentId], references: [id])
-  companyId            Int
-  company              Company             @relation(fields: [companyId], references: [id])
-  location             String?
-  status               EmployeeStatus      @default(ACTIVE)
-  avatar               String?
-  role                 Role
-  dateOfBirth          DateTime?
-  address              String?
-  emergencyContact     String?
-  employmentType       EmploymentType      @default(FULL_TIME)
-  salary               Float?
-  lastLogin            DateTime?
-  resetPasswordToken   String?
-  resetPasswordExpires DateTime?
-  attendances          Attendance[]        @relation("EmployeeAttendance")
-  leaveRequests        LeaveRequest[]
-  payrolls             Payroll[]
-  performanceReviews   PerformanceReview[]
-  notifications        Notification[]
-  qrSecret             String?
-  createdAt            DateTime            @default(now())
-
+  id                    Int                 @id @default(autoincrement())
+  name                  String
+  email                 String              @unique
+  phone                 String?
+  profilePic            String?
+  password              String
+  position              String?
+  departmentId          Int
+  department            Department          @relation(fields: [departmentId], references: [id])
+  companyId             Int
+  company               Company             @relation(fields: [companyId], references: [id])
+  location              String?
+  status                EmployeeStatus      @default(ACTIVE)
+  avatar                String?
+  role                  Role
+  dateOfBirth           DateTime?
+  address               String?
+  emergencyContact      String?
+  employmentType        EmploymentType      @default(FULL_TIME)
+  salary                Float?
+  lastLogin             DateTime?
+  resetPasswordToken    String?
+  resetPasswordExpires  DateTime?
+  attendances           Attendance[]        @relation("EmployeeAttendance")
+  leaveRequests         LeaveRequest[]
+  payrolls              Payroll[]
+  performanceReviews    PerformanceReview[]
+  notifications         Notification[]
+  qrSecret              String?
+  createdAt             DateTime            @default(now())
   managedDepartments    Department[]        @relation("DepartmentManager")
   approvedLeaveRequests LeaveRequest[]      @relation("LeaveApprover")
   reviewsGiven          PerformanceReview[] @relation("Reviewer")

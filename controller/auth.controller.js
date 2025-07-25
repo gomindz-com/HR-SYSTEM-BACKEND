@@ -181,9 +181,17 @@ export const checkAuth = async (req, res) => {
         profilePic: true,
         name: true,
         email: true,
+        status: true,
         role: true,
+        
+        departmentId: true,
         companyId: true,
         createdAt: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
         company: {
           select: {
             companyName: true,

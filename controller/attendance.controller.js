@@ -166,3 +166,60 @@ export const listAttendance = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+
+
+
+
+
+
+export const myAttendance = async (req, res) => {
+  const employeeId = req.user.id;
+  const companyId = req.user.companyId;
+
+  const page =  Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.max(1, parseInt(req.query.limit) || 10);
+  const skip = (page - 1) * limit;
+
+  if (!employeeId || !companyId) {
+    return res.status(400).json({ message: "Employee ID and Company ID are required" });
+  }
+
+  try {
+
+    const myattendance = await prisma.attendance.findMany({
+      where: {
+        employeeId,
+        companyId,
+      },
+      orderBy: {
+        date: 'desc',
+      },
+      include: {
+        employee: {
+          select: {
+            name: true,
+            email: true,
+            profilePic: true,
+          },
+        },
+      },
+      skip,
+      take: limit,
+    });
+    if (!myattendance || myattendance.length === 0) {
+      return res.status(404).json({ message: "No attendance records found" });
+    }
+
+
+
+
+
+
+return res.status(200).json({ data: { attendance: myattendance } , pagination: {
+  page, limit, totalPages: Math.ceil(myattendance.length / limit),
+  total: await prisma.attendance.count({ where: { employeeId, companyId } })
+}});  } catch (error) {
+    
+  }
+}
