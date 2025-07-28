@@ -4,6 +4,7 @@ import {
   checkIn,
   checkOut,
   generateQrToken,
+  getAttendanceStats,
   listAttendance,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
@@ -15,5 +16,7 @@ router.use(verifyToken);
 router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);
 router.get("/generate-qr", generateQrToken);
-router.get("/", verifyToken, listAttendance)
+router.get("/my-attendance", verifyToken, listAttendance)
+
+router.get("/stats", getAttendanceStats)
 export default router;
