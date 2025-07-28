@@ -17,6 +17,7 @@ router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);
 router.get("/generate-qr", generateQrToken);
 router.get("/my-attendance", verifyToken, listAttendance)
-
+router.get('/', verifyToken, listAttendance)
 router.get("/stats", getAttendanceStats)
+
 export default router;

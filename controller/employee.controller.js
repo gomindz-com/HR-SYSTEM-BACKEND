@@ -54,4 +54,3 @@ export const listEmployees = async (req, res) => {
 
 
 
-export const myAttendance = async (req, res) => {}

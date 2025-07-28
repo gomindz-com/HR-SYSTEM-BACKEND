@@ -102,28 +102,29 @@ export const generateQrToken = async (req, res) => {
 };
 
 export const listAttendance = async (req, res) => {
-  const companyId = req.user.companyId;
+  const companyId = req.user?.companyId;
 
   if (!companyId) {
     return res.status(400).json({ message: "Company ID is required" });
   }
 
-  // Pagination params
+  // Pagination
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
 
-  // Filtering params
-  const { employeeId, status, fromDate, toDate } = req.query;
-
-  // Build where clause
+  // Filters
+  const { employeeId, status } = req.query;
   const where = { companyId };
-  if (employeeId) where.employeeId = parseInt(employeeId);
-  if (status) where.status = status;
-  if (fromDate || toDate) {
-    where.date = {};
-    if (fromDate) where.date.gte = new Date(fromDate);
-    if (toDate) where.date.lte = new Date(toDate);
+
+  // Safe parse for employeeId
+  const parsedEmployeeId = parseInt(employeeId);
+  if (employeeId && !isNaN(parsedEmployeeId)) {
+    where.employeeId = parsedEmployeeId;
+  }
+
+  if (status) {
+    where.status = status;
   }
 
   try {
@@ -146,6 +147,7 @@ export const listAttendance = async (req, res) => {
       }),
       prisma.attendance.count({ where }),
     ]);
+
     return res.status(200).json({
       data: {
         attendance: attendanceRecords,
