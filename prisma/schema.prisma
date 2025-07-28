@@ -92,7 +92,7 @@ model Attendance {
 }
 
 enum AttendanceStatus {
-  PRESENT
+  ON_TIME
   ABSENT
   LATE
 }

@@ -27,7 +27,7 @@ export const checkIn = async (req, res) => {
     }
 
     const now = new Date();
-    const status = now.getHours() >= 9 ? "LATE" : "PRESENT";
+    const status = now.getHours() >= 9 ? "LATE" : "ON_TIME";
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
