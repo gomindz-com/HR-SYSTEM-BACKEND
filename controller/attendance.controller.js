@@ -1,5 +1,5 @@
 import prisma from "../config/prisma.config.js";
-import { verifyQrPayload, generateQrJwt } from "../lib/utils.js";
+import { verifyQrPayload } from "../lib/utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload } = req.body;
   const employeeId = req.user.id;
@@ -10,7 +10,7 @@ export const checkIn = async (req, res) => {
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
-      return res.status(400).json({ message: "Invalid or expired QR code" });
+      return res.status(400).json({ message: "Invalid QR code" });
     }
     const existingAttendance = await prisma.attendance.findFirst({
       where: {
@@ -64,7 +64,7 @@ export const checkOut = async (req, res) => {
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
-      return res.status(400).json({ message: "Invalid or expired QR code" });
+      return res.status(400).json({ message: "Invalid QR code" });
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -94,11 +94,6 @@ export const checkOut = async (req, res) => {
     console.log("Error in Checkout Controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
-};
-
-export const generateQrToken = async (req, res) => {
-  const token = generateQrJwt(req.user.companyId);
-  return res.status(200).json({ data: { qrToken: token } });
 };
 
 export const listAttendance = async (req, res) => {
@@ -213,9 +208,11 @@ export const myAttendance = async (req, res) => {
         }),
       },
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error in myAttendance controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
 };
-
 
 export const getAttendanceStats = async (req, res) => {
   const employeeId = req.user?.id;
@@ -228,25 +225,21 @@ export const getAttendanceStats = async (req, res) => {
   }
 
   try {
-    const [
-      totalAttendance,
-      totalDays,
-      daysLate,
-      daysAbsent,
-    ] = await Promise.all([
-      prisma.attendance.count({
-        where: { employeeId, companyId, status: { not: "ABSENT" } },
-      }),
-      prisma.attendance.count({
-        where: { employeeId, companyId },
-      }),
-      prisma.attendance.count({
-        where: { employeeId, companyId, status: "LATE" },
-      }),
-      prisma.attendance.count({
-        where: { employeeId, companyId, status: "ABSENT" },
-      }),
-    ]);
+    const [totalAttendance, totalDays, daysLate, daysAbsent] =
+      await Promise.all([
+        prisma.attendance.count({
+          where: { employeeId, companyId, status: { not: "ABSENT" } },
+        }),
+        prisma.attendance.count({
+          where: { employeeId, companyId },
+        }),
+        prisma.attendance.count({
+          where: { employeeId, companyId, status: "LATE" },
+        }),
+        prisma.attendance.count({
+          where: { employeeId, companyId, status: "ABSENT" },
+        }),
+      ]);
 
     const attendancePercentage =
       totalDays > 0
