@@ -26,16 +26,14 @@ const app = express();
 
 // middleware
 app.use(express.json());
+
+// CORS configuration - Allow all origins for now
 app.use(
   cors({
-    origin: [
-      "http://localhost:8080",
-      "http://localhost:5173",
-      "http://172.20.10.2:8080",
-      "http://172.20.10.2:5173",
-      process.env.CLIENT_URL, 
-    ],
+    origin: true, // Allow all origins temporarily
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
 
