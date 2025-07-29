@@ -208,7 +208,10 @@ export const myAttendance = async (req, res) => {
         }),
       },
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error in myAttendance controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
 export const getAttendanceStats = async (req, res) => {

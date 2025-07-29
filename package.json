@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node ./bin/index.js",
-    "dev": "nodemon ./bin/index.js"
+    "dev": "nodemon ./bin/index.js",
+    "test:automation": "node test-automation.js"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",

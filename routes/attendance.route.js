@@ -5,6 +5,7 @@ import {
   checkOut,
   getAttendanceStats,
   listAttendance,
+  myAttendance,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -14,8 +15,8 @@ router.use(verifyToken);
 
 router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);
-router.get("/my-attendance", verifyToken, listAttendance);
-router.get("/", verifyToken, listAttendance);
+router.get("/my-attendance", myAttendance);
+router.get("/", listAttendance);
 router.get("/stats", getAttendanceStats);
 
 export default router;
