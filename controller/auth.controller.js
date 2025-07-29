@@ -44,9 +44,6 @@ export const logout = async (req, res) => {
   try {
     res.cookie("jwt", "", {
       maxAge: 0,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
     });
     res.status(200).json({ message: "logged out successfully" });
   } catch (error) {
@@ -186,7 +183,7 @@ export const checkAuth = async (req, res) => {
         email: true,
         status: true,
         role: true,
-
+        
         departmentId: true,
         companyId: true,
         createdAt: true,

@@ -65,25 +65,6 @@ app.use(
 
 app.use(cookieParser());
 
-// CSRF Protection Middleware
-app.use((req, res, next) => {
-  // Skip CSRF check for GET requests and OPTIONS (preflight)
-  if (req.method === "GET" || req.method === "OPTIONS") {
-    return next();
-  }
-
-  // For POST/PUT/DELETE requests, check if it's from allowed origin
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    return next();
-  }
-
-  // Block requests from unauthorized origins
-  return res
-    .status(403)
-    .json({ message: "CSRF protection: Unauthorized origin" });
-});
-
 // ROUTES
 
 app.use("/api/auth", authRoutes);
