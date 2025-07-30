@@ -72,6 +72,7 @@ export const signUpCompany = async (req, res) => {
         phone: HRPhone,
         address: HRAddress,
         role: "HR",
+        position: "HR Manager",
         companyId: company.id,
         profilePic: randomAvatar,
         departmentId: hrDepartment.id,
