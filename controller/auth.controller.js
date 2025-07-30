@@ -40,15 +40,40 @@ export const login = async (req, res) => {
   }
 };
 
+// export const logout = async (req, res) => {
+//   try {
+//     res.cookie("jwt", "", {
+//       maxAge: 0,
+//     });
+//     res.status(200).json({ message: "logged out successfully" });
+//   } catch (error) {
+//     console.log("Error in logout", error);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// };
 export const logout = async (req, res) => {
   try {
-    res.cookie("jwt", "", {
-      maxAge: 0,
-    });
-    res.status(200).json({ message: "logged out successfully" });
+    const maxAge = 0; // clears immediately
+    const cookieStr = [
+      `jwt=`,               // empty value
+      `Max-Age=${maxAge}`,
+      `Path=/`,
+      `HttpOnly`,
+      // In production you're on HTTPS, so include Secure; in dev you can omit it
+      process.env.NODE_ENV === "production" ? "Secure" : "",
+      // SameSite=None is required for cross‐site; it's just part of the header string
+      "SameSite=None"
+    ]
+      .filter(Boolean)
+      .join("; ");
+
+    // Manually append the header—don't use res.cookie/clearCookie
+    res.append("Set-Cookie", cookieStr);
+
+    return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in logout", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error in logout", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
