@@ -5,18 +5,13 @@ export const checkIn = async (req, res) => {
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
-  console.log("🔍 Check-in attempt:", { employeeId, companyId, qrPayload });
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
-      console.log("❌ Invalid QR code:", qrPayload);
       return res.status(400).json({ message: "Invalid QR code" });
     }
-    console.log("✅ QR code validated:", qrData);
-
     const existingAttendance = await prisma.attendance.findFirst({
       where: {
         companyId,
@@ -26,7 +21,6 @@ export const checkIn = async (req, res) => {
     });
 
     if (existingAttendance && existingAttendance.timeIn) {
-      console.log("❌ Already checked in today:", { employeeId, date: today });
       return res
         .status(400)
         .json({ message: "You have already checked in today" });
@@ -34,13 +28,6 @@ export const checkIn = async (req, res) => {
 
     const now = new Date();
     const status = now.getHours() >= 9 ? "LATE" : "ON_TIME";
-
-    console.log("📝 Creating/updating attendance record:", {
-      employeeId,
-      companyId,
-      date: today,
-      status,
-    });
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -60,16 +47,11 @@ export const checkIn = async (req, res) => {
       },
     });
 
-    console.log("✅ Check-in successful:", {
-      attendanceId: attendance.id,
-      employeeId,
-    });
-
     return res
       .status(201)
       .json({ message: "Check-in successful", data: { attendance } });
   } catch (error) {
-    console.error("❌ Error in Checkin Controller", error);
+    console.error("Error in Checkin Controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -79,16 +61,11 @@ export const checkOut = async (req, res) => {
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
-  console.log("🔍 Check-out attempt:", { employeeId, companyId, qrPayload });
-
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
-      console.log("❌ Invalid QR code:", qrPayload);
       return res.status(400).json({ message: "Invalid QR code" });
     }
-    console.log("✅ QR code validated:", qrData);
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -101,36 +78,20 @@ export const checkOut = async (req, res) => {
     });
 
     if (!existingAttendance || existingAttendance.timeOut) {
-      console.log("❌ No check-in found or already checked out:", {
-        employeeId,
-        date: today,
-        hasTimeOut: existingAttendance?.timeOut,
-      });
       return res.status(400).json({ message: "You have not checked in today" });
     }
 
     const now = new Date();
-    console.log("📝 Updating check-out time:", {
-      attendanceId: existingAttendance.id,
-      employeeId,
-      timeOut: now,
-    });
-
     const attendance = await prisma.attendance.update({
       where: { id: existingAttendance.id },
       data: { timeOut: now },
-    });
-
-    console.log("✅ Check-out successful:", {
-      attendanceId: attendance.id,
-      employeeId,
     });
 
     return res
       .status(200)
       .json({ message: "Check-out successful", data: { attendance } });
   } catch (error) {
-    console.error("❌ Error in Checkout Controller", error);
+    console.log("Error in Checkout Controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
