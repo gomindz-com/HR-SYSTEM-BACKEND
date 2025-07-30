@@ -22,7 +22,8 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    generateToken(user.id, res);
+    // Generate token and return it in response body
+    const token = generateToken(user.id, res);
 
     // Exclude sensitive fields like password
     const { password: _password, ...userWithoutPassword } = user;
@@ -32,6 +33,7 @@ export const login = async (req, res) => {
       message: "Login successful",
       data: {
         user: userWithoutPassword,
+        token: token, // Return token in response
       },
     });
   } catch (error) {
@@ -44,9 +46,9 @@ export const logout = async (req, res) => {
   try {
     res.clearCookie("jwt", {
       httpOnly: true,
-      secure:   process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      path:     "/",
+      path: "/",
     });
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
@@ -185,7 +187,7 @@ export const checkAuth = async (req, res) => {
         email: true,
         status: true,
         role: true,
-        
+
         departmentId: true,
         companyId: true,
         createdAt: true,
