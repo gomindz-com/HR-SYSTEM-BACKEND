@@ -81,7 +81,7 @@ export const sendInvitation = async (req, res) => {
       subject: "Invitation to join company",
       html: `
             <p>You are invited to join ${company.companyName} as ${
-        role || "EMPLOYEE"
+        position || "Employee"
       }.</p>
             <p>Click the link below to accept the invitation:</p>
             <a href="${invitationUrl}">${invitationUrl}</a>

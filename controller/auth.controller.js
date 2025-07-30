@@ -60,9 +60,6 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: "Invalid email address" });
-    }
 
     const user = await prisma.employee.findUnique({
       where: { email },
@@ -97,7 +94,7 @@ export const forgotPassword = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL || "https://hr-management-system.vercel.app";
+        : process.env.CLIENT_URL || "https://hr-system-frontend-tester.vercel.app";
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
     const mailOptions = {
