@@ -1,5 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 
+// Determine which schema to use based on environment
+const getSchemaPath = () => {
+  if (process.env.NODE_ENV === "production") {
+    return "./prisma/schema.postgresql.prisma";
+  }
+  return "./prisma/schema.sqlite.prisma";
+};
+
 // Create a singleton instance for better connection management
 let prisma = null;
 
@@ -79,6 +87,11 @@ prisma
   .$connect()
   .then(() => {
     console.log("✅ Database connection established successfully");
+    console.log(
+      ` Using database: ${
+        process.env.NODE_ENV === "production" ? "PostgreSQL" : "SQLite"
+      }`
+    );
     if (process.env.DEBUG_QUERIES === "true") {
       console.log(
         "🔍 Query logging enabled (set DEBUG_QUERIES=false to disable)"
