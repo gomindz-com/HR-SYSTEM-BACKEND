@@ -34,6 +34,9 @@ const allowedOrigins = [
   "http://172.20.10.2:8080",
   "http://172.20.10.2:5173",
   "https://hr-system-frontend-tester.vercel.app",
+  "https://hr-system-frontend.vercel.app",
+  "https://hr-system.vercel.app",
+  "https://hr-app.vercel.app",
 ];
 
 // Add CLIENT_URL if it exists
@@ -48,12 +51,17 @@ app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
+      if (!origin) {
+        console.log("⚠️ CORS: Request with no origin allowed");
+        return callback(null, true);
+      }
 
       if (allowedOrigins.indexOf(origin) !== -1) {
+        console.log("✅ CORS: Allowed origin:", origin);
         callback(null, true);
       } else {
         console.log("❌ CORS blocked origin:", origin);
+        console.log("❌ CORS allowed origins:", allowedOrigins);
         callback(new Error("Not allowed by CORS"));
       }
     },
