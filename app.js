@@ -11,16 +11,16 @@ import employeeRoutes from "./routes/employee.route.js";
 // Load environment variables first
 dotenv.config();
 
-// Initialize automation with proper error handling
-try {
-  await import("./automations/absentAutomation.js");
-  console.log(
-    "🚀 Absent automation cron job initialized - will run daily at 7:00 PM UTC"
-  );
-} catch (error) {
-  console.error("❌ Failed to initialize absent automation:", error);
-  // Don't exit the process, just log the error
-}
+// // Initialize automation with proper error handling
+// try {
+//   await import("./automations/absentAutomation.js");
+//   console.log(
+//     "🚀 Absent automation cron job initialized - will run daily at 7:00 PM UTC"
+//   );
+// } catch (error) {
+//   console.error("❌ Failed to initialize absent automation:", error);
+//   // Don't exit the process, just log the error
+// }
 
 const app = express();
 
