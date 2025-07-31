@@ -1,4 +1,4 @@
-import { transporter } from "../config/transporter.js";
+import { resend } from "../config/resend.config.js";
 
 // Email sending function
 export const forgotPasswordEmail = async (to, url) => {
@@ -21,30 +21,23 @@ export const forgotPasswordEmail = async (to, url) => {
   </div>
 `;
 
-  const mailOptions = {
-    from: `"HR System" <${process.env.GMAIL_USER}>`,
-    to,
-    subject: "Your HR System Account - Action Required",
-    html: htmlContent,
-    headers: {
-      "X-Priority": "1",
-      "X-MSMail-Priority": "High",
-      Importance: "high",
-      "List-Unsubscribe": `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`,
-      Precedence: "bulk",
-      "Auto-Submitted": "auto-generated",
-    },
-  };
-
-  return new Promise((resolve, reject) => {
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending email:", error);
-        reject(error);
-      } else {
-        console.log("Reset email sent: " + info.response);
-        resolve(info);
-      }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "HR System <onboarding@resend.dev>",
+      to: [to],
+      subject: "Your HR System Account - Action Required",
+      html: htmlContent,
     });
-  });
+
+    if (error) {
+      console.error("Error sending email:", error);
+      throw error;
+    }
+
+    console.log("Reset email sent successfully:", data);
+    return data;
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw error;
+  }
 };
