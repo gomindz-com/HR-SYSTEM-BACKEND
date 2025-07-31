@@ -1,7 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
 import crypto from "crypto";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 export const sendInvitation = async (req, res) => {
   const { email, role, position, departmentId } = req.body;
   const id = req.user.id;
@@ -65,14 +65,15 @@ export const sendInvitation = async (req, res) => {
         expiresAt,
         status: "PENDING",
         createdAt: new Date(),
-        departmentId
+        departmentId,
       },
     });
 
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL || "https://hr-system-frontend-tester.vercel.app";
+        : process.env.CLIENT_URL ||
+          "https://hr-system-frontend-tester.vercel.app";
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
@@ -101,7 +102,7 @@ export const sendInvitation = async (req, res) => {
 
 export const acceptInvitation = async (req, res) => {
   const { token } = req.params;
-  const { name, password, confirmPassword, } = req.body;
+  const { name, password, confirmPassword } = req.body;
 
   try {
     if (!token) {

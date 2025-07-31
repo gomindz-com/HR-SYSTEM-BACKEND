@@ -60,7 +60,6 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-
     const user = await prisma.employee.findUnique({
       where: { email },
     });
@@ -70,10 +69,6 @@ export const forgotPassword = async (req, res) => {
       return res.status(200).json({
         message: "Reset link has been sent to your email", // same response
       });
-    }
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -94,7 +89,8 @@ export const forgotPassword = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL || "https://hr-system-frontend-tester.vercel.app";
+        : process.env.CLIENT_URL ||
+          "https://hr-system-frontend-tester.vercel.app";
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
     const mailOptions = {
