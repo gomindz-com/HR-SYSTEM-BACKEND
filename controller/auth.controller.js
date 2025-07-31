@@ -2,7 +2,7 @@ import prisma from "../config/prisma.config.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../emails/utils.js";
 import crypto from "crypto";
-import { transporter } from "../config/transporter.js";
+import { forgotPasswordEmail } from "../emails/forgotPasswordEmail.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -93,21 +93,7 @@ export const forgotPassword = async (req, res) => {
           "https://hr-system-frontend-tester.vercel.app";
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
-    const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: "Password Reset Request",
-      html: `
-        <p>Hello,</p>
-        <p>You are receiving this email because you (or someone else) have requested a password reset for your account.</p>
-        <p>Please click the link below to reset your password:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>If you did not request a password reset, please ignore this email.</p>
-        <p>Thank you!</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
+    await forgotPasswordEmail(email, resetUrl);
 
     res.status(200).json({
       message: "Reset link has been sent to your email",
