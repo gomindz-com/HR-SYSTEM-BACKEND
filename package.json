@@ -6,11 +6,12 @@
   "scripts": {
     "start": "node ./bin/index.js",
     "dev": "nodemon ./bin/index.js",
-    "build": "npm run db:generate:prod",
+    "build": "npm run db:generate:prod && npm run db:migrate:prod",
     "deploy-setup": "node deploy-setup.js",
     "test:automation": "node test-automation.js",
     "db:generate:dev": "prisma generate --schema=./prisma/schema.sqlite.prisma",
     "db:generate:prod": "prisma generate --schema=./prisma/schema.postgresql.prisma",
+    "db:generate": "prisma generate",
     "db:push:dev": "prisma db push --schema=./prisma/schema.sqlite.prisma",
     "db:push:prod": "prisma db push --schema=./prisma/schema.postgresql.prisma",
     "db:studio:dev": "prisma studio --schema=./prisma/schema.sqlite.prisma",

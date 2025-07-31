@@ -33,6 +33,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://172.20.10.2:8080",
   "http://172.20.10.2:5173",
+  "https://e632bfbfb94b.ngrok-free.app",
   "https://hr-system-frontend-tester.vercel.app",
 ];
 

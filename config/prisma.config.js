@@ -1,12 +1,22 @@
 import { PrismaClient } from "@prisma/client";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Determine which schema to use based on environment
 const getSchemaPath = () => {
   if (process.env.NODE_ENV === "production") {
-    return "./prisma/schema.postgresql.prisma";
+    return join(__dirname, "../prisma/schema.postgresql.prisma");
   }
-  return "./prisma/schema.sqlite.prisma";
+  return join(__dirname, "../prisma/schema.sqlite.prisma");
 };
+
+// Set the correct DATABASE_URL for development if not set
+if (process.env.NODE_ENV !== "production" && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = "file:./prisma/dev.db";
+}
 
 // Create a singleton instance for better connection management
 let prisma = null;
@@ -92,6 +102,7 @@ prisma
         process.env.NODE_ENV === "production" ? "PostgreSQL" : "SQLite"
       }`
     );
+    console.log(` Database URL: ${process.env.DATABASE_URL}`);
     if (process.env.DEBUG_QUERIES === "true") {
       console.log(
         "🔍 Query logging enabled (set DEBUG_QUERIES=false to disable)"
