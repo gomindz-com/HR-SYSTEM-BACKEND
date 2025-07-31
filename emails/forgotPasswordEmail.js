@@ -1,4 +1,4 @@
-import { resend } from "../config/resend.config.js";
+import { transporter } from "../config/transporter.js";
 
 // Email sending function
 export const forgotPasswordEmail = async (to, url) => {
@@ -21,23 +21,22 @@ export const forgotPasswordEmail = async (to, url) => {
   </div>
 `;
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: "HR System <sannabsjammeh54@gmail.com>",
-      to: [to],
-      subject: "Your HR System Account - Action Required",
-      html: htmlContent,
+  const mailOptions = {
+    from: `"HR System" <${process.env.GMAIL_USER}>`,
+    to: to,
+    subject: "Your HR System Account - Action Required",
+    html: htmlContent,
+  };
+
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending email:", error);
+        reject(error);
+      } else {
+        console.log("Reset email sent successfully:", info.response);
+        resolve(info);
+      }
     });
-
-    if (error) {
-      console.error("Error sending email:", error);
-      throw error;
-    }
-
-    console.log("Reset email sent successfully:", data);
-    return data;
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
-  }
+  });
 };
