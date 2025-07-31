@@ -83,7 +83,7 @@ export const checkOut = async (req, res) => {
         .json({ message: "You have already checked out today" });
     }
 
-    if (!existingAttendance || existingAttendance.timeOut) {
+    if (!existingAttendance) {
       return res.status(400).json({ message: "You have not checked in today" });
     }
 
