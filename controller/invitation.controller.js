@@ -78,7 +78,7 @@ export const sendInvitation = async (req, res) => {
 
     try {
       const { data, error } = await resend.emails.send({
-        from: "HR System <onboarding@resend.dev>",
+        from: "HR System <sannabsjammeh54@gmail.com>",
         to: [email],
         subject: "Invitation to join company",
         html: `

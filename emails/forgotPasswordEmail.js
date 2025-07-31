@@ -23,7 +23,7 @@ export const forgotPasswordEmail = async (to, url) => {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: "HR System <onboarding@resend.dev>",
+      from: "HR System <sannabsjammeh54@gmail.com>",
       to: [to],
       subject: "Your HR System Account - Action Required",
       html: htmlContent,
