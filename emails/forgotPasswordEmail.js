@@ -18,9 +18,9 @@ export const forgotPasswordEmail = async (to, url) => {
 `;
 
   const mailOptions = {
-    from: `"Gomindz" <${process.env.GMAIL_USER}>`,
+    from: `"HR System" <${process.env.GMAIL_USER}>`,
     to,
-    subject: "🔐 Password Reset Request | Demz Property Management",
+    subject: "🔐 Password Reset Request | HR System",
     html: htmlContent,
     headers: {
       "X-Priority": "1",

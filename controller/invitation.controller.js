@@ -77,7 +77,7 @@ export const sendInvitation = async (req, res) => {
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "Invitation to join company",
       html: `

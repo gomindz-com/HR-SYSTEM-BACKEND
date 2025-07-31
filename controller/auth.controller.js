@@ -94,7 +94,7 @@ export const forgotPassword = async (req, res) => {
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: "Password Reset Request",
       html: `
