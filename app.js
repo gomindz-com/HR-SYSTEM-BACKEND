@@ -36,7 +36,6 @@ const allowedOrigins = [
   "http://172.20.10.2:5173",
   "https://e632bfbfb94b.ngrok-free.app",
   "https://hr-system-frontend-tester.vercel.app",
-  "https://hr-system-frontend-tester-*.vercel.app",
 ];
 
 // Add CLIENT_URL if it exists
@@ -53,12 +52,7 @@ app.use(
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
 
-      // Check if origin is in allowedOrigins or matches Vercel pattern
-      if (
-        allowedOrigins.indexOf(origin) !== -1 ||
-        (origin.includes("hr-system-frontend-tester") &&
-          origin.includes("vercel.app"))
-      ) {
+      if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
         console.log("❌ CORS blocked origin:", origin);
