@@ -54,8 +54,11 @@ app.use(
       if (!origin) return callback(null, true);
 
       // Check if origin is in allowedOrigins or matches Vercel pattern
-      if (allowedOrigins.indexOf(origin) !== -1 || 
-          origin.includes("hr-system-frontend-tester") && origin.includes("vercel.app")) {
+      if (
+        allowedOrigins.indexOf(origin) !== -1 ||
+        (origin.includes("hr-system-frontend-tester") &&
+          origin.includes("vercel.app"))
+      ) {
         callback(null, true);
       } else {
         console.log("❌ CORS blocked origin:", origin);
