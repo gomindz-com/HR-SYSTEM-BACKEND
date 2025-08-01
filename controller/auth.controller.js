@@ -164,9 +164,12 @@ export const checkAuth = async (req, res) => {
         profilePic: true,
         name: true,
         email: true,
+        phone: true,
+        address: true,
+        dateOfBirth: true,
+        emergencyContact: true,
         status: true,
         role: true,
-
         departmentId: true,
         companyId: true,
         createdAt: true,
