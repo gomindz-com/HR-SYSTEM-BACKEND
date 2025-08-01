@@ -7,7 +7,7 @@ import invitationRoutes from "./routes/invitation.route.js";
 import departmentRoutes from "./routes/department.route.js";
 import attendanceRoutes from "./routes/attendance.route.js";
 import employeeRoutes from "./routes/employee.route.js";
-import userRoutes from "./routes/user.route.js";
+
 // Load environment variables first
 dotenv.config();
 
@@ -73,6 +73,5 @@ app.use("/api/invitation", invitationRoutes);
 app.use("/api/department", departmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/employee", employeeRoutes);
-app.use("/api/user", userRoutes);
 
 export default app;

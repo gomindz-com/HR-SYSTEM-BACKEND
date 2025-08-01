@@ -51,59 +51,6 @@ export const listEmployees = async (req, res) => {
   }
 };
 
-export const getEmployeeDetails = async (req, res) => {
-  const { id } = req.params;
-  const companyId = req.user.companyId;
 
-  if (!id || !companyId) {
-    return res
-      .status(400)
-      .json({ message: "Employee ID and Company ID are required" });
-  }
 
-  try {
-    const employee = await prisma.employee.findFirst({
-      where: {
-        id: parseInt(id),
-        companyId,
-      },
-      include: {
-        department: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        company: {
-          select: {
-            id: true,
-            companyName: true,
-            companyEmail: true,
-          },
-        },
-        attendances: {
-          take: 5,
-          orderBy: { date: "desc" },
-          select: {
-            id: true,
-            date: true,
-            timeIn: true,
-            timeOut: true,
-            status: true,
-          },
-        },
-      },
-    });
 
-    if (!employee) {
-      return res.status(404).json({ message: "Employee not found" });
-    }
-
-    return res.status(200).json({
-      data: employee,
-    });
-  } catch (error) {
-    console.error("Error fetching employee details", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
