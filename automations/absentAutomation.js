@@ -6,37 +6,60 @@ let absentAutomationJob = null;
 
 // Function to run the absent automation
 async function runAbsentAutomation() {
-  console.log("Running absent automation at 7:00 PM");
+  console.log("🔄 Running absent automation...");
+  console.log(`⏰ Current time: ${new Date().toISOString()}`);
+
+  // Check if today is weekend (Saturday = 6, Sunday = 0)
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    console.log(
+      `📅 Weekend detected (${dayOfWeek === 0 ? "Sunday" : "Saturday"}), skipping absent automation`
+    );
+    return;
+  }
 
   try {
     // Validate database connection
+    console.log("🔗 Connecting to database...");
     await prisma.$connect();
+    console.log("✅ Database connection successful");
 
     // Get today's date at midnight for consistent comparison
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
 
     // Validate the date is reasonable (not in the future)
     const now = new Date();
-    if (today > now) {
+    if (todayDate > now) {
       console.error("Error: Attempting to process future date");
       return;
     }
 
     console.log(
-      `Processing attendance for date: ${today.toISOString().split("T")[0]}`
+      `Processing attendance for date: ${todayDate.toISOString().split("T")[0]}`
     );
 
+    // First, let's check how many active employees exist
+    const totalActiveEmployees = await prisma.employee.count({
+      where: {
+        status: "ACTIVE",
+      },
+    });
+    console.log(`📊 Total active employees: ${totalActiveEmployees}`);
+
     // Find all active employees who haven't checked in today
+    console.log("🔍 Querying for employees without attendance...");
     const employeesWithoutAttendance = await prisma.employee.findMany({
       where: {
         status: "ACTIVE",
         // Exclude employees who already have attendance records for today
-        attendance: {
+        attendances: {
           none: {
             date: {
-              gte: today,
-              lt: new Date(today.getTime() + 24 * 60 * 60 * 1000), // Next day
+              gte: todayDate,
+              lt: new Date(todayDate.getTime() + 24 * 60 * 60 * 1000), // Next day
             },
           },
         },
@@ -66,11 +89,11 @@ async function runAbsentAutomation() {
             in: employeesWithoutAttendance.map((emp) => emp.id),
           },
           status: "ACTIVE",
-          attendance: {
+          attendances: {
             none: {
               date: {
-                gte: today,
-                lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+                gte: todayDate,
+                lt: new Date(todayDate.getTime() + 24 * 60 * 60 * 1000),
               },
             },
           },
@@ -91,10 +114,11 @@ async function runAbsentAutomation() {
         data: employeesToMarkAbsent.map((employee) => ({
           employeeId: employee.id,
           companyId: employee.companyId,
-          date: today,
+          date: todayDate,
           status: "ABSENT",
+          timeIn: null,
+          timeOut: null,
         })),
-        skipDuplicates: true, // Prevent duplicate records if automation runs multiple times
       });
 
       return absentRecords;
@@ -131,14 +155,17 @@ async function runAbsentAutomation() {
 // Initialize the cron job
 function initializeAbsentAutomation() {
   try {
-    // Schedule the job to run at 7:00 PM daily
-    absentAutomationJob = cron.schedule("0 19 * * *", runAbsentAutomation, {
+    // Schedule the job to run at 5:00 PM UTC daily (Monday-Friday only)
+    absentAutomationJob = cron.schedule("0 17 * * 1-5", runAbsentAutomation, {
       scheduled: true,
       timezone: "UTC", // Use UTC to avoid timezone issues
     });
 
     console.log("✅ Absent automation cron job initialized successfully");
-    console.log("📅 Schedule: Daily at 7:00 PM UTC");
+    console.log("📅 Schedule: 5:00 PM UTC daily (Monday-Friday)");
+    console.log(
+      "📅 Weekend exclusion: Automatically skips Saturdays and Sundays"
+    );
 
     return absentAutomationJob;
   } catch (error) {

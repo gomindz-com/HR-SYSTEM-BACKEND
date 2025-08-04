@@ -8,7 +8,6 @@
     "dev": "nodemon ./bin/index.js",
     "build": "npm run db:generate:prod && npm run db:migrate:prod",
     "deploy-setup": "node deploy-setup.js",
-    "test:automation": "node test-automation.js",
     "db:generate:dev": "prisma generate --schema=./prisma/schema.sqlite.prisma",
     "db:generate:prod": "prisma generate --schema=./prisma/schema.postgresql.prisma",
     "db:generate": "prisma generate",

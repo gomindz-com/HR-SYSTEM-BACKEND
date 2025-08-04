@@ -13,10 +13,12 @@ import userRoutes from "./routes/user.route.js";
 dotenv.config();
 
 // Initialize automation with proper error handling
+let absentAutomationJob = null;
 try {
-  await import("./automations/absentAutomation.js");
+  const { job } = await import("./automations/absentAutomation.js");
+  absentAutomationJob = job;
   console.log(
-    "🚀 Absent automation cron job initialized - will run daily at 7:00 PM UTC"
+    "🚀 Absent automation cron job initialized - will run every minute (for testing)"
   );
 } catch (error) {
   console.error("❌ Failed to initialize absent automation:", error);
@@ -36,7 +38,7 @@ const allowedOrigins = [
   "http://172.20.10.2:5173",
   "https://e632bfbfb94b.ngrok-free.app",
   "https://hr-system-frontend-tester.vercel.app",
-  "https://hr-system-frontend-tester-d5ju.vercel.app"
+  "https://hr-system-frontend-tester-d5ju.vercel.app",
 ];
 
 // Add CLIENT_URL if it exists
@@ -76,5 +78,44 @@ app.use("/api/department", departmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/user", userRoutes);
+
+// Manual trigger endpoint for testing absent automation
+app.post("/api/admin/trigger-absent-automation", async (req, res) => {
+  try {
+    if (!absentAutomationJob) {
+      return res.status(500).json({
+        error: "Absent automation not initialized",
+      });
+    }
+
+    // Import and run the automation manually
+    const { runAbsentAutomation } = await import(
+      "./automations/absentAutomation.js"
+    );
+    await runAbsentAutomation();
+
+    res.json({
+      message: "Absent automation triggered successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error triggering absent automation:", error);
+    res.status(500).json({
+      error: "Failed to trigger absent automation",
+      details: error.message,
+    });
+  }
+});
+
+// Health check endpoint to verify automation status
+app.get("/api/admin/automation-status", (req, res) => {
+  res.json({
+    absentAutomation: {
+      initialized: !!absentAutomationJob,
+      status: absentAutomationJob ? "running" : "not initialized",
+      nextRun: absentAutomationJob ? "Daily at 5:00 PM UTC" : "N/A",
+    },
+  });
+});
 
 export default app;
