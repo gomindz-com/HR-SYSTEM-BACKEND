@@ -39,6 +39,7 @@ const allowedOrigins = [
   "https://e632bfbfb94b.ngrok-free.app",
   "https://hr-system-frontend-tester.vercel.app",
   "https://hr-system-frontend-tester-d5ju.vercel.app",
+  "https://subtle-strudel-6843d3.netlify.app",
 ];
 
 // Add CLIENT_URL if it exists
