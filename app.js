@@ -33,13 +33,9 @@ app.use(express.json());
 // CORS configuration
 const allowedOrigins = [
   "http://localhost:8080",
-  "http://localhost:5173",
   "http://172.20.10.2:8080",
-  "http://172.20.10.2:5173",
-  "https://e632bfbfb94b.ngrok-free.app",
-  "https://hr-system-frontend-tester.vercel.app",
-  "https://hr-system-frontend-tester-d5ju.vercel.app",
   "https://subtle-strudel-6843d3.netlify.app",
+  "https://a40262664b34.ngrok-free.app",
 ];
 
 // Add CLIENT_URL if it exists
