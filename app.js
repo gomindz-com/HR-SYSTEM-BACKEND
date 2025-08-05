@@ -8,6 +8,7 @@ import departmentRoutes from "./routes/department.route.js";
 import attendanceRoutes from "./routes/attendance.route.js";
 import employeeRoutes from "./routes/employee.route.js";
 import userRoutes from "./routes/user.route.js";
+import companyRoutes from "./routes/company.route.js";
 
 // Load environment variables first
 dotenv.config();
@@ -75,6 +76,7 @@ app.use("/api/department", departmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/company", companyRoutes);
 
 // Manual trigger endpoint for testing absent automation
 app.post("/api/admin/trigger-absent-automation", async (req, res) => {

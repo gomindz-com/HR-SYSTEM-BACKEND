@@ -1,17 +1,39 @@
 import prisma from "../config/prisma.config.js";
 import { verifyQrPayload } from "../lib/utils.js";
+import {
+  checkCheckInWindow,
+  checkCheckOutWindow,
+  determineAttendanceStatus,
+} from "../lib/attendance-utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload } = req.body;
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
       return res.status(400).json({ message: "Invalid QR code" });
     }
+
+    // Get company settings for attendance rules
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workStartTime: true,
+        workEndTime: true,
+        lateThreshold: true,
+        checkInDeadline: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(400).json({ message: "Company not found" });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const existingAttendance = await prisma.attendance.findFirst({
       where: {
         companyId,
@@ -26,8 +48,30 @@ export const checkIn = async (req, res) => {
         .json({ message: "You have already checked in today" });
     }
 
+    // Check if employee has already checked out today (prevent check-in after checkout)
+    if (existingAttendance && existingAttendance.timeOut) {
+      return res.status(400).json({
+        message: "You have already checked out today. Cannot check in again.",
+      });
+    }
+
+    // Check if check-in is allowed based on company settings
+    const checkInResult = checkCheckInWindow(company);
+
+    if (!checkInResult.isAllowed) {
+      return res.status(400).json({
+        message: checkInResult.reason,
+        details: {
+          currentTime: checkInResult.currentTime,
+          workStartTime: checkInResult.workStartTime,
+          workEndTime: checkInResult.workEndTime,
+          deadline: checkInResult.deadline,
+        },
+      });
+    }
+
     const now = new Date();
-    const status = now.getHours() >= 9 ? "LATE" : "ON_TIME";
+    const status = determineAttendanceStatus(now, company);
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -66,6 +110,32 @@ export const checkOut = async (req, res) => {
     if (!qrData) {
       return res.status(400).json({ message: "Invalid QR code" });
     }
+
+    // Get company settings for attendance rules
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workEndTime: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(400).json({ message: "Company not found" });
+    }
+
+    // Check if check-out is allowed based on company settings
+    const checkOutResult = checkCheckOutWindow(company);
+
+    if (!checkOutResult.isAllowed) {
+      return res.status(400).json({
+        message: checkOutResult.reason,
+        details: {
+          currentTime: checkOutResult.currentTime,
+          workEndTime: checkOutResult.workEndTime,
+        },
+      });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -115,7 +185,7 @@ export const listAttendance = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   // Filters
-  const { employeeId, status } = req.query;
+  const { employeeId, status, date } = req.query;
   const where = { companyId };
 
   // Safe parse for employeeId
@@ -126,6 +196,19 @@ export const listAttendance = async (req, res) => {
 
   if (status) {
     where.status = status;
+  }
+
+  // Date filter
+  if (date) {
+    const filterDate = new Date(date);
+    filterDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(filterDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    where.date = {
+      gte: filterDate,
+      lt: nextDay,
+    };
   }
 
   try {
@@ -283,10 +366,16 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
       .json({ message: "You are not authorized to access this resource" });
   }
 
+  // Parse employeeId to integer
+  const parsedEmployeeId = parseInt(employeeId);
+  if (isNaN(parsedEmployeeId)) {
+    return res.status(400).json({ message: "Invalid Employee ID format" });
+  }
+
   try {
     const attendance = await prisma.attendance.findMany({
       where: {
-        employeeId,
+        employeeId: parsedEmployeeId,
         companyId,
       },
       orderBy: {
@@ -305,8 +394,25 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
       },
     });
 
+    // Get total count for pagination
+    const total = await prisma.attendance.count({
+      where: {
+        employeeId: parsedEmployeeId,
+        companyId,
+      },
+    });
+
     if (!attendance || attendance.length === 0) {
-      return res.status(404).json({ message: "No attendance records found" });
+      return res.status(200).json({
+        success: true,
+        data: { attendance: [] },
+        pagination: {
+          page,
+          limit,
+          totalPages: 0,
+          total: 0,
+        },
+      });
     }
 
     return res.status(200).json({
@@ -315,7 +421,8 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
       pagination: {
         page,
         limit,
-        totalPages: Math.ceil(attendance.length / limit),
+        totalPages: Math.ceil(total / limit),
+        total,
       },
     });
   } catch (error) {

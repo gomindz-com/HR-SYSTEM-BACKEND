@@ -16,7 +16,6 @@ router.use(verifyToken);
 
 router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);
-
 router.get("/my-attendance", myAttendance);
 router.get("/", listAttendance);
 router.get("/stats", getAttendanceStats);
