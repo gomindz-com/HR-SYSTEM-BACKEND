@@ -60,6 +60,9 @@ enum Role {
   EMPLOYEE
   DIRECTOR
   HR
+  CTO
+  CEO
+  MANAGEMENT
 }
 
 enum EmployeeStatus {
