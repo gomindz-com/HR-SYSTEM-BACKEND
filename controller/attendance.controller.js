@@ -261,7 +261,7 @@ export const getAttendanceStats = async (req, res) => {
   }
 };
 
-listSpecificEmployeeAttendance = async (req, res) => {
+export const listSpecificEmployeeAttendance = async (req, res) => {
   const id = req.user.id;
 
   const { employeeId } = req.params;
