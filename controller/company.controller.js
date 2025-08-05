@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import { generateToken } from "../emails/utils.js";
 import bcrypt from "bcryptjs";
+
 export const signUpCompany = async (req, res) => {
   const {
     companyName,
@@ -51,7 +52,6 @@ export const signUpCompany = async (req, res) => {
       },
     });
 
-
     const hrDepartment = await prisma.department.create({
       data: {
         name: "HR Department",
@@ -98,5 +98,130 @@ export const signUpCompany = async (req, res) => {
   } catch (error) {
     console.log("Error in signUpCompany", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Update company attendance settings
+ */
+export const updateAttendanceSettings = async (req, res) => {
+  const { companyId } = req.user;
+  const {
+    timezone,
+    workStartTime,
+    workEndTime,
+    lateThreshold,
+    checkInDeadline,
+  } = req.body;
+
+  try {
+    // Validate time format (HH:MM)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (workStartTime && !timeRegex.test(workStartTime)) {
+      return res.status(400).json({
+        message:
+          "Invalid work start time format. Use HH:MM format (e.g., 09:00)",
+      });
+    }
+    if (workEndTime && !timeRegex.test(workEndTime)) {
+      return res.status(400).json({
+        message: "Invalid work end time format. Use HH:MM format (e.g., 17:00)",
+      });
+    }
+
+    // Validate numeric fields
+    if (lateThreshold && (lateThreshold < 0 || lateThreshold > 120)) {
+      return res.status(400).json({
+        message: "Late threshold must be between 0 and 120 minutes",
+      });
+    }
+    if (checkInDeadline && (checkInDeadline < 0 || checkInDeadline > 120)) {
+      return res.status(400).json({
+        message: "Check-in deadline must be between 0 and 120 minutes",
+      });
+    }
+
+    // Update company settings
+    const updatedCompany = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        timezone: timezone || undefined,
+        workStartTime: workStartTime || undefined,
+        workEndTime: workEndTime || undefined,
+        lateThreshold: lateThreshold || undefined,
+        checkInDeadline: checkInDeadline || undefined,
+      },
+      select: {
+        id: true,
+        companyName: true,
+        timezone: true,
+        workStartTime: true,
+        workEndTime: true,
+        lateThreshold: true,
+        checkInDeadline: true,
+      },
+    });
+
+    // Get timezone info for response
+    return res.status(200).json({
+      message: "Attendance settings updated successfully",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    console.error("Error updating attendance settings:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Get company attendance settings
+ */
+export const getAttendanceSettings = async (req, res) => {
+  const { companyId } = req.user;
+
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        companyName: true,
+        timezone: true,
+        workStartTime: true,
+        workEndTime: true,
+        lateThreshold: true,
+        checkInDeadline: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Get timezone info for response
+    return res.status(200).json({
+      message: "Attendance settings retrieved successfully",
+      data: company,
+    });
+  } catch (error) {
+    console.error("Error getting attendance settings:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Get available timezones
+ */
+export const getAvailableTimezones = async (req, res) => {
+  try {
+    // Return UTC only since we're using universal time
+    const timezones = ["UTC"];
+
+    return res.status(200).json({
+      message: "Available timezones retrieved successfully",
+      data: timezones,
+    });
+  } catch (error) {
+    console.error("Error getting timezones:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

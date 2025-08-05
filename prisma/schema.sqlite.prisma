@@ -230,6 +230,12 @@ model Company {
   hrId               Int?
   hr                 Employee?           @relation("Company_hr", fields: [hrId], references: [id])
   companyDescription String
+  // Attendance Settings
+  timezone           String              @default("UTC")
+  workStartTime      String              @default("09:00") // Format: HH:MM
+  workEndTime        String              @default("17:00") // Format: HH:MM
+  lateThreshold      Int                 @default(15) // Minutes after workStartTime
+  checkInDeadline    Int                 @default(15) // Minutes after workEndTime (grace period)
   employees          Employee[]
   departments        Department[]
   attendances        Attendance[]
