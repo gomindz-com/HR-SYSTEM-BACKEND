@@ -260,3 +260,66 @@ export const getAttendanceStats = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+listSpecificEmployeeAttendance = async (req, res) => {
+  const id = req.user.id;
+
+  const { employeeId } = req.params;
+  const { companyId } = req.user;
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.max(1, parseInt(req.query.limit) || 10);
+  const skip = (page - 1) * limit;
+
+  if (!employeeId || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  if (!id) {
+    return res
+      .status(400)
+      .json({ message: "You are not authorized to access this resource" });
+  }
+
+  try {
+    const attendance = await prisma.attendance.findMany({
+      where: {
+        employeeId,
+        companyId,
+      },
+      orderBy: {
+        date: "desc",
+      },
+      skip,
+      take: limit,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            email: true,
+            profilePic: true,
+          },
+        },
+      },
+    });
+
+    if (!attendance || attendance.length === 0) {
+      return res.status(404).json({ message: "No attendance records found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { attendance },
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(attendance.length / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error in listSpecificEmployeeAttendance controller", error);
+    return res.status(500).json("Internal Server Error");
+  }
+};

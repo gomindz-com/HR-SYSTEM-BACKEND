@@ -35,7 +35,7 @@ const allowedOrigins = [
   "http://localhost:8080",
   "http://172.20.10.2:8080",
   "https://subtle-strudel-6843d3.netlify.app",
-  "https://7a4cbf1e9627.ngrok-free.app",
+  "https://2cf2be24e94e.ngrok-free.app",
 ];
 
 // Add CLIENT_URL if it exists
