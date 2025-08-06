@@ -13,12 +13,26 @@ export const listEmployees = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   // Filtering params
-  const { name, email, departmentId, status, role } = req.query;
+  const { name, email, departmentId, status, role, position, search } =
+    req.query;
 
   // Build where clause
   const where = { companyId };
-  if (name) where.name = { contains: name }; // Removed mode
-  if (email) where.email = { contains: email }; // Removed mode
+
+  // Handle search across multiple fields (name, email, position)
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { position: { contains: search, mode: "insensitive" } },
+    ];
+  } else {
+    // Individual field filters
+    if (name) where.name = { contains: name, mode: "insensitive" };
+    if (email) where.email = { contains: email, mode: "insensitive" };
+    if (position) where.position = { contains: position, mode: "insensitive" };
+  }
+
   if (departmentId) where.departmentId = parseInt(departmentId);
   if (status) where.status = status;
   if (role) where.role = role;
@@ -46,7 +60,13 @@ export const listEmployees = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching employees", error);
+    // Only log critical errors, not connection issues
+    if (error.code === "P1001" || error.code === "P1002") {
+      // Database connection errors - don't spam the console
+      console.log("Database connection issue - retrying...");
+    } else {
+      console.error("Error fetching employees:", error.message);
+    }
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };

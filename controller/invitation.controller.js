@@ -157,10 +157,21 @@ export const acceptInvitation = async (req, res) => {
       return res.status(400).json({ message: "Invitation has expired" });
     }
 
+    // Check if a user with the same role already exists for this company
+    // Only restrict HR roles to one per company
     if (invitation.role === "HR") {
-      return res
-        .status(401)
-        .json({ message: "a HR already exists for this company" });
+      const existingHR = await prisma.employee.findFirst({
+        where: {
+          companyId: invitation.companyId,
+          role: "HR",
+        },
+      });
+
+      if (existingHR) {
+        return res
+          .status(401)
+          .json({ message: "An HR already exists for this company" });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
