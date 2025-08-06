@@ -1,22 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Determine which schema to use based on environment
-const getSchemaPath = () => {
-  if (process.env.NODE_ENV === "production") {
-    return join(__dirname, "../prisma/schema.postgresql.prisma");
-  }
-  return join(__dirname, "../prisma/schema.sqlite.prisma");
-};
-
-// Set the correct DATABASE_URL for development if not set
-if (process.env.NODE_ENV !== "production" && !process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:./prisma/dev.db";
-}
 
 // Create a singleton instance for better connection management
 let prisma = null;
@@ -99,7 +81,7 @@ prisma
     console.log("✅ Database connection established successfully");
     console.log(
       ` Using database: ${
-        process.env.NODE_ENV === "production" ? "PostgreSQL" : "SQLite"
+        process.env.NODE_ENV === "production" ? "PostgreSQL" : "PostgreSQL"
       }`
     );
     console.log(` Database URL: ${process.env.DATABASE_URL}`);

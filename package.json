@@ -6,17 +6,14 @@
   "scripts": {
     "start": "node ./bin/index.js",
     "dev": "nodemon ./bin/index.js",
-    "build": "npm run db:generate:prod && npm run db:migrate:prod",
+    "build": "npm run db:generate && npm run db:migrate",
     "deploy-setup": "node deploy-setup.js",
-    "db:generate:dev": "prisma generate --schema=./prisma/schema.sqlite.prisma",
-    "db:generate:prod": "prisma generate --schema=./prisma/schema.postgresql.prisma",
     "db:generate": "prisma generate",
-    "db:push:dev": "prisma db push --schema=./prisma/schema.sqlite.prisma",
-    "db:push:prod": "prisma db push --schema=./prisma/schema.postgresql.prisma",
-    "db:studio:dev": "prisma studio --schema=./prisma/schema.sqlite.prisma",
-    "db:studio:prod": "prisma studio --schema=./prisma/schema.postgresql.prisma",
-    "db:migrate:dev": "prisma migrate dev --schema=./prisma/schema.sqlite.prisma",
-    "db:migrate:prod": "prisma migrate deploy --schema=./prisma/schema.postgresql.prisma"
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
