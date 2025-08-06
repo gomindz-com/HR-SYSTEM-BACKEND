@@ -6,60 +6,29 @@ let prisma = null;
 if (process.env.NODE_ENV === "production") {
   // In production, always create a new instance
   prisma = new PrismaClient({
-    log: [
-      {
-        emit: "stdout",
-        level: "error",
+    log: ["error", "warn"],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
       },
-      {
-        emit: "stdout",
-        level: "warn",
-      },
-    ],
+    },
   });
 } else {
   // In development, use global instance to prevent multiple connections
   if (!global.prisma) {
     global.prisma = new PrismaClient({
-      log: [
-        // Only log queries if DEBUG_QUERIES is set to true
-        ...(process.env.DEBUG_QUERIES === "true"
-          ? [
-              {
-                emit: "event",
-                level: "query",
-              },
-            ]
-          : []),
-        {
-          emit: "stdout",
-          level: "error",
+      log: ["error", "warn"],
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
         },
-        {
-          emit: "stdout",
-          level: "info",
-        },
-        {
-          emit: "stdout",
-          level: "warn",
-        },
-      ],
+      },
     });
   }
   prisma = global.prisma;
 }
 
-// Add event listeners for better debugging (only if DEBUG_QUERIES is enabled)
-if (process.env.DEBUG_QUERIES === "true") {
-  prisma.$on("query", (e) => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("Query: " + e.query);
-      console.log("Params: " + e.params);
-      console.log("Duration: " + e.duration + "ms");
-    }
-  });
-}
-
+// Add error handling
 prisma.$on("error", (e) => {
   console.error("Prisma error:", e);
 });
@@ -79,17 +48,8 @@ prisma
   .$connect()
   .then(() => {
     console.log("✅ Database connection established successfully");
-    console.log(
-      ` Using database: ${
-        process.env.NODE_ENV === "production" ? "PostgreSQL" : "PostgreSQL"
-      }`
-    );
+    console.log(" Using database: PostgreSQL");
     console.log(` Database URL: ${process.env.DATABASE_URL}`);
-    if (process.env.DEBUG_QUERIES === "true") {
-      console.log(
-        "🔍 Query logging enabled (set DEBUG_QUERIES=false to disable)"
-      );
-    }
   })
   .catch((error) => {
     console.error("❌ Failed to connect to database:", error);

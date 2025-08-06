@@ -225,3 +225,131 @@ export const getAvailableTimezones = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+/**
+ * Get company basic information
+ */
+export const getCompanyInfo = async (req, res) => {
+  const { companyId } = req.user;
+
+  if (!companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        companyName: true,
+        companyEmail: true,
+        companyTin: true,
+        companyAddress: true,
+        companyDescription: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Company information retrieved successfully",
+      data: company,
+    });
+  } catch (error) {
+    console.error("Error getting company info:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Update company basic information
+ */
+export const updateCompanyInfo = async (req, res) => {
+  const { companyId } = req.user;
+
+  if (!companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  try {
+    const allowedUpdates = [
+      "companyName",
+      "companyEmail",
+      "companyTin",
+      "companyAddress",
+      "companyDescription",
+    ];
+    const updateData = {};
+
+    // Handle form data fields
+    allowedUpdates.forEach((field) => {
+      if (req.body[field]) {
+        updateData[field] = req.body[field];
+      }
+    });
+
+    // Check if email or TIN already exists (if being updated)
+    if (updateData.companyEmail) {
+      const existingCompanyWithEmail = await prisma.company.findFirst({
+        where: {
+          companyEmail: updateData.companyEmail,
+          id: { not: companyId },
+        },
+      });
+      if (existingCompanyWithEmail) {
+        return res.status(400).json({
+          message: "A company with this email already exists",
+        });
+      }
+    }
+
+    if (updateData.companyTin) {
+      const existingCompanyWithTin = await prisma.company.findFirst({
+        where: {
+          companyTin: updateData.companyTin,
+          id: { not: companyId },
+        },
+      });
+      if (existingCompanyWithTin) {
+        return res.status(400).json({
+          message: "A company with this TIN already exists",
+        });
+      }
+    }
+
+    const updatedCompany = await prisma.company.update({
+      where: { id: companyId },
+      data: updateData,
+      select: {
+        id: true,
+        companyName: true,
+        companyEmail: true,
+        companyTin: true,
+        companyAddress: true,
+        companyDescription: true,
+      },
+    });
+
+    if (!updatedCompany) {
+      return res
+        .status(404)
+        .json({ message: "Company not found or unauthorized" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Company information updated successfully",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    console.error("Error updating company info:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
