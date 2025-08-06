@@ -6,14 +6,18 @@
   "scripts": {
     "start": "node ./bin/index.js",
     "dev": "nodemon ./bin/index.js",
-    "build": "npm run db:generate && npm run db:migrate",
+    "build": "npm run db:generate && npm run db:migrate:prod",
     "deploy-setup": "node deploy-setup.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:prod": "NODE_ENV=production prisma migrate deploy",
     "db:push": "prisma db push",
+    "db:push:prod": "NODE_ENV=production prisma db push",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:studio:prod": "NODE_ENV=production prisma studio",
+    "db:reset": "prisma migrate reset",
+    "db:resolve:prod": "NODE_ENV=production prisma migrate resolve --applied 20250806104631_init_postgresql"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
