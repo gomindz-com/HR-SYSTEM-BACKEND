@@ -2,13 +2,13 @@ import prisma from "../config/prisma.config.js";
 
 // List departments for a company
 export const listDepartments = async (req, res) => {
-  const { companyId, id } = req.user;
+  const { companyId } = req.user;
   if (!companyId) {
     return res.status(400).json({ message: "companyId is required" });
   }
   try {
     const departments = await prisma.department.findMany({
-      where: { companyId, managerId: id },
+      where: { companyId },
       orderBy: { name: "asc" },
     });
     res
@@ -38,9 +38,9 @@ export const addDepartment = async (req, res) => {
   }
 
   try {
-    // Optionally, check for duplicate department name in the same company
+    // Check for duplicate department name in the same company
     const existing = await prisma.department.findFirst({
-      where: { name, companyId, managerId: id },
+      where: { name, companyId },
     });
     if (existing) {
       return res.status(400).json({ message: "Department already exists" });
