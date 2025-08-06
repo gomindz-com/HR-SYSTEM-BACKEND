@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node ./bin/index.js",
     "dev": "nodemon ./bin/index.js",
-    "build": "npm run db:generate:prod && npm run db:migrate:prod",
+    "build": "npm run db:generate:prod && npx prisma db push --schema=./prisma/schema.postgresql.prisma",
     "deploy-setup": "node deploy-setup.js",
     "db:generate:dev": "prisma generate --schema=./prisma/schema.sqlite.prisma",
     "db:generate:prod": "prisma generate --schema=./prisma/schema.postgresql.prisma",
