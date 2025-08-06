@@ -348,6 +348,47 @@ export const getAttendanceStats = async (req, res) => {
   }
 };
 
+export const getCompanyAttendanceStats = async (req, res) => {
+  const companyId = req.user?.companyId;
+
+  if (!companyId) {
+    return res.status(400).json({ message: "Company ID is required" });
+  }
+
+  try {
+    const [totalAttendance, totalDays, daysLate, daysAbsent, daysOnTime] =
+      await Promise.all([
+        prisma.attendance.count({
+          where: { companyId, status: { not: "ABSENT" } },
+        }),
+        prisma.attendance.count({
+          where: { companyId },
+        }),
+        prisma.attendance.count({
+          where: { companyId, status: "LATE" },
+        }),
+        prisma.attendance.count({
+          where: { companyId, status: "ABSENT" },
+        }),
+        prisma.attendance.count({
+          where: { companyId, status: "ON_TIME" },
+        }),
+      ]);
+
+    const attendancePercentage =
+      totalDays > 0
+        ? parseFloat(((totalAttendance / totalDays) * 100).toFixed(1))
+        : 0;
+
+    return res.status(200).json({
+      data: { attendancePercentage, daysLate, daysAbsent, daysOnTime },
+    });
+  } catch (error) {
+    console.error("Error in getCompanyAttendanceStats controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 export const listSpecificEmployeeAttendance = async (req, res) => {
   const id = req.user.id;
 

@@ -4,6 +4,7 @@ import {
   checkIn,
   checkOut,
   getAttendanceStats,
+  getCompanyAttendanceStats,
   listAttendance,
   listSpecificEmployeeAttendance,
   myAttendance,
@@ -19,6 +20,7 @@ router.post("/check-out", checkOut);
 router.get("/my-attendance", myAttendance);
 router.get("/", listAttendance);
 router.get("/stats", getAttendanceStats);
+router.get("/company-stats", getCompanyAttendanceStats);
 router.get("/employee/:employeeId", listSpecificEmployeeAttendance);
 
 export default router;
