@@ -44,6 +44,16 @@ export const signUpCompany = async (req, res) => {
       return res.status(400).json({ message: "Company already exists" });
     }
 
+    const existingCompanyWithTin = await prisma.company.findUnique({
+      where: {
+        companyTin,
+      },
+    });
+
+    if (existingCompanyWithTin) {
+      return res.status(400).json({ message: "Company with this TIN already exists" });
+    }
+
     const company = await prisma.company.create({
       data: {
         companyName,

@@ -141,8 +141,16 @@ export const updateEmployee = async (req, res) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (companyId !== id) {
-    return res.status(403).json({ message: "Forbidden" });
+  // Check if the employee exists and belongs to the company
+  const employee = await prisma.employee.findFirst({
+    where: {
+      id: parseInt(id),
+      companyId,
+    },
+  });
+
+  if (!employee) {
+    return res.status(404).json({ message: "Employee not found" });
   }
 
   const allowedUpdates = [
@@ -167,12 +175,10 @@ export const updateEmployee = async (req, res) => {
       data: updateData,
     });
 
-    return res
-      .status(200)
-      .json({
-        message: "Employee updated successfully",
-        data: updatedEmployee,
-      });
+    return res.status(200).json({
+      message: "info updated successfully",
+      data: updatedEmployee,
+    });
   } catch (error) {
     console.error("Error updating employee", error);
     return res.status(500).json({ message: "Internal server error" });
