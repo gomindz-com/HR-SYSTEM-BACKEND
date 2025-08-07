@@ -36,7 +36,6 @@ const allowedOrigins = [
   "http://localhost:8080",
   "http://172.20.10.2:8080",
   "https://subtle-strudel-6843d3.netlify.app",
-  "https://0095d0f00966.ngrok-free.app"
 ];
 
 // Add CLIENT_URL if it exists
@@ -88,19 +87,52 @@ app.post("/api/admin/trigger-absent-automation", async (req, res) => {
     }
 
     // Import and run the automation manually
-    const { runAbsentAutomation } = await import(
+    const { runAbsentAutomationForAllCompanies } = await import(
       "./automations/absentAutomation.js"
     );
-    await runAbsentAutomation();
+    await runAbsentAutomationForAllCompanies();
 
     res.json({
-      message: "Absent automation triggered successfully",
+      message: "Multi-timezone absent automation triggered successfully",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error triggering absent automation:", error);
     res.status(500).json({
       error: "Failed to trigger absent automation",
+      details: error.message,
+    });
+  }
+});
+
+// Test endpoint to run absent automation for a specific company
+app.post("/api/admin/test-company-absent-automation", async (req, res) => {
+  try {
+    const { companyId, timezone } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: "Company ID is required",
+      });
+    }
+
+    // Import the test function
+    const { runAbsentAutomationForCompany } = await import(
+      "./automations/absentAutomation.js"
+    );
+
+    await runAbsentAutomationForCompany(companyId, timezone || "UTC");
+
+    res.json({
+      message: "Company absent automation test completed",
+      companyId,
+      timezone: timezone || "UTC",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error in test company absent automation:", error);
+    res.status(500).json({
+      error: "Failed to test company absent automation",
       details: error.message,
     });
   }

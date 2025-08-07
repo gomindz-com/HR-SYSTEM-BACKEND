@@ -14,6 +14,9 @@ const router = express.Router();
 // Company signup (public route)
 router.post("/signup", signUpCompany);
 
+// Timezones (public route - needed for signup)
+router.get("/timezones", getAvailableTimezones);
+
 // Company info routes (protected)
 router.get("/info", verifyToken, getCompanyInfo);
 router.put("/info", verifyToken, updateCompanyInfo);
@@ -21,6 +24,5 @@ router.put("/info", verifyToken, updateCompanyInfo);
 // Attendance settings routes (protected)
 router.get("/attendance-settings", verifyToken, getAttendanceSettings);
 router.put("/attendance-settings", verifyToken, updateAttendanceSettings);
-router.get("/timezones", verifyToken, getAvailableTimezones);
 
 export default router;

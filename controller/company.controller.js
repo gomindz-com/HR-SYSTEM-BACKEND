@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import { generateToken } from "../emails/utils.js";
 import bcrypt from "bcryptjs";
+import moment from "moment-timezone";
 
 export const signUpCompany = async (req, res) => {
   const {
@@ -9,6 +10,7 @@ export const signUpCompany = async (req, res) => {
     companyTin,
     companyAddress,
     companyDescription,
+    timezone,
     HRName,
     HRPhone,
     HRAddress,
@@ -49,6 +51,7 @@ export const signUpCompany = async (req, res) => {
         companyTin,
         companyAddress,
         companyDescription,
+        timezone: timezone || "UTC", // Default to UTC if not provided
       },
     });
 
@@ -213,12 +216,103 @@ export const getAttendanceSettings = async (req, res) => {
  */
 export const getAvailableTimezones = async (req, res) => {
   try {
-    // Return UTC only since we're using universal time
-    const timezones = ["UTC"];
+    // Get all timezone names
+    const timezoneNames = moment.tz.names();
+
+    // Create a list of timezones with their current offsets
+    const timezones = timezoneNames.map((name) => {
+      const offset = moment.tz(name).format("Z"); // e.g., "+01:00", "-05:00"
+      const currentTime = moment.tz(name).format("HH:mm"); // Current time in that timezone
+      const displayName = `${name} (UTC${offset}) - ${currentTime}`;
+
+      return {
+        value: name,
+        label: displayName,
+        offset: offset,
+        currentTime: currentTime,
+      };
+    });
+
+    // Sort by offset (UTC first, then by offset)
+    timezones.sort((a, b) => {
+      if (a.value === "UTC") return -1;
+      if (b.value === "UTC") return 1;
+      return a.offset.localeCompare(b.offset);
+    });
+
+    // Group by region for better organization
+    const groupedTimezones = {
+      Popular: [
+        {
+          value: "UTC",
+          label: "UTC (UTC+00:00) - Universal Time",
+          offset: "+00:00",
+          currentTime: moment.utc().format("HH:mm"),
+        },
+        {
+          value: "America/New_York",
+          label: "America/New_York (UTC-05:00) - Eastern Time",
+          offset: "-05:00",
+          currentTime: moment.tz("America/New_York").format("HH:mm"),
+        },
+        {
+          value: "America/Los_Angeles",
+          label: "America/Los_Angeles (UTC-08:00) - Pacific Time",
+          offset: "-08:00",
+          currentTime: moment.tz("America/Los_Angeles").format("HH:mm"),
+        },
+        {
+          value: "Europe/London",
+          label: "Europe/London (UTC+00:00) - British Time",
+          offset: "+00:00",
+          currentTime: moment.tz("Europe/London").format("HH:mm"),
+        },
+        {
+          value: "Europe/Paris",
+          label: "Europe/Paris (UTC+01:00) - Central European Time",
+          offset: "+01:00",
+          currentTime: moment.tz("Europe/Paris").format("HH:mm"),
+        },
+        {
+          value: "Asia/Tokyo",
+          label: "Asia/Tokyo (UTC+09:00) - Japan Time",
+          offset: "+09:00",
+          currentTime: moment.tz("Asia/Tokyo").format("HH:mm"),
+        },
+        {
+          value: "Asia/Singapore",
+          label: "Asia/Singapore (UTC+08:00) - Singapore Time",
+          offset: "+08:00",
+          currentTime: moment.tz("Asia/Singapore").format("HH:mm"),
+        },
+        {
+          value: "Asia/Kolkata",
+          label: "Asia/Kolkata (UTC+05:30) - India Time",
+          offset: "+05:30",
+          currentTime: moment.tz("Asia/Kolkata").format("HH:mm"),
+        },
+      ],
+      Africa: timezones.filter((tz) => tz.value.startsWith("Africa/")),
+      America: timezones.filter((tz) => tz.value.startsWith("America/")),
+      Asia: timezones.filter((tz) => tz.value.startsWith("Asia/")),
+      Europe: timezones.filter((tz) => tz.value.startsWith("Europe/")),
+      Pacific: timezones.filter((tz) => tz.value.startsWith("Pacific/")),
+      Australia: timezones.filter((tz) => tz.value.startsWith("Australia/")),
+      Other: timezones.filter(
+        (tz) =>
+          !tz.value.startsWith("Africa/") &&
+          !tz.value.startsWith("America/") &&
+          !tz.value.startsWith("Asia/") &&
+          !tz.value.startsWith("Europe/") &&
+          !tz.value.startsWith("Pacific/") &&
+          !tz.value.startsWith("Australia/") &&
+          tz.value !== "UTC"
+      ),
+    };
 
     return res.status(200).json({
       message: "Available timezones retrieved successfully",
-      data: timezones,
+      data: groupedTimezones,
     });
   } catch (error) {
     console.error("Error getting timezones:", error);
@@ -248,6 +342,7 @@ export const getCompanyInfo = async (req, res) => {
         companyTin: true,
         companyAddress: true,
         companyDescription: true,
+        timezone: true,
       },
     });
 
@@ -285,6 +380,7 @@ export const updateCompanyInfo = async (req, res) => {
       "companyTin",
       "companyAddress",
       "companyDescription",
+      "timezone",
     ];
     const updateData = {};
 
