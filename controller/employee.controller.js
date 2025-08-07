@@ -145,31 +145,36 @@ export const updateEmployee = async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
-
   const allowedUpdates = [
     "role",
     "department",
     "status",
     "position",
-    "departmentId"
-  ]
+    "departmentId",
+  ];
 
-
-  const updateData = {}
+  const updateData = {};
 
   allowedUpdates.forEach((field) => {
-    if(req.body[field]) {
+    if (req.body[field]) {
       updateData[field] = req.body[field];
     }
-  })
+  });
 
+  try {
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+    });
 
-
-
-
-
-
-
-  trycatch
-
+    return res
+      .status(200)
+      .json({
+        message: "Employee updated successfully",
+        data: updatedEmployee,
+      });
+  } catch (error) {
+    console.error("Error updating employee", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };
