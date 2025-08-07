@@ -25,8 +25,8 @@ async function runAbsentAutomationForCompany(
       `⏰ Company local time: ${companyLocalTime} (Hour: ${companyHour})`
     );
 
-    // Only run if it's 5:00 PM in the company's timezone
-    if (companyHour !== 17) {
+    // Only run if it's 6:00 PM in the company's timezone
+    if (companyHour !== 18) {
       console.log(`⏭️  Skipping - it's not 5:00 PM in ${companyTimezone}`);
       return;
     }
