@@ -127,3 +127,49 @@ export const getEmployeeDetails = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const updateEmployee = async (req, res) => {
+  const companyId = req.user.companyId;
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Employee ID is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (companyId !== id) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+
+  const allowedUpdates = [
+    "role",
+    "department",
+    "status",
+    "position",
+    "departmentId"
+  ]
+
+
+  const updateData = {}
+
+  allowedUpdates.forEach((field) => {
+    if(req.body[field]) {
+      updateData[field] = req.body[field];
+    }
+  })
+
+
+
+
+
+
+
+
+  trycatch
+
+};
