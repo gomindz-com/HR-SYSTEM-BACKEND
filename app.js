@@ -26,6 +26,22 @@ try {
   // Don't exit the process, just log the error
 }
 
+// Initialize leave reminder cron job
+let leaveReminderCron = null;
+try {
+  const startLeaveReminderCron = await import(
+    "./automations/leaveReminderCron.js"
+  );
+  startLeaveReminderCron.default();
+  leaveReminderCron = startLeaveReminderCron;
+  console.log(
+    "📧 Leave reminder cron job initialized - will run daily at 9:00 AM"
+  );
+} catch (error) {
+  console.error("❌ Failed to initialize leave reminder cron:", error);
+  // Don't exit the process, just log the error
+}
+
 const app = express();
 
 // middleware
@@ -150,7 +166,42 @@ app.get("/api/admin/automation-status", (req, res) => {
         ? "Every hour, checks for 6:00 PM local time"
         : "N/A",
     },
+    leaveReminderCron: {
+      initialized: !!leaveReminderCron,
+      status: leaveReminderCron ? "running" : "not initialized",
+      nextRun: leaveReminderCron
+        ? "Daily at 9:00 AM UTC, sends reminders 3 and 1 days before leave ends"
+        : "N/A",
+    },
   });
+});
+
+// Manual trigger endpoint for leave reminder cron job
+app.post("/api/admin/trigger-leave-reminder", async (req, res) => {
+  try {
+    if (!leaveReminderCron) {
+      return res.status(500).json({
+        error: "Leave reminder cron not initialized",
+      });
+    }
+
+    // Import and run the reminder check manually
+    const { checkAndSendReminders } = await import(
+      "./automations/leaveReminderCron.js"
+    );
+    await checkAndSendReminders();
+
+    res.json({
+      message: "Leave reminder check triggered successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error triggering leave reminder:", error);
+    res.status(500).json({
+      error: "Failed to trigger leave reminder",
+      details: error.message,
+    });
+  }
 });
 
 // Manual trigger endpoint using the dedicated function

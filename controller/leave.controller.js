@@ -28,14 +28,19 @@ export const requestLeave = async (req, res) => {
   try {
     const attachments = req.files ? req.files.map((file) => file.path) : [];
 
+    // Calculate days properly
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         employeeId: id,
         companyId: companyId,
         leaveType: leaveType,
-        startDate: startDate,
-        endDate: endDate,
-        days: endDate - startDate + 1,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        days: days,
         comments: comments,
         status: "PENDING",
         attachmentUrls: attachments,
@@ -453,6 +458,81 @@ export const getLeaveStats = async (req, res) => {
     });
   } catch (error) {
     console.log("error in getLeaveStats controller", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// GET EMPLOYEE LEAVE BALANCE
+export const getEmployeeLeaveBalance = async (req, res) => {
+  const employeeId = req.user.id;
+  const companyId = req.user.companyId;
+
+  if (!employeeId) {
+    return res.status(400).json({ message: "employee id is required" });
+  }
+
+  if (!companyId) {
+    return res.status(400).json({ message: "company id is required" });
+  }
+
+  try {
+    const [pendingRequests, approvedRequests, rejectedRequests, totalDaysUsed] =
+      await Promise.all([
+        // Count pending requests for this employee
+        prisma.leaveRequest.count({
+          where: {
+            employeeId: employeeId,
+            companyId: companyId,
+            status: "PENDING",
+          },
+        }),
+        // Count approved requests for this employee
+        prisma.leaveRequest.count({
+          where: {
+            employeeId: employeeId,
+            companyId: companyId,
+            status: "APPROVED",
+          },
+        }),
+        // Count rejected requests for this employee
+        prisma.leaveRequest.count({
+          where: {
+            employeeId: employeeId,
+            companyId: companyId,
+            status: "REJECTED",
+          },
+        }),
+        // Sum total days used from approved requests
+        prisma.leaveRequest.aggregate({
+          where: {
+            employeeId: employeeId,
+            companyId: companyId,
+            status: "APPROVED",
+          },
+          _sum: {
+            days: true,
+          },
+        }),
+      ]);
+
+    const daysUsed = totalDaysUsed._sum.days || 0;
+
+    // Days available: count of rejected requests only (not pending)
+    const unapprovedRequests = rejectedRequests;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        leaveBalance: {
+          daysLeft: unapprovedRequests, // Changed to unapproved requests count
+          daysUsed: approvedRequests, // Count of approved requests
+          pendingRequests,
+          annualLeaveAllowance: 25, // Keep for reference
+        },
+      },
+    });
+  } catch (error) {
+    console.log("error in getEmployeeLeaveBalance controller", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
