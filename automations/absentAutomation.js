@@ -7,7 +7,8 @@ let absentAutomationJob = null;
 // Function to run absent automation for a specific company
 async function runAbsentAutomationForCompany(
   companyId,
-  companyTimezone = "UTC"
+  companyTimezone = "UTC",
+  forceRun = false
 ) {
   console.log(
     `🏢 Running absent automation for company ${companyId} (${companyTimezone})`
@@ -25,9 +26,9 @@ async function runAbsentAutomationForCompany(
       `⏰ Company local time: ${companyLocalTime} (Hour: ${companyHour})`
     );
 
-    // Only run if it's 6:00 PM in the company's timezone
-    if (companyHour !== 18) {
-      console.log(`⏭️  Skipping - it's not 5:00 PM in ${companyTimezone}`);
+    // Only run if it's 6:45 AM in the company's timezone (unless forced)
+    if (!forceRun && companyHour !== 6) {
+      console.log(`⏭️  Skipping - it's not 6:45 AM in ${companyTimezone}`);
       return;
     }
 
@@ -41,9 +42,7 @@ async function runAbsentAutomationForCompany(
     }
 
     // Validate database connection
-    console.log("🔗 Connecting to database...");
     await prisma.$connect();
-    console.log("✅ Database connection successful");
 
     // Get the company's local date at midnight for consistent comparison
     // Create a new date object in the company's timezone for today
@@ -93,7 +92,6 @@ async function runAbsentAutomationForCompany(
     );
 
     // Find active employees in this company who haven't checked in today
-    console.log("🔍 Querying for employees without attendance...");
     const employeesWithoutAttendance = await prisma.employee.findMany({
       where: {
         status: "ACTIVE",
@@ -172,15 +170,8 @@ async function runAbsentAutomationForCompany(
     });
 
     console.log(
-      `Successfully marked ${result.count} employees as absent in company ${companyId}`
+      `✅ Marked ${result.count} employees as absent in company ${companyId}`
     );
-
-    // Log details for debugging
-    employeesWithoutAttendance.forEach((employee) => {
-      console.log(
-        `Marked ${employee.name} (ID: ${employee.id}) as absent in company ${companyId}`
-      );
-    });
   } catch (error) {
     console.error(
       `Error in absent automation for company ${companyId}:`,
@@ -205,7 +196,7 @@ async function runAbsentAutomationForCompany(
 }
 
 // Function to run absent automation for all companies
-async function runAbsentAutomationForAllCompanies() {
+async function runAbsentAutomationForAllCompanies(forceRun = false) {
   console.log("🔄 Running absent automation for all companies...");
   console.log(`⏰ Server time: ${new Date().toISOString()}`);
 
@@ -221,14 +212,28 @@ async function runAbsentAutomationForAllCompanies() {
 
     console.log(`Found ${companies.length} companies to process`);
 
+    // In development mode, always force run for testing
+    const isProduction = process.env.NODE_ENV === "production";
+    const shouldForceRun = forceRun || !isProduction;
+
     for (const company of companies) {
-      await runAbsentAutomationForCompany(company.id, company.timezone);
+      await runAbsentAutomationForCompany(
+        company.id,
+        company.timezone,
+        shouldForceRun
+      );
     }
 
     console.log("✅ Completed absent automation for all companies");
   } catch (error) {
     console.error("Error in absent automation for all companies:", error);
   }
+}
+
+// Function to manually trigger absent automation (for testing)
+async function triggerAbsentAutomationManually() {
+  console.log("🚀 Manually triggering absent automation...");
+  await runAbsentAutomationForAllCompanies(true);
 }
 
 // Legacy function for backward compatibility
@@ -240,22 +245,38 @@ async function runAbsentAutomation() {
 // Initialize the cron job
 function initializeAbsentAutomation() {
   try {
-    // Run every hour, Monday-Friday to check all companies
-    absentAutomationJob = cron.schedule(
-      "0 * * * 1-5",
-      runAbsentAutomationForAllCompanies,
-      {
-        scheduled: true,
-        timezone: "UTC", // Server timezone doesn't matter now
-      }
-    );
+    // Check if we're in production or development
+    const isProduction = process.env.NODE_ENV === "production";
 
-    console.log(
-      "✅ Multi-timezone absent automation cron job initialized successfully"
-    );
-    console.log("🧪 TESTING MODE: Running every minute");
-    console.log("⚠️  REMEMBER: Change back to hourly schedule for production!");
-    console.log("🌍 Each company will be processed at their local 5:00 PM");
+    if (isProduction) {
+      // Production: Run every minute for testing, Monday-Friday to check all companies
+      absentAutomationJob = cron.schedule(
+        "* * * * 1-5",
+        runAbsentAutomationForAllCompanies,
+        {
+          scheduled: true,
+          timezone: "UTC", // Server timezone doesn't matter now
+        }
+      );
+
+      console.log(
+        "✅ Absent automation initialized - runs every minute, checks for 6:45 AM local time (TESTING MODE)"
+      );
+    } else {
+      // Development: Run every minute for testing
+      absentAutomationJob = cron.schedule(
+        "* * * * 1-5",
+        runAbsentAutomationForAllCompanies,
+        {
+          scheduled: true,
+          timezone: "UTC", // Server timezone doesn't matter now
+        }
+      );
+
+      console.log(
+        "✅ Absent automation initialized - testing mode (every minute)"
+      );
+    }
 
     return absentAutomationJob;
   } catch (error) {
@@ -295,4 +316,5 @@ export {
   runAbsentAutomation,
   runAbsentAutomationForCompany,
   runAbsentAutomationForAllCompanies,
+  triggerAbsentAutomationManually,
 };

@@ -86,14 +86,15 @@ app.post("/api/admin/trigger-absent-automation", async (req, res) => {
       });
     }
 
-    // Import and run the automation manually
+    // Import and run the automation manually with force run
     const { runAbsentAutomationForAllCompanies } = await import(
       "./automations/absentAutomation.js"
     );
-    await runAbsentAutomationForAllCompanies();
+    await runAbsentAutomationForAllCompanies(true); // Force run regardless of time
 
     res.json({
-      message: "Multi-timezone absent automation triggered successfully",
+      message:
+        "Multi-timezone absent automation triggered successfully (forced)",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -121,10 +122,10 @@ app.post("/api/admin/test-company-absent-automation", async (req, res) => {
       "./automations/absentAutomation.js"
     );
 
-    await runAbsentAutomationForCompany(companyId, timezone || "UTC");
+    await runAbsentAutomationForCompany(companyId, timezone || "UTC", true); // Force run
 
     res.json({
-      message: "Company absent automation test completed",
+      message: "Company absent automation test completed (forced)",
       companyId,
       timezone: timezone || "UTC",
       timestamp: new Date().toISOString(),
@@ -144,9 +145,39 @@ app.get("/api/admin/automation-status", (req, res) => {
     absentAutomation: {
       initialized: !!absentAutomationJob,
       status: absentAutomationJob ? "running" : "not initialized",
-      nextRun: absentAutomationJob ? "Daily at 5:00 PM UTC" : "N/A",
+      nextRun: absentAutomationJob
+        ? "Every hour, checks for 6:00 PM local time"
+        : "N/A",
     },
   });
+});
+
+// Manual trigger endpoint using the dedicated function
+app.post("/api/admin/trigger-absent-automation-manual", async (req, res) => {
+  try {
+    if (!absentAutomationJob) {
+      return res.status(500).json({
+        error: "Absent automation not initialized",
+      });
+    }
+
+    // Import and run the manual trigger function
+    const { triggerAbsentAutomationManually } = await import(
+      "./automations/absentAutomation.js"
+    );
+    await triggerAbsentAutomationManually();
+
+    res.json({
+      message: "Absent automation manually triggered successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error in manual absent automation trigger:", error);
+    res.status(500).json({
+      error: "Failed to manually trigger absent automation",
+      details: error.message,
+    });
+  }
 });
 
 export default app;
