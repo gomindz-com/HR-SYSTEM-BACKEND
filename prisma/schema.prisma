@@ -103,9 +103,9 @@ enum LeaveType {
   STUDY
   MATERNITY
   SICK
-  OTHER
   VACATION
-  ANNUAL
+  ANNUAL,
+  PERSONAL
 }
 
 model LeaveRequest {
@@ -114,18 +114,21 @@ model LeaveRequest {
   employee      Employee    @relation(fields: [employeeId], references: [id])
   companyId     Int
   company       Company     @relation(fields: [companyId], references: [id])
-  leaveType     LeaveType
+  leaveType     LeaveType  
   startDate     DateTime
   endDate       DateTime
   days          Int
-  reason        String
   status        LeaveStatus @default(PENDING)
-  appliedDate   DateTime    @default(now())
   approverId    Int?
   approver      Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
   comments      String?
-  attachmentUrl String?
+  attachmentUrls Json?
+  isApproved    Boolean?
+  rejectReason  String?
+  approvedAt: Time,
+
   createdAt     DateTime    @default(now())
+  updatedAt     DateTime
 }
 
 enum LeaveStatus {
