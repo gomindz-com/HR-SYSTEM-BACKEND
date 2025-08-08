@@ -1,4 +1,4 @@
-import prisma from "../config/prisma.config";
+import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
 
 // REQUEST LEAVE
@@ -61,16 +61,58 @@ export const getLeaveRequests = async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
 
+  // Search and filter params
+  const searchTerm = req.query.search || "";
+  const statusFilter = req.query.status || "";
+  const leaveTypeFilter = req.query.leaveType || "";
+
   if (!companyId) {
     return res.status(400).json({ message: "company id is required" });
   }
 
   try {
+    // Validate leaveType filter
+    const validLeaveTypes = [
+      "STUDY",
+      "MATERNITY",
+      "SICK",
+      "PERSONAL",
+      "VACATION",
+      "ANNUAL",
+    ];
+    const validStatuses = ["PENDING", "APPROVED", "REJECTED"];
+
+    // Build where clause for filtering
+    const whereClause = {
+      companyId: companyId,
+      ...(searchTerm && {
+        employee: {
+          name: {
+            contains: searchTerm,
+            mode: "insensitive", // Case-insensitive search
+          },
+        },
+      }),
+      ...(statusFilter &&
+        statusFilter !== "all" &&
+        validStatuses.includes(statusFilter.toUpperCase()) && {
+          status: statusFilter.toUpperCase(),
+        }),
+      ...(leaveTypeFilter &&
+        leaveTypeFilter !== "all" &&
+        validLeaveTypes.includes(leaveTypeFilter.toUpperCase()) && {
+          leaveType: leaveTypeFilter.toUpperCase(),
+        }),
+    };
+
     const [leaveRequests, total] = await Promise.all([
       prisma.leaveRequest.findMany({
-        where: { companyId: companyId },
+        where: whereClause,
         skip,
         take: pageSize,
+        orderBy: {
+          createdAt: "desc", // Most recent first
+        },
         include: {
           employee: {
             select: {
@@ -87,7 +129,7 @@ export const getLeaveRequests = async (req, res) => {
         },
       }),
       prisma.leaveRequest.count({
-        where: { companyId: companyId },
+        where: whereClause,
       }),
     ]);
 
@@ -101,6 +143,11 @@ export const getLeaveRequests = async (req, res) => {
         pageSize,
         total,
         totalPages: Math.ceil(total / pageSize),
+      },
+      filters: {
+        searchTerm,
+        statusFilter,
+        leaveTypeFilter,
       },
     });
   } catch (error) {
@@ -333,6 +380,79 @@ export const rejectLeave = async (req, res) => {
       .json({ message: "leave request rejected successfully" });
   } catch (error) {
     console.log("error in rejectLeave controller", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// GET LEAVE STATS
+export const getLeaveStats = async (req, res) => {
+  const companyId = req.user.companyId;
+
+  if (!companyId) {
+    return res.status(400).json({ message: "company id is required" });
+  }
+
+  try {
+    const [
+      pendingCount,
+      approvedCount,
+      rejectedCount,
+      totalDays,
+      totalRequests,
+    ] = await Promise.all([
+      // Count pending requests
+      prisma.leaveRequest.count({
+        where: {
+          companyId: companyId,
+          status: "PENDING",
+        },
+      }),
+      // Count approved requests
+      prisma.leaveRequest.count({
+        where: {
+          companyId: companyId,
+          status: "APPROVED",
+        },
+      }),
+      // Count rejected requests
+      prisma.leaveRequest.count({
+        where: {
+          companyId: companyId,
+          status: "REJECTED",
+        },
+      }),
+      // Sum total days from approved requests
+      prisma.leaveRequest.aggregate({
+        where: {
+          companyId: companyId,
+          status: "APPROVED",
+        },
+        _sum: {
+          days: true,
+        },
+      }),
+      // Count total requests
+      prisma.leaveRequest.count({
+        where: {
+          companyId: companyId,
+        },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        stats: {
+          pendingCount,
+          approvedCount,
+          rejectedCount,
+          totalDays: totalDays._sum.days || 0,
+          totalRequests,
+        },
+      },
+    });
+  } catch (error) {
+    console.log("error in getLeaveStats controller", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

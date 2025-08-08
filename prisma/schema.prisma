@@ -104,7 +104,7 @@ enum LeaveType {
   MATERNITY
   SICK
   VACATION
-  ANNUAL,
+  ANNUAL
   PERSONAL
 }
 
@@ -125,7 +125,7 @@ model LeaveRequest {
   attachmentUrls Json?
   isApproved    Boolean?
   rejectReason  String?
-  approvedAt: Time,
+  approvedAt    DateTime?
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime

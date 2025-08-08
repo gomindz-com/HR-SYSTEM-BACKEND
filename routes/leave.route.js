@@ -5,6 +5,7 @@ import {
   getMyLeaveRequests,
   approveLeave,
   rejectLeave,
+  getLeaveStats,
 } from "../controller/leave.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { upload } from "../config/multer.cloudinary.config.js";
@@ -16,6 +17,7 @@ router.use(verifyToken);
 router.post("/request-leave", upload.array("attachmentUrls"), requestLeave);
 router.get("/get-leave-requests", getLeaveRequests);
 router.get("/mine", getMyLeaveRequests);
+router.get("/stats", getLeaveStats);
 router.post("/approve/:id", approveLeave);
 router.post("/reject/:id", rejectLeave);
 
