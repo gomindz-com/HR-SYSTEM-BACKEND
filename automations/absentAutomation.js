@@ -26,9 +26,16 @@ async function runAbsentAutomationForCompany(
       `⏰ Company local time: ${companyLocalTime} (Hour: ${companyHour})`
     );
 
-    // Only run if it's 6:45 AM in the company's timezone (unless forced)
-    if (!forceRun && companyHour !== 6) {
-      console.log(`⏭️  Skipping - it's not 6:45 AM in ${companyTimezone}`);
+    // Check if we're in production or development to determine target time
+    const isProduction = process.env.NODE_ENV === "production";
+    const targetHour = isProduction ? 18 : 17; // 6:00 PM for production, 5:00 PM for development
+    const targetTime = isProduction ? "6:00 PM" : "5:00 PM";
+
+    // Only run if it's the target time in the company's timezone (unless forced)
+    if (!forceRun && companyHour !== targetHour) {
+      console.log(
+        `⏭️  Skipping - it's not ${targetTime} in ${companyTimezone}`
+      );
       return;
     }
 
@@ -249,9 +256,9 @@ function initializeAbsentAutomation() {
     const isProduction = process.env.NODE_ENV === "production";
 
     if (isProduction) {
-      // Production: Run every minute for testing, Monday-Friday to check all companies
+      // Production: Run every hour, Monday-Friday to check all companies
       absentAutomationJob = cron.schedule(
-        "* * * * 1-5",
+        "0 * * * 1-5",
         runAbsentAutomationForAllCompanies,
         {
           scheduled: true,
@@ -260,12 +267,12 @@ function initializeAbsentAutomation() {
       );
 
       console.log(
-        "✅ Absent automation initialized - runs every minute, checks for 6:45 AM local time (TESTING MODE)"
+        "✅ Absent automation initialized - runs hourly, checks for 6:00 PM local time"
       );
     } else {
-      // Development: Run every minute for testing
+      // Development: Run every hour, Monday-Friday to check all companies
       absentAutomationJob = cron.schedule(
-        "* * * * 1-5",
+        "0 * * * 1-5",
         runAbsentAutomationForAllCompanies,
         {
           scheduled: true,
@@ -274,7 +281,7 @@ function initializeAbsentAutomation() {
       );
 
       console.log(
-        "✅ Absent automation initialized - testing mode (every minute)"
+        "✅ Absent automation initialized - development mode (runs hourly, checks for 5:00 PM local time)"
       );
     }
 
