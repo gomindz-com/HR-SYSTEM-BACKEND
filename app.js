@@ -13,17 +13,26 @@ import companyRoutes from "./routes/company.route.js";
 // Load environment variables first
 dotenv.config();
 
-// Initialize automation with proper error handling
-let absentAutomationJob = null;
+// Initialize the new automation system
+let automationInitialized = false;
 try {
-  const { job } = await import("./automations/absentAutomation.js");
-  absentAutomationJob = job;
-  console.log(
-    "🚀 Absent automation cron job initialized - will run every minute (for testing)"
-  );
+  const { initialize } = await import("./automations/absentAutomation.js");
+  const result = await initialize();
+  automationInitialized = result.success;
+  
+  if (result.success) {
+    console.log(`🎉 Absent automation system initialized successfully!`);
+    console.log(`   📊 Total companies: ${result.total}`);
+    console.log(`   ✅ Successful setups: ${result.successful}`);
+    if (result.failed > 0) {
+      console.log(`   ❌ Failed setups: ${result.failed}`);
+    }
+  } else {
+    console.error("❌ Failed to initialize automation system:", result.error);
+  }
 } catch (error) {
-  console.error("❌ Failed to initialize absent automation:", error);
-  // Don't exit the process, just log the error
+  console.error("❌ Fatal error initializing absent automation:", error);
+  automationInitialized = false;
 }
 
 const app = express();
@@ -38,7 +47,6 @@ const allowedOrigins = [
   "https://subtle-strudel-6843d3.netlify.app",
 ];
 
-// Add CLIENT_URL if it exists
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
   console.log("✅ CORS: Added CLIENT_URL:", process.env.CLIENT_URL);
@@ -68,7 +76,6 @@ app.use(
 app.use(cookieParser());
 
 // ROUTES
-
 app.use("/api/auth", authRoutes);
 app.use("/api/invitation", invitationRoutes);
 app.use("/api/department", departmentRoutes);
@@ -77,104 +84,199 @@ app.use("/api/employee", employeeRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/company", companyRoutes);
 
-// Manual trigger endpoint for testing absent automation
-app.post("/api/admin/trigger-absent-automation", async (req, res) => {
+// AUTOMATION ADMIN ENDPOINTS
+
+// Get automation system status
+app.get("/api/admin/automation-status", async (req, res) => {
   try {
-    if (!absentAutomationJob) {
-      return res.status(500).json({
-        error: "Absent automation not initialized",
+    if (!automationInitialized) {
+      return res.json({
+        status: "not_initialized",
+        message: "Automation system failed to initialize",
+        automations: []
       });
     }
 
-    // Import and run the automation manually with force run
-    const { runAbsentAutomationForAllCompanies } = await import(
-      "./automations/absentAutomation.js"
-    );
-    await runAbsentAutomationForAllCompanies(true); // Force run regardless of time
-
+    const { getAutomationStatus } = await import("./automations/absentAutomation.js");
+    const status = getAutomationStatus();
+    
     res.json({
-      message:
-        "Multi-timezone absent automation triggered successfully (forced)",
+      status: "running",
+      initialized: true,
       timestamp: new Date().toISOString(),
+      ...status
     });
   } catch (error) {
-    console.error("Error triggering absent automation:", error);
+    console.error("Error getting automation status:", error);
     res.status(500).json({
-      error: "Failed to trigger absent automation",
+      error: "Failed to get automation status",
       details: error.message,
     });
   }
 });
 
-// Test endpoint to run absent automation for a specific company
-app.post("/api/admin/test-company-absent-automation", async (req, res) => {
+// Manually trigger automation for all companies
+app.post("/api/admin/trigger-absent-automation", async (req, res) => {
   try {
+    if (!automationInitialized) {
+      return res.status(500).json({
+        error: "Automation system not initialized"
+      });
+    }
+
+    const { manuallyTriggerForAllCompanies } = await import("./automations/absentAutomation.js");
+    const result = await manuallyTriggerForAllCompanies();
+
+    if (result.success) {
+      res.json({
+        message: "Absent automation triggered for all companies",
+        timestamp: new Date().toISOString(),
+        results: result.results
+      });
+    } else {
+      res.status(500).json({
+        error: "Failed to trigger automation for all companies",
+        details: result.error
+      });
+    }
+  } catch (error) {
+    console.error("Error triggering automation for all companies:", error);
+    res.status(500).json({
+      error: "Failed to trigger automation",
+      details: error.message,
+    });
+  }
+});
+
+// Manually trigger automation for a specific company
+app.post("/api/admin/trigger-company-automation", async (req, res) => {
+  try {
+    if (!automationInitialized) {
+      return res.status(500).json({
+        error: "Automation system not initialized"
+      });
+    }
+
     const { companyId, timezone } = req.body;
 
     if (!companyId) {
       return res.status(400).json({
-        error: "Company ID is required",
+        error: "Company ID is required"
       });
     }
 
-    // Import the test function
-    const { runAbsentAutomationForCompany } = await import(
-      "./automations/absentAutomation.js"
-    );
+    const { manuallyTriggerForCompany } = await import("./automations/absentAutomation.js");
+    const result = await manuallyTriggerForCompany(companyId, timezone || "UTC");
 
-    await runAbsentAutomationForCompany(companyId, timezone || "UTC", true); // Force run
-
-    res.json({
-      message: "Company absent automation test completed (forced)",
-      companyId,
-      timezone: timezone || "UTC",
-      timestamp: new Date().toISOString(),
-    });
+    if (result.success) {
+      res.json({
+        message: `Absent automation completed for company ${companyId}`,
+        timestamp: new Date().toISOString(),
+        result
+      });
+    } else {
+      res.status(500).json({
+        error: `Failed to run automation for company ${companyId}`,
+        details: result.message
+      });
+    }
   } catch (error) {
-    console.error("Error in test company absent automation:", error);
+    console.error("Error triggering company automation:", error);
     res.status(500).json({
-      error: "Failed to test company absent automation",
+      error: "Failed to trigger company automation",
       details: error.message,
     });
   }
 });
 
-// Health check endpoint to verify automation status
-app.get("/api/admin/automation-status", (req, res) => {
-  res.json({
-    absentAutomation: {
-      initialized: !!absentAutomationJob,
-      status: absentAutomationJob ? "running" : "not initialized",
-      nextRun: absentAutomationJob
-        ? "Every hour, checks for 6:00 PM local time"
-        : "N/A",
-    },
-  });
+// Reinitialize the automation system (useful when companies are added/updated)
+app.post("/api/admin/reinitialize-automation", async (req, res) => {
+  try {
+    const { reinitializeAutomation } = await import("./automations/absentAutomation.js");
+    const result = await reinitializeAutomation();
+
+    automationInitialized = result.success;
+
+    if (result.success) {
+      res.json({
+        message: "Automation system reinitialized successfully",
+        timestamp: new Date().toISOString(),
+        total: result.total,
+        successful: result.successful,
+        failed: result.failed
+      });
+    } else {
+      res.status(500).json({
+        error: "Failed to reinitialize automation system",
+        details: result.error
+      });
+    }
+  } catch (error) {
+    console.error("Error reinitializing automation:", error);
+    res.status(500).json({
+      error: "Failed to reinitialize automation",
+      details: error.message,
+    });
+  }
 });
 
-// Manual trigger endpoint using the dedicated function
-app.post("/api/admin/trigger-absent-automation-manual", async (req, res) => {
+// Stop automation for a specific company
+app.post("/api/admin/stop-company-automation", async (req, res) => {
   try {
-    if (!absentAutomationJob) {
+    if (!automationInitialized) {
       return res.status(500).json({
-        error: "Absent automation not initialized",
+        error: "Automation system not initialized"
       });
     }
 
-    // Import and run the manual trigger function
-    const { triggerAbsentAutomationManually } = await import(
-      "./automations/absentAutomation.js"
-    );
-    await triggerAbsentAutomationManually();
+    const { companyId } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: "Company ID is required"
+      });
+    }
+
+    const { stopCompanyAutomation } = await import("./automations/absentAutomation.js");
+    const result = stopCompanyAutomation(companyId);
 
     res.json({
-      message: "Absent automation manually triggered successfully",
+      message: result.message,
       timestamp: new Date().toISOString(),
+      success: result.success
     });
   } catch (error) {
-    console.error("Error in manual absent automation trigger:", error);
+    console.error("Error stopping company automation:", error);
     res.status(500).json({
-      error: "Failed to manually trigger absent automation",
+      error: "Failed to stop company automation",
+      details: error.message,
+    });
+  }
+});
+
+// Stop all automations
+app.post("/api/admin/stop-all-automations", async (req, res) => {
+  try {
+    if (!automationInitialized) {
+      return res.json({
+        message: "Automation system was not initialized, nothing to stop",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { stopAllAutomations } = await import("./automations/absentAutomation.js");
+    const result = stopAllAutomations();
+    automationInitialized = false;
+
+    res.json({
+      message: `Stopped all automation jobs`,
+      timestamp: new Date().toISOString(),
+      stoppedJobs: result.count
+    });
+  } catch (error) {
+    console.error("Error stopping all automations:", error);
+    res.status(500).json({
+      error: "Failed to stop automations",
       details: error.message,
     });
   }

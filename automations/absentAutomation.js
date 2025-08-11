@@ -1,72 +1,56 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
 
-// Store the cron job reference for graceful shutdown
-let absentAutomationJob = null;
+// Store all cron jobs for different companies
+const cronJobs = new Map();
 
-// Function to run absent automation for a specific company
-async function runAbsentAutomationForCompany(
-  companyId,
-  companyTimezone = "UTC",
-  forceRun = false
-) {
-  console.log(
-    `🏢 Running absent automation for company ${companyId} (${companyTimezone})`
-  );
-
+/**
+ * Convert timezone to cron schedule for 7 PM (19:00)
+ * This function calculates what UTC time corresponds to 7 PM in the company's timezone
+ */
+function getCronScheduleFor7PM(timezone) {
   try {
-    // Get company's local time
-    const companyLocalTime = new Date().toLocaleString("en-US", {
-      timeZone: companyTimezone,
-    });
-    const companyDate = new Date(companyLocalTime);
-    const companyHour = companyDate.getHours();
+    // Create a date for today at 7 PM in the company's timezone
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Create 7 PM in company timezone
+    const sevenPM = new Date(today.toLocaleString('en-CA', { timeZone: timezone }));
+    sevenPM.setHours(19, 0, 0, 0); // Set to 7 PM
+    
+    // Convert back to get what this time is in UTC
+    const utcTime = new Date(sevenPM.toLocaleString('en-CA', { timeZone: 'UTC' }));
+    const utcHour = utcTime.getHours();
+    const utcMinute = utcTime.getMinutes();
+    
+    // Return cron pattern: "minute hour * * 1-5" (Monday to Friday)
+    return `${utcMinute} ${utcHour} * * 1-5`;
+  } catch (error) {
+    console.error(`Error calculating cron schedule for timezone ${timezone}:`, error);
+    // Fallback to 7 PM UTC if timezone calculation fails
+    return "0 19 * * 1-5";
+  }
+}
 
-    console.log(
-      `⏰ Company local time: ${companyLocalTime} (Hour: ${companyHour})`
-    );
-
-    // Check if we're in production or development to determine target time
-    const isProduction = process.env.NODE_ENV === "production";
-    const targetHour = isProduction ? 18 : 17; // 6:00 PM for production, 5:00 PM for development
-    const targetTime = isProduction ? "6:00 PM" : "5:00 PM";
-
-    // Only run if it's the target time in the company's timezone (unless forced)
-    if (!forceRun && companyHour !== targetHour) {
-      console.log(
-        `⏭️  Skipping - it's not ${targetTime} in ${companyTimezone}`
-      );
-      return;
-    }
-
-    // Check if it's weekend in the company's timezone
-    const dayOfWeek = companyDate.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      console.log(
-        `📅 Weekend detected in ${companyTimezone} (${dayOfWeek === 0 ? "Sunday" : "Saturday"}), skipping absent automation`
-      );
-      return;
-    }
-
-    // Validate database connection
+/**
+ * Mark employees as absent for a specific company
+ */
+async function markEmployeesAbsent(companyId, companyTimezone) {
+  console.log(`🏢 Running absent automation for company ${companyId} (${companyTimezone})`);
+  
+  try {
     await prisma.$connect();
 
-    // Get the company's local date at midnight for consistent comparison
-    // Create a new date object in the company's timezone for today
+    // Get company's local date at midnight for consistent comparison
     const now = new Date();
-    const companyLocalDate = new Date(
-      now.toLocaleString("en-US", {
-        timeZone: companyTimezone,
-      })
-    );
-
-    // Set to midnight in the company's timezone
-    const companyDateMidnight = new Date(companyLocalDate);
-    companyDateMidnight.setHours(0, 0, 0, 0);
-
-    console.log(
-      `Processing attendance for company ${companyId} on date: ${companyDateMidnight.toISOString().split("T")[0]} (${companyTimezone})`
-    );
+    const companyLocalDateString = now.toLocaleDateString('en-CA', { 
+      timeZone: companyTimezone 
+    }); // Returns YYYY-MM-DD format
+    
+    // Create date object for company's today at midnight
+    const companyDateMidnight = new Date(`${companyLocalDateString}T00:00:00.000Z`);
+    
+    console.log(`📅 Processing attendance for company ${companyId} on date: ${companyLocalDateString} (${companyTimezone})`);
 
     // Check if absent records already exist for today to prevent duplicates
     const existingAbsentRecords = await prisma.attendance.count({
@@ -81,10 +65,8 @@ async function runAbsentAutomationForCompany(
     });
 
     if (existingAbsentRecords > 0) {
-      console.log(
-        `⚠️  Found ${existingAbsentRecords} existing absent records for today in company ${companyId}. Skipping to avoid duplicates.`
-      );
-      return;
+      console.log(`⚠️  Found ${existingAbsentRecords} existing absent records for today in company ${companyId}. Skipping to avoid duplicates.`);
+      return { success: true, message: "Already processed", count: 0 };
     }
 
     // Get active employees for this company
@@ -94,21 +76,19 @@ async function runAbsentAutomationForCompany(
         companyId: companyId,
       },
     });
-    console.log(
-      `📊 Total active employees in company ${companyId}: ${totalActiveEmployees}`
-    );
+    
+    console.log(`📊 Total active employees in company ${companyId}: ${totalActiveEmployees}`);
 
-    // Find active employees in this company who haven't checked in today
+    // Find active employees who haven't checked in today
     const employeesWithoutAttendance = await prisma.employee.findMany({
       where: {
         status: "ACTIVE",
         companyId: companyId,
-        // Exclude employees who already have attendance records for today
         attendances: {
           none: {
             date: {
               gte: companyDateMidnight,
-              lt: new Date(companyDateMidnight.getTime() + 24 * 60 * 60 * 1000), // Next day
+              lt: new Date(companyDateMidnight.getTime() + 24 * 60 * 60 * 1000),
             },
           },
         },
@@ -120,48 +100,38 @@ async function runAbsentAutomationForCompany(
       },
     });
 
-    console.log(
-      `Found ${employeesWithoutAttendance.length} employees without attendance records in company ${companyId}`
-    );
+    console.log(`👥 Found ${employeesWithoutAttendance.length} employees without attendance records in company ${companyId}`);
 
     if (employeesWithoutAttendance.length === 0) {
-      console.log(`No employees to mark as absent in company ${companyId}`);
-      return;
+      console.log(`✅ No employees to mark as absent in company ${companyId}`);
+      return { success: true, message: "No employees to mark absent", count: 0 };
     }
 
-    // Use transaction to ensure data consistency
+    // Create absent attendance records in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Double-check for existing records within transaction
+      // Double-check within transaction to prevent race conditions
       const employeesToMarkAbsent = await tx.employee.findMany({
         where: {
-          id: {
-            in: employeesWithoutAttendance.map((emp) => emp.id),
-          },
+          id: { in: employeesWithoutAttendance.map(emp => emp.id) },
           status: "ACTIVE",
           companyId: companyId,
           attendances: {
             none: {
               date: {
                 gte: companyDateMidnight,
-                lt: new Date(
-                  companyDateMidnight.getTime() + 24 * 60 * 60 * 1000
-                ),
+                lt: new Date(companyDateMidnight.getTime() + 24 * 60 * 60 * 1000),
               },
             },
           },
         },
-        select: {
-          id: true,
-          name: true,
-          companyId: true,
-        },
+        select: { id: true, name: true, companyId: true },
       });
 
       if (employeesToMarkAbsent.length === 0) {
         return { count: 0 };
       }
 
-      // Create absent attendance records for all employees who haven't checked in
+      // Create absent records
       const absentRecords = await tx.attendance.createMany({
         data: employeesToMarkAbsent.map((employee) => ({
           employeeId: employee.id,
@@ -176,24 +146,26 @@ async function runAbsentAutomationForCompany(
       return absentRecords;
     });
 
-    console.log(
-      `✅ Marked ${result.count} employees as absent in company ${companyId}`
-    );
-  } catch (error) {
-    console.error(
-      `Error in absent automation for company ${companyId}:`,
-      error
-    );
+    const message = `✅ Marked ${result.count} employees as absent in company ${companyId}`;
+    console.log(message);
+    
+    return { 
+      success: true, 
+      message: "Successfully processed", 
+      count: result.count,
+      date: companyLocalDateString
+    };
 
-    // Log specific error details for debugging
-    if (error.code) {
-      console.error(`Database error code: ${error.code}`);
-    }
-    if (error.meta) {
-      console.error(`Error metadata:`, error.meta);
-    }
+  } catch (error) {
+    const errorMessage = `❌ Error in absent automation for company ${companyId}: ${error.message}`;
+    console.error(errorMessage);
+    
+    return { 
+      success: false, 
+      message: errorMessage, 
+      error: error.message 
+    };
   } finally {
-    // Ensure database connection is properly closed
     try {
       await prisma.$disconnect();
     } catch (disconnectError) {
@@ -202,11 +174,51 @@ async function runAbsentAutomationForCompany(
   }
 }
 
-// Function to run absent automation for all companies
-async function runAbsentAutomationForAllCompanies(forceRun = false) {
-  console.log("🔄 Running absent automation for all companies...");
-  console.log(`⏰ Server time: ${new Date().toISOString()}`);
+/**
+ * Initialize automation for a single company
+ */
+async function initializeCompanyAutomation(company) {
+  try {
+    const cronPattern = getCronScheduleFor7PM(company.timezone);
+    
+    // Stop existing job if it exists
+    if (cronJobs.has(company.id)) {
+      cronJobs.get(company.id).stop();
+      console.log(`🛑 Stopped existing cron job for company ${company.id}`);
+    }
 
+    // Create new cron job for this company
+    const job = cron.schedule(
+      cronPattern,
+      async () => {
+        console.log(`⏰ [${new Date().toISOString()}] Triggering absent automation for company ${company.id} (${company.companyName})`);
+        await markEmployeesAbsent(company.id, company.timezone);
+      },
+      {
+        scheduled: true,
+        timezone: "UTC", // Always use UTC for cron scheduling since we calculated UTC times
+      }
+    );
+
+    cronJobs.set(company.id, job);
+    
+    console.log(`✅ Initialized absent automation for company ${company.id} (${company.companyName})`);
+    console.log(`   📍 Timezone: ${company.timezone}`);
+    console.log(`   ⏰ Cron pattern: ${cronPattern} (runs at 7 PM ${company.timezone})`);
+    
+    return { success: true, company: company.id, cronPattern };
+  } catch (error) {
+    console.error(`❌ Failed to initialize automation for company ${company.id}:`, error);
+    return { success: false, company: company.id, error: error.message };
+  }
+}
+
+/**
+ * Initialize automation for all companies
+ */
+async function initializeAllCompanyAutomations() {
+  console.log("🚀 Initializing absent automation for all companies...");
+  
   try {
     // Get all companies with their timezones
     const companies = await prisma.company.findMany({
@@ -217,111 +229,157 @@ async function runAbsentAutomationForAllCompanies(forceRun = false) {
       },
     });
 
-    console.log(`Found ${companies.length} companies to process`);
+    console.log(`📊 Found ${companies.length} companies to set up automation for`);
 
-    // In development mode, always force run for testing
-    const isProduction = process.env.NODE_ENV === "production";
-    const shouldForceRun = forceRun || !isProduction;
-
+    const results = [];
     for (const company of companies) {
-      await runAbsentAutomationForCompany(
-        company.id,
-        company.timezone,
-        shouldForceRun
-      );
+      const result = await initializeCompanyAutomation(company);
+      results.push(result);
     }
 
-    console.log("✅ Completed absent automation for all companies");
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    console.log(`✅ Successfully initialized automation for ${successCount} companies`);
+    if (failCount > 0) {
+      console.log(`❌ Failed to initialize automation for ${failCount} companies`);
+    }
+
+    return { success: true, total: companies.length, successful: successCount, failed: failCount };
   } catch (error) {
-    console.error("Error in absent automation for all companies:", error);
+    console.error("❌ Error initializing company automations:", error);
+    return { success: false, error: error.message };
   }
 }
 
-// Function to manually trigger absent automation (for testing)
-async function triggerAbsentAutomationManually() {
-  console.log("🚀 Manually triggering absent automation...");
-  await runAbsentAutomationForAllCompanies(true);
+/**
+ * Stop automation for a specific company
+ */
+function stopCompanyAutomation(companyId) {
+  if (cronJobs.has(companyId)) {
+    cronJobs.get(companyId).stop();
+    cronJobs.delete(companyId);
+    console.log(`🛑 Stopped absent automation for company ${companyId}`);
+    return { success: true, message: `Stopped automation for company ${companyId}` };
+  } else {
+    console.log(`⚠️  No active automation found for company ${companyId}`);
+    return { success: false, message: `No active automation for company ${companyId}` };
+  }
 }
 
-// Legacy function for backward compatibility
-async function runAbsentAutomation() {
-  console.log("🔄 Running legacy absent automation (single timezone)...");
-  await runAbsentAutomationForAllCompanies();
+/**
+ * Stop all automations
+ */
+function stopAllAutomations() {
+  console.log("🛑 Stopping all absent automations...");
+  
+  let stoppedCount = 0;
+  for (const [companyId, job] of cronJobs) {
+    job.stop();
+    stoppedCount++;
+  }
+  
+  cronJobs.clear();
+  console.log(`✅ Stopped ${stoppedCount} automation jobs`);
+  return { success: true, count: stoppedCount };
 }
 
-// Initialize the cron job
-function initializeAbsentAutomation() {
+/**
+ * Get status of all automations
+ */
+function getAutomationStatus() {
+  const activeJobs = [];
+  
+  for (const [companyId, job] of cronJobs) {
+    activeJobs.push({
+      companyId,
+      status: 'active',
+      nextRun: 'Daily at 7 PM company local time, Monday-Friday'
+    });
+  }
+
+  return {
+    totalJobs: activeJobs.length,
+    activeJobs,
+    description: "Each company has its own cron job scheduled for 7 PM in their local timezone"
+  };
+}
+
+/**
+ * Manually trigger automation for a specific company (for testing)
+ */
+async function manuallyTriggerForCompany(companyId, companyTimezone = "UTC") {
+  console.log(`🚀 Manually triggering absent automation for company ${companyId}...`);
+  return await markEmployeesAbsent(companyId, companyTimezone);
+}
+
+/**
+ * Manually trigger automation for all companies (for testing)
+ */
+async function manuallyTriggerForAllCompanies() {
+  console.log("🚀 Manually triggering absent automation for all companies...");
+  
   try {
-    // Check if we're in production or development
-    const isProduction = process.env.NODE_ENV === "production";
+    const companies = await prisma.company.findMany({
+      select: { id: true, companyName: true, timezone: true },
+    });
 
-    if (isProduction) {
-      // Production: Run every hour, Monday-Friday to check all companies
-      absentAutomationJob = cron.schedule(
-        "0 * * * 1-5",
-        runAbsentAutomationForAllCompanies,
-        {
-          scheduled: true,
-          timezone: "UTC", // Server timezone doesn't matter now
-        }
-      );
+    console.log(`📊 Processing ${companies.length} companies...`);
 
-      console.log(
-        "✅ Absent automation initialized - runs hourly, checks for 6:00 PM local time"
-      );
-    } else {
-      // Development: Run every hour, Monday-Friday to check all companies
-      absentAutomationJob = cron.schedule(
-        "0 * * * 1-5",
-        runAbsentAutomationForAllCompanies,
-        {
-          scheduled: true,
-          timezone: "UTC", // Server timezone doesn't matter now
-        }
-      );
-
-      console.log(
-        "✅ Absent automation initialized - development mode (runs hourly, checks for 5:00 PM local time)"
-      );
+    const results = [];
+    for (const company of companies) {
+      const result = await markEmployeesAbsent(company.id, company.timezone);
+      results.push({ companyId: company.id, companyName: company.companyName, ...result });
     }
 
-    return absentAutomationJob;
+    return { success: true, results };
   } catch (error) {
-    console.error("❌ Failed to initialize absent automation:", error);
-    throw error;
+    console.error("❌ Error in manual trigger for all companies:", error);
+    return { success: false, error: error.message };
   }
 }
 
-// Function to stop the automation gracefully
-function stopAbsentAutomation() {
-  if (absentAutomationJob) {
-    absentAutomationJob.stop();
-    console.log("🛑 Absent automation stopped gracefully");
-  }
+/**
+ * Reinitialize automation when companies are added/updated
+ */
+async function reinitializeAutomation() {
+  console.log("🔄 Reinitializing automation system...");
+  stopAllAutomations();
+  return await initializeAllCompanyAutomations();
 }
 
 // Handle graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down absent automation...");
-  stopAbsentAutomation();
-  process.exit(0);
-});
+function setupGracefulShutdown() {
+  const shutdownHandler = (signal) => {
+    console.log(`${signal} received, shutting down absent automation system...`);
+    stopAllAutomations();
+    process.exit(0);
+  };
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down absent automation...");
-  stopAbsentAutomation();
-  process.exit(0);
-});
+  process.on("SIGTERM", () => shutdownHandler("SIGTERM"));
+  process.on("SIGINT", () => shutdownHandler("SIGINT"));
+}
 
-// Initialize the automation
-const job = initializeAbsentAutomation();
+// Initialize the automation system
+async function initialize() {
+  console.log("🚀 Starting Absent Automation System...");
+  console.log("⏰ Target time: 7:00 PM in each company's local timezone");
+  console.log("📅 Schedule: Monday to Friday only");
+  
+  setupGracefulShutdown();
+  return await initializeAllCompanyAutomations();
+}
 
-// Export for potential external control
+// Export all functions
 export {
-  job,
-  stopAbsentAutomation,
-  runAbsentAutomation,
-  runAbsentAutomationForCompany,
-  runAbsentAutomationForAllCompanies,
-  triggerAbsentAutomationManually,
+  initialize,
+  initializeCompanyAutomation,
+  stopCompanyAutomation,
+  stopAllAutomations,
+  getAutomationStatus,
+  manuallyTriggerForCompany,
+  manuallyTriggerForAllCompanies,
+  reinitializeAutomation,
+  markEmployeesAbsent,
+  getCronScheduleFor7PM,
 };
