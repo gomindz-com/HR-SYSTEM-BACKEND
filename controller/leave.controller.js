@@ -123,6 +123,7 @@ export const getLeaveRequests = async (req, res) => {
             select: {
               id: true,
               name: true,
+              profilePic: true,
               email: true,
               department: {
                 select: {
@@ -191,6 +192,7 @@ export const getMyLeaveRequests = async (req, res) => {
               id: true,
               name: true,
               email: true,
+              profilePic: true,
             },
           },
         },
