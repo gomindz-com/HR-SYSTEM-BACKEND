@@ -6,28 +6,64 @@ const cronJobs = new Map();
 
 /**
  * Convert timezone to cron schedule for 7 PM (19:00)
- * This function calculates what UTC time corresponds to 7 PM in the company's timezone
+ * Simplified version with better error handling
  */
 function getCronScheduleFor7PM(timezone) {
+  // Handle common timezone cases with a simple mapping
+  const timezoneMap = {
+    'UTC': 19,
+    'America/New_York': 0,      // UTC+0 (7 PM EST = 12 AM UTC next day)
+    'America/Chicago': 1,       // UTC+1 (7 PM CST = 1 AM UTC next day)  
+    'America/Denver': 2,        // UTC+2 (7 PM MST = 2 AM UTC next day)
+    'America/Los_Angeles': 3,   // UTC+3 (7 PM PST = 3 AM UTC next day)
+    'Europe/London': 19,        // UTC+19 (7 PM GMT = 7 PM UTC)
+    'Europe/Paris': 18,         // UTC+18 (7 PM CET = 6 PM UTC)
+    'Asia/Tokyo': 10,           // UTC+10 (7 PM JST = 10 AM UTC)
+  };
+
   try {
-    // Create a date for today at 7 PM in the company's timezone
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // First validate the timezone
+    if (!timezone || typeof timezone !== 'string') {
+      console.log(`Invalid timezone format: ${timezone}, using UTC fallback`);
+      return "0 19 * * 1-5";
+    }
+
+    // Check if we have a direct mapping
+    if (timezoneMap[timezone]) {
+      const hour = timezoneMap[timezone];
+      console.log(`🕐 Timezone ${timezone}: 7 PM local = ${hour}:00 UTC`);
+      return `0 ${hour} * * 1-5`;
+    }
+
+    // For other timezones, try dynamic calculation
+    try {
+      const testDate = new Date('2025-08-11T12:00:00Z'); // Noon UTC
+      const localTime = testDate.toLocaleString('en-US', {
+        timeZone: timezone,
+        hour12: false,
+        hour: 'numeric'
+      });
+      
+      const localHour = parseInt(localTime);
+      const offsetHours = localHour - 12; // Difference from UTC noon
+      let targetUTCHour = 19 - offsetHours; // Adjust 7 PM by offset
+      
+      // Handle day boundary crossings
+      if (targetUTCHour < 0) targetUTCHour += 24;
+      if (targetUTCHour >= 24) targetUTCHour -= 24;
+      
+      console.log(`🕐 Timezone ${timezone}: 7 PM local = ${targetUTCHour}:00 UTC (calculated)`);
+      return `0 ${targetUTCHour} * * 1-5`;
+      
+    } catch (calcError) {
+      console.error(`Timezone calculation failed for ${timezone}:`, calcError.message);
+      console.log(`Using UTC fallback for ${timezone}`);
+      return "0 19 * * 1-5";
+    }
     
-    // Create 7 PM in company timezone
-    const sevenPM = new Date(today.toLocaleString('en-CA', { timeZone: timezone }));
-    sevenPM.setHours(19, 0, 0, 0); // Set to 7 PM
-    
-    // Convert back to get what this time is in UTC
-    const utcTime = new Date(sevenPM.toLocaleString('en-CA', { timeZone: 'UTC' }));
-    const utcHour = utcTime.getHours();
-    const utcMinute = utcTime.getMinutes();
-    
-    // Return cron pattern: "minute hour * * 1-5" (Monday to Friday)
-    return `${utcMinute} ${utcHour} * * 1-5`;
   } catch (error) {
-    console.error(`Error calculating cron schedule for timezone ${timezone}:`, error);
-    // Fallback to 7 PM UTC if timezone calculation fails
+    console.error(`Error processing timezone ${timezone}:`, error.message);
+    console.log(`Using UTC fallback for ${timezone}`);
     return "0 19 * * 1-5";
   }
 }
