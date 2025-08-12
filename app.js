@@ -15,6 +15,8 @@ dotenv.config();
 
 // Initialize the new automation system
 let automationInitialized = false;
+// COMMENTED OUT: Absent automation disabled temporarily
+/*
 try {
   const { initialize } = await import("./automations/absentAutomation.js");
   const result = await initialize();
@@ -34,6 +36,7 @@ try {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
 }
+*/
 
 const app = express();
 
@@ -93,18 +96,20 @@ app.get("/api/admin/automation-status", async (req, res) => {
       return res.json({
         status: "not_initialized",
         message: "Automation system failed to initialize",
-        automations: []
+        automations: [],
       });
     }
 
-    const { getAutomationStatus } = await import("./automations/absentAutomation.js");
+    const { getAutomationStatus } = await import(
+      "./automations/absentAutomation.js"
+    );
     const status = getAutomationStatus();
-    
+
     res.json({
       status: "running",
       initialized: true,
       timestamp: new Date().toISOString(),
-      ...status
+      ...status,
     });
   } catch (error) {
     console.error("Error getting automation status:", error);
@@ -120,23 +125,25 @@ app.post("/api/admin/trigger-absent-automation", async (req, res) => {
   try {
     if (!automationInitialized) {
       return res.status(500).json({
-        error: "Automation system not initialized"
+        error: "Automation system not initialized",
       });
     }
 
-    const { manuallyTriggerForAllCompanies } = await import("./automations/absentAutomation.js");
+    const { manuallyTriggerForAllCompanies } = await import(
+      "./automations/absentAutomation.js"
+    );
     const result = await manuallyTriggerForAllCompanies();
 
     if (result.success) {
       res.json({
         message: "Absent automation triggered for all companies",
         timestamp: new Date().toISOString(),
-        results: result.results
+        results: result.results,
       });
     } else {
       res.status(500).json({
         error: "Failed to trigger automation for all companies",
-        details: result.error
+        details: result.error,
       });
     }
   } catch (error) {
@@ -153,7 +160,7 @@ app.post("/api/admin/trigger-company-automation", async (req, res) => {
   try {
     if (!automationInitialized) {
       return res.status(500).json({
-        error: "Automation system not initialized"
+        error: "Automation system not initialized",
       });
     }
 
@@ -161,23 +168,28 @@ app.post("/api/admin/trigger-company-automation", async (req, res) => {
 
     if (!companyId) {
       return res.status(400).json({
-        error: "Company ID is required"
+        error: "Company ID is required",
       });
     }
 
-    const { manuallyTriggerForCompany } = await import("./automations/absentAutomation.js");
-    const result = await manuallyTriggerForCompany(companyId, timezone || "UTC");
+    const { manuallyTriggerForCompany } = await import(
+      "./automations/absentAutomation.js"
+    );
+    const result = await manuallyTriggerForCompany(
+      companyId,
+      timezone || "UTC"
+    );
 
     if (result.success) {
       res.json({
         message: `Absent automation completed for company ${companyId}`,
         timestamp: new Date().toISOString(),
-        result
+        result,
       });
     } else {
       res.status(500).json({
         error: `Failed to run automation for company ${companyId}`,
-        details: result.message
+        details: result.message,
       });
     }
   } catch (error) {
@@ -192,7 +204,9 @@ app.post("/api/admin/trigger-company-automation", async (req, res) => {
 // Reinitialize the automation system (useful when companies are added/updated)
 app.post("/api/admin/reinitialize-automation", async (req, res) => {
   try {
-    const { reinitializeAutomation } = await import("./automations/absentAutomation.js");
+    const { reinitializeAutomation } = await import(
+      "./automations/absentAutomation.js"
+    );
     const result = await reinitializeAutomation();
 
     automationInitialized = result.success;
@@ -203,12 +217,12 @@ app.post("/api/admin/reinitialize-automation", async (req, res) => {
         timestamp: new Date().toISOString(),
         total: result.total,
         successful: result.successful,
-        failed: result.failed
+        failed: result.failed,
       });
     } else {
       res.status(500).json({
         error: "Failed to reinitialize automation system",
-        details: result.error
+        details: result.error,
       });
     }
   } catch (error) {
@@ -225,7 +239,7 @@ app.post("/api/admin/stop-company-automation", async (req, res) => {
   try {
     if (!automationInitialized) {
       return res.status(500).json({
-        error: "Automation system not initialized"
+        error: "Automation system not initialized",
       });
     }
 
@@ -233,17 +247,19 @@ app.post("/api/admin/stop-company-automation", async (req, res) => {
 
     if (!companyId) {
       return res.status(400).json({
-        error: "Company ID is required"
+        error: "Company ID is required",
       });
     }
 
-    const { stopCompanyAutomation } = await import("./automations/absentAutomation.js");
+    const { stopCompanyAutomation } = await import(
+      "./automations/absentAutomation.js"
+    );
     const result = stopCompanyAutomation(companyId);
 
     res.json({
       message: result.message,
       timestamp: new Date().toISOString(),
-      success: result.success
+      success: result.success,
     });
   } catch (error) {
     console.error("Error stopping company automation:", error);
@@ -260,18 +276,20 @@ app.post("/api/admin/stop-all-automations", async (req, res) => {
     if (!automationInitialized) {
       return res.json({
         message: "Automation system was not initialized, nothing to stop",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const { stopAllAutomations } = await import("./automations/absentAutomation.js");
+    const { stopAllAutomations } = await import(
+      "./automations/absentAutomation.js"
+    );
     const result = stopAllAutomations();
     automationInitialized = false;
 
     res.json({
       message: `Stopped all automation jobs`,
       timestamp: new Date().toISOString(),
-      stoppedJobs: result.count
+      stoppedJobs: result.count,
     });
   } catch (error) {
     console.error("Error stopping all automations:", error);
