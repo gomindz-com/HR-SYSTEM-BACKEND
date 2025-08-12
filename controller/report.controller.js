@@ -46,12 +46,78 @@ export const employeeReport = async (req, res) => {
     // Text search across multiple fields (matches frontend search input)
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      whereClause.OR = [
+      const searchConditions = [
         { name: { contains: searchTerm, mode: "insensitive" } },
         { position: { contains: searchTerm, mode: "insensitive" } },
-        { role: { contains: searchTerm, mode: "insensitive" } },
-        { employmentType: { contains: searchTerm, mode: "insensitive" } },
       ];
+
+      // Check if search term matches any valid role values with fuzzy matching
+      const validRoles = [
+        "EMPLOYEE",
+        "DIRECTOR",
+        "HR",
+        "CTO",
+        "CEO",
+        "MANAGEMENT",
+      ];
+
+      const matchingRoles = validRoles.filter((role) => {
+        const roleLower = role.toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+
+        // Direct match
+        if (roleLower.includes(searchLower)) return true;
+
+        // Common variations for roles
+        if (searchLower.includes("hr") && roleLower === "hr") return true;
+        if (searchLower.includes("ceo") && roleLower === "ceo") return true;
+        if (searchLower.includes("cto") && roleLower === "cto") return true;
+        if (searchLower.includes("director") && roleLower === "director")
+          return true;
+        if (searchLower.includes("management") && roleLower === "management")
+          return true;
+        if (searchLower.includes("employee") && roleLower === "employee")
+          return true;
+
+        return false;
+      });
+
+      if (matchingRoles.length > 0) {
+        searchConditions.push({ role: { in: matchingRoles } });
+      }
+
+      // Check if search term matches any valid employment type values with fuzzy matching
+      const validEmploymentTypes = ["FULL_TIME", "PART_TIME", "CONTRACTOR"];
+      const matchingEmploymentTypes = validEmploymentTypes.filter((type) => {
+        const typeLower = type.toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+
+        // Direct match
+        if (typeLower.includes(searchLower)) return true;
+
+        // Common variations for employment types
+        if (searchLower.includes("full") && typeLower === "full_time")
+          return true;
+        if (searchLower.includes("part") && typeLower === "part_time")
+          return true;
+        if (searchLower.includes("contract") && typeLower === "contractor")
+          return true;
+        if (
+          searchLower.includes("time") &&
+          (typeLower === "full_time" || typeLower === "part_time")
+        )
+          return true;
+
+        return false;
+      });
+
+      if (matchingEmploymentTypes.length > 0) {
+        searchConditions.push({
+          employmentType: { in: matchingEmploymentTypes },
+        });
+      }
+
+      whereClause.OR = searchConditions;
     }
 
     // Exact match filters
