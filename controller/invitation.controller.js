@@ -18,9 +18,6 @@ export const sendInvitation = async (req, res) => {
     }
 
 
-    if(req.user.role !== "HR") {
-      return res.status(401).json({ message: "only HR can send invitations" });
-    }
 
     const existingUser = await prisma.employee.findUnique({
       where: {
