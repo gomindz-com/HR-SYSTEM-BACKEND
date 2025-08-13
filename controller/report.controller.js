@@ -302,3 +302,784 @@ export const employeeReport = async (req, res) => {
     });
   }
 };
+
+export const leaveReport = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters
+    const {
+      search, // Search term for employee name
+      department, // Filter by department ID
+      leaveType, // Filter by leave type
+      status, // Filter by leave status
+      dateFrom, // Filter by leave start date
+      dateTo, // Filter by leave end date
+      timePeriod, // Predefined time periods: day, week, month, quarter, year
+      page = 1, // Pagination
+      limit = 10, // Items per page
+    } = req.query;
+
+    // Convert to proper types with validation
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    // Validate pagination values
+    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+      });
+    }
+
+    // Start building where clause
+    let whereClause = {
+      companyId: companyId, // Always filter by company for security
+    };
+
+    // Text search across employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    // Exact match filters
+    if (department) {
+      const deptId = parseInt(department);
+      if (!isNaN(deptId)) {
+        whereClause.employee = {
+          ...whereClause.employee,
+          departmentId: deptId,
+        };
+      }
+    }
+
+    if (
+      leaveType &&
+      ["STUDY", "MATERNITY", "SICK", "VACATION", "ANNUAL", "PERSONAL"].includes(
+        leaveType
+      )
+    ) {
+      whereClause.leaveType = leaveType;
+    }
+
+    if (status && ["PENDING", "APPROVED", "REJECTED"].includes(status)) {
+      whereClause.status = status;
+    }
+
+    // Date range filter for leave start date
+    if (dateFrom || dateTo) {
+      whereClause.startDate = {};
+
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) {
+          whereClause.startDate.gte = fromDate;
+        }
+      }
+
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) {
+          // Set to end of day for inclusive range
+          toDate.setHours(23, 59, 59, 999);
+          whereClause.startDate.lte = toDate;
+        }
+      }
+    }
+
+    // Predefined time period filters (overrides dateFrom/dateTo if both are provided)
+    if (timePeriod && !dateFrom && !dateTo) {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (timePeriod) {
+        case "day":
+          // Today
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "week":
+          // This week (Sunday to Saturday)
+          const dayOfWeek = startDate.getDay();
+          startDate.setDate(startDate.getDate() - dayOfWeek);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setDate(endDate.getDate() + (6 - dayOfWeek));
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "month":
+          // This month
+          startDate.setDate(1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth(endDate.getMonth() + 1);
+          endDate.setDate(0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "quarter":
+          // This quarter
+          const currentQuarter = Math.floor(now.getMonth() / 3);
+          startDate.setMonth(currentQuarter * 3);
+          startDate.setDate(1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth((currentQuarter + 1) * 3);
+          endDate.setDate(0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "year":
+          // This year
+          startDate.setMonth(0, 1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth(11, 31);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        default:
+          // Invalid time period, ignore
+          break;
+      }
+
+      // Only apply if we have valid dates
+      if (
+        startDate.getTime() !== now.getTime() ||
+        endDate.getTime() !== now.getTime()
+      ) {
+        whereClause.startDate = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Build the main query with proper relations
+    const leaveRequests = await prisma.leaveRequest.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          include: {
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        approver: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        startDate: "desc", // Most recent first
+      },
+      skip: skip,
+      take: limitNum,
+    });
+
+    // Get total count for pagination
+    const totalCount = await prisma.leaveRequest.count({
+      where: whereClause,
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Format response to match frontend expectations
+    const formattedLeaveRequests = leaveRequests.map((leave) => ({
+      id: leave.id,
+      employeeName: leave.employee.name,
+      department: leave.employee.department?.name || "Unknown",
+      leaveType: leave.leaveType,
+      startDate: leave.startDate,
+      endDate: leave.endDate,
+      days: leave.days,
+      status: leave.status,
+      approverName: leave.approver?.name || "Not Assigned",
+      comments: leave.comments || "",
+      createdAt: leave.createdAt,
+    }));
+
+    // Send response
+    res.status(200).json({
+      success: true,
+      data: formattedLeaveRequests,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in leaveReport controller:", error);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate entry found",
+      });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Something went wrong",
+    });
+  }
+};
+
+export const attendanceReport = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters
+    const {
+      search, // Search term for employee name
+      department, // Filter by department ID
+      status, // Filter by attendance status
+      dateFrom, // Filter by attendance date
+      dateTo, // Filter by attendance date
+      timePeriod, // Predefined time periods: day, week, month, quarter, year
+      page = 1, // Pagination
+      limit = 10, // Items per page
+    } = req.query;
+
+    // Convert to proper types with validation
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    // Validate pagination values
+    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+      });
+    }
+
+    // Start building where clause
+    let whereClause = {
+      companyId: companyId, // Always filter by company for security
+    };
+
+    // Text search across employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    // Exact match filters
+    if (department) {
+      const deptId = parseInt(department);
+      if (!isNaN(deptId)) {
+        whereClause.employee = {
+          ...whereClause.employee,
+          departmentId: deptId,
+        };
+      }
+    }
+
+    if (status && ["ON_TIME", "LATE", "ABSENT"].includes(status)) {
+      whereClause.status = status;
+    }
+
+    // Date range filter for attendance date
+    if (dateFrom || dateTo) {
+      whereClause.date = {};
+
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) {
+          whereClause.date.gte = fromDate;
+        }
+      }
+
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) {
+          // Set to end of day for inclusive range
+          toDate.setHours(23, 59, 59, 999);
+          whereClause.date.lte = toDate;
+        }
+      }
+    }
+
+    // Predefined time period filters (overrides dateFrom/dateTo if both are provided)
+    if (timePeriod && !dateFrom && !dateTo) {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (timePeriod) {
+        case "day":
+          // Today
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "week":
+          // This week (Sunday to Saturday)
+          const dayOfWeek = startDate.getDay();
+          startDate.setDate(startDate.getDate() - dayOfWeek);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setDate(endDate.getDate() + (6 - dayOfWeek));
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "month":
+          // This month
+          startDate.setDate(1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth(endDate.getMonth() + 1);
+          endDate.setDate(0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "quarter":
+          // This quarter
+          const currentQuarter = Math.floor(now.getMonth() / 3);
+          startDate.setMonth(currentQuarter * 3);
+          startDate.setDate(1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth((currentQuarter + 1) * 3);
+          endDate.setDate(0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        case "year":
+          // This year
+          startDate.setMonth(0, 1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setMonth(11, 31);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+
+        default:
+          // Invalid time period, ignore
+          break;
+      }
+
+      // Only apply if we have valid dates
+      if (
+        startDate.getTime() !== now.getTime() ||
+        endDate.getTime() !== now.getTime()
+      ) {
+        whereClause.date = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Build the main query with proper relations
+    const attendances = await prisma.attendance.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          include: {
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        date: "desc", // Most recent first
+      },
+      skip: skip,
+      take: limitNum,
+    });
+
+    // Get total count for pagination
+    const totalCount = await prisma.attendance.count({
+      where: whereClause,
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Format response to match frontend expectations
+    const formattedAttendances = attendances.map((att) => ({
+      id: att.id,
+      employeeName: att.employee.name,
+      department: att.employee.department?.name || "Unknown",
+      date: att.date,
+      timeIn: att.timeIn
+        ? att.timeIn.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : null,
+      timeOut: att.timeOut
+        ? att.timeOut.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : null,
+      status: att.status,
+      createdAt: att.createdAt,
+    }));
+
+    // Send response
+    res.status(200).json({
+      success: true,
+      data: formattedAttendances,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in attendanceReport controller:", error);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate entry found",
+      });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Something went wrong",
+    });
+  }
+};
+
+export const reportStats = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters for date filtering
+    const { dateFrom, dateTo, timePeriod } = req.query;
+
+    // Build date filter for all queries
+    let dateFilter = {};
+
+    // Priority: Custom date range takes precedence over time period
+    if (dateFrom || dateTo) {
+      if (dateFrom) {
+        dateFilter.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        dateFilter.lte = new Date(dateTo);
+      }
+    } else if (timePeriod && timePeriod !== "all") {
+      const now = new Date();
+      let startDate;
+
+      switch (timePeriod) {
+        case "day":
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate()
+          );
+          break;
+        case "week":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "quarter":
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Default to last 30 days
+      }
+
+      if (startDate) {
+        dateFilter.gte = startDate;
+      }
+    }
+    // If both are "all" or undefined, no date filtering is applied
+
+    // Get total employees count (always total company employees, not filtered by attendance)
+    const totalEmployees = await prisma.employee.count({
+      where: { companyId },
+    });
+
+    // Get total departments count
+    const totalDepartments = await prisma.department.count({
+      where: { companyId },
+    });
+
+    // Get attendance statistics
+    const attendanceStats = await prisma.attendance.groupBy({
+      by: ["status"],
+      where: {
+        companyId,
+        ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+      },
+      _count: {
+        status: true,
+      },
+    });
+
+    // Get leave request statistics
+    const leaveStats = await prisma.leaveRequest.groupBy({
+      by: ["status"],
+      where: {
+        companyId,
+        ...(Object.keys(dateFilter).length > 0 && { startDate: dateFilter }),
+      },
+      _count: {
+        status: true,
+      },
+    });
+
+    // Get monthly attendance trend for the last 6 months
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const monthlyAttendance = await prisma.attendance.groupBy({
+      by: ["date"],
+      where: {
+        companyId,
+        date: {
+          gte: sixMonthsAgo,
+        },
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        date: "asc",
+      },
+    });
+
+    // Get monthly leave trend for the last 6 months
+    const monthlyLeave = await prisma.leaveRequest.groupBy({
+      by: ["startDate"],
+      where: {
+        companyId,
+        startDate: {
+          gte: sixMonthsAgo,
+        },
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        startDate: "asc",
+      },
+    });
+
+    // Process attendance stats
+    const attendanceCounts = {
+      ON_TIME: 0,
+      ABSENT: 0,
+      LATE: 0,
+    };
+
+    attendanceStats.forEach((stat) => {
+      attendanceCounts[stat.status] = stat._count.status;
+    });
+
+    // Process leave stats
+    const leaveCounts = {
+      PENDING: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+    };
+
+    leaveStats.forEach((stat) => {
+      leaveCounts[stat.status] = stat._count.status;
+    });
+
+    // Calculate attendance rate
+    const totalAttendance = attendanceCounts.ON_TIME + attendanceCounts.LATE;
+
+    let attendanceRate;
+    if (Object.keys(dateFilter).length > 0) {
+      // If filtering by date, calculate rate based on filtered data
+      attendanceRate =
+        totalAttendance > 0
+          ? Math.round(
+              (totalAttendance / (totalAttendance + attendanceCounts.ABSENT)) *
+                100
+            )
+          : 0;
+    } else {
+      // If no date filter, calculate overall company attendance rate
+      const totalCompanyEmployees = await prisma.employee.count({
+        where: { companyId },
+      });
+
+      if (totalCompanyEmployees > 0) {
+        const totalPresentEmployees = await prisma.attendance.count({
+          where: {
+            companyId,
+            status: { in: ["ON_TIME", "LATE"] },
+          },
+        });
+        attendanceRate = Math.round(
+          (totalPresentEmployees / totalCompanyEmployees) * 100
+        );
+      } else {
+        attendanceRate = 0;
+      }
+    }
+
+    // Process monthly trends
+    const processMonthlyData = (data, dateField) => {
+      const monthlyMap = new Map();
+
+      // Initialize last 6 months with 0
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthlyMap.set(monthKey, 0);
+      }
+
+      // Fill in actual data
+      data.forEach((item) => {
+        const date = new Date(item[dateField]);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyMap.has(monthKey)) {
+          monthlyMap.set(monthKey, item._count.id);
+        }
+      });
+
+      return Array.from(monthlyMap.values());
+    };
+
+    const attendanceTrend = processMonthlyData(monthlyAttendance, "date");
+    const leaveTrend = processMonthlyData(monthlyLeave, "startDate");
+
+    // Get department distribution
+    const departmentDistribution = await prisma.employee.groupBy({
+      by: ["departmentId"],
+      where: { companyId },
+      _count: {
+        id: true,
+      },
+    });
+
+    // Get department names for the distribution
+    const departmentNames = await prisma.department.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+    });
+
+    const departmentMap = new Map(
+      departmentNames.map((dept) => [dept.id, dept.name])
+    );
+
+    const departmentData = departmentDistribution.map((dept) => ({
+      name: departmentMap.get(dept.departmentId) || "Unknown",
+      value: dept._count.id,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        overview: {
+          totalEmployees,
+          totalDepartments,
+          attendanceRate,
+          totalAttendance: totalAttendance + attendanceCounts.ABSENT,
+        },
+        attendance: {
+          present: attendanceCounts.ON_TIME,
+          absent: attendanceCounts.ABSENT,
+          late: attendanceCounts.LATE,
+        },
+        leave: {
+          pending: leaveCounts.PENDING,
+          approved: leaveCounts.APPROVED,
+          rejected: leaveCounts.REJECTED,
+        },
+        trends: {
+          attendance: attendanceTrend,
+          leave: leaveTrend,
+        },
+        departmentDistribution: departmentData,
+      },
+    });
+  } catch (error) {
+    console.error("Error in reportStats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
