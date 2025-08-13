@@ -16,7 +16,6 @@ dotenv.config();
 // Initialize the new automation system
 let automationInitialized = false;
 // COMMENTED OUT: Absent automation disabled temporarily
-/*
 try {
   const { initialize } = await import("./automations/absentAutomation.js");
   const result = await initialize();
@@ -36,7 +35,6 @@ try {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
 }
-*/
 
 const app = express();
 
