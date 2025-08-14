@@ -387,4 +387,89 @@ app.get("/api/admin/debug-cron-schedules", async (req, res) => {
   }
 });
 
+// Emergency endpoint to remove incorrectly marked absent records
+app.post("/api/admin/emergency-remove-todays-absent", async (req, res) => {
+  try {
+    const { confirmDate } = req.body;
+
+    if (confirmDate !== new Date().toISOString().split("T")[0]) {
+      return res.status(400).json({
+        error: "Please confirm today's date to proceed with removal",
+        requiredFormat: "YYYY-MM-DD",
+        todaysDate: new Date().toISOString().split("T")[0],
+      });
+    }
+
+    const prisma = await import("./config/prisma.config.js").then(
+      (m) => m.default
+    );
+
+    // Get today's date range
+    const today = new Date();
+    const startOfDay = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    // Find all absent records from today
+    const absentRecords = await prisma.attendance.findMany({
+      where: {
+        status: "ABSENT",
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+      include: {
+        employee: {
+          select: { name: true, id: true },
+        },
+        company: {
+          select: { companyName: true, id: true },
+        },
+      },
+    });
+
+    console.log(
+      `🚨 Emergency removal: Found ${absentRecords.length} absent records from today`
+    );
+
+    // Delete the absent records
+    const deleteResult = await prisma.attendance.deleteMany({
+      where: {
+        status: "ABSENT",
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+    });
+
+    console.log(
+      `✅ Emergency cleanup: Removed ${deleteResult.count} absent records`
+    );
+
+    res.json({
+      message: `Successfully removed ${deleteResult.count} incorrectly marked absent records`,
+      timestamp: new Date().toISOString(),
+      removedRecords: absentRecords.map((record) => ({
+        employeeName: record.employee.name,
+        employeeId: record.employee.id,
+        companyName: record.company.companyName,
+        companyId: record.company.id,
+        date: record.date,
+      })),
+      totalRemoved: deleteResult.count,
+    });
+  } catch (error) {
+    console.error("Error in emergency cleanup:", error);
+    res.status(500).json({
+      error: "Failed to remove absent records",
+      details: error.message,
+    });
+  }
+});
+
 export default app;
