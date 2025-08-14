@@ -31,10 +31,19 @@ export const forgotPasswordEmail = async (to, url) => {
   return new Promise((resolve, reject) => {
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        console.error("Error sending email:", error);
+        console.error("Error sending password reset email:", {
+          to: to,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
         reject(error);
       } else {
-        console.log("Reset email sent successfully:", info.response);
+        console.log("Password reset email sent successfully:", {
+          to: to,
+          messageId: info.messageId,
+          response: info.response,
+          timestamp: new Date().toISOString(),
+        });
         resolve(info);
       }
     });

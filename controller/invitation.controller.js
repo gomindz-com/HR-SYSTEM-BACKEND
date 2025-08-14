@@ -17,11 +17,12 @@ export const sendInvitation = async (req, res) => {
       return res.status(400).json({ message: "departmentId is required" });
     }
 
-
+    // Normalize email to handle case sensitivity and whitespace
+    const normalizedEmail = email.toLowerCase().trim();
 
     const existingUser = await prisma.employee.findUnique({
       where: {
-        email,
+        email: normalizedEmail,
         companyId,
       },
     });
@@ -32,7 +33,7 @@ export const sendInvitation = async (req, res) => {
 
     const existingInvitation = await prisma.invitation.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         companyId,
         status: "PENDING",
         expiresAt: { gt: new Date() },
@@ -58,7 +59,7 @@ export const sendInvitation = async (req, res) => {
 
     await prisma.invitation.create({
       data: {
-        email,
+        email: normalizedEmail,
         position,
         role: role || "EMPLOYEE",
         companyId,
@@ -80,7 +81,7 @@ export const sendInvitation = async (req, res) => {
 
     const mailOptions = {
       from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: email,
+      to: normalizedEmail,
       subject: "Invitation to join company",
       html: `
         <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -104,7 +105,22 @@ export const sendInvitation = async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log("Invitation email sent successfully:", {
+        to: normalizedEmail,
+        companyName: company.companyName,
+        position: position || "Employee",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (emailError) {
+      console.error("Failed to send invitation email:", {
+        to: normalizedEmail,
+        error: emailError.message,
+        timestamp: new Date().toISOString(),
+      });
+      // Continue execution - invitation is already saved in database
+    }
 
     res.status(200).json({
       message: "Invitation sent successfully",
@@ -141,7 +157,7 @@ export const acceptInvitation = async (req, res) => {
     }
 
     const existingUser = await prisma.employee.findUnique({
-      where: { email: invitation.email },
+      where: { email: invitation.email.toLowerCase().trim() },
     });
 
     if (existingUser) {
@@ -183,7 +199,7 @@ export const acceptInvitation = async (req, res) => {
     await prisma.employee.create({
       data: {
         name,
-        email: invitation.email,
+        email: invitation.email.toLowerCase().trim(),
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,

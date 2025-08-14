@@ -8,8 +8,11 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Normalize email to handle case sensitivity and whitespace
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await prisma.employee.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
@@ -60,8 +63,11 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
+    // Normalize email to handle case sensitivity and whitespace
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await prisma.employee.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
@@ -89,11 +95,10 @@ export const forgotPassword = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL ||
-          "https://hr-system-frontend-tester.vercel.app";
+        : process.env.CLIENT_URL;
     const resetUrl = `${baseUrl}/reset-password/${resetToken}`;
 
-    await forgotPasswordEmail(email, resetUrl);
+    await forgotPasswordEmail(normalizedEmail, resetUrl);
 
     res.status(200).json({
       message: "Reset link has been sent to your email",
