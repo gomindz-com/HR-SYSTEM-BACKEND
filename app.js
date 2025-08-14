@@ -20,7 +20,7 @@ try {
   const { initialize } = await import("./automations/absentAutomation.js");
   const result = await initialize();
   automationInitialized = result.success;
-  
+
   if (result.success) {
     console.log(`🎉 Absent automation system initialized successfully!`);
     console.log(`   📊 Total companies: ${result.total}`);
@@ -127,18 +127,21 @@ app.post("/api/admin/trigger-absent-automation", async (req, res) => {
       });
     }
 
+    console.log(`🚀 Manual trigger requested at ${new Date().toISOString()}`);
     const { manuallyTriggerForAllCompanies } = await import(
       "./automations/absentAutomation.js"
     );
     const result = await manuallyTriggerForAllCompanies();
 
     if (result.success) {
+      console.log("✅ Manual trigger completed successfully:", result.results);
       res.json({
         message: "Absent automation triggered for all companies",
         timestamp: new Date().toISOString(),
         results: result.results,
       });
     } else {
+      console.error("❌ Manual trigger failed:", result.error);
       res.status(500).json({
         error: "Failed to trigger automation for all companies",
         details: result.error,
@@ -293,6 +296,92 @@ app.post("/api/admin/stop-all-automations", async (req, res) => {
     console.error("Error stopping all automations:", error);
     res.status(500).json({
       error: "Failed to stop automations",
+      details: error.message,
+    });
+  }
+});
+
+// Dry run endpoint to test automation without marking anyone absent
+app.post("/api/admin/dry-run-absent-automation", async (req, res) => {
+  try {
+    if (!automationInitialized) {
+      return res.status(500).json({
+        error: "Automation system not initialized",
+      });
+    }
+
+    console.log(`🧪 Dry run requested at ${new Date().toISOString()}`);
+    const { manuallyTriggerForAllCompanies } = await import(
+      "./automations/absentAutomation.js"
+    );
+
+    // Call with dryRun = true
+    const result = await manuallyTriggerForAllCompanies(true);
+
+    if (result.success) {
+      console.log("✅ Dry run completed successfully:", result.results);
+      res.json({
+        message: "Dry run completed - no employees were actually marked absent",
+        timestamp: new Date().toISOString(),
+        results: result.results,
+      });
+    } else {
+      console.error("❌ Dry run failed:", result.error);
+      res.status(500).json({
+        error: "Failed to run dry run",
+        details: result.error,
+      });
+    }
+  } catch (error) {
+    console.error("Error in dry run:", error);
+    res.status(500).json({
+      error: "Failed to execute dry run",
+      details: error.message,
+    });
+  }
+});
+
+// Debug endpoint to check cron schedules
+app.get("/api/admin/debug-cron-schedules", async (req, res) => {
+  try {
+    const { getCronScheduleFor7PM } = await import(
+      "./automations/absentAutomation.js"
+    );
+
+    // Get all companies and their cron schedules
+    const prisma = await import("./config/prisma.config.js").then(
+      (m) => m.default
+    );
+    const companies = await prisma.company.findMany({
+      select: {
+        id: true,
+        companyName: true,
+        timezone: true,
+      },
+    });
+
+    const schedules = companies.map((company) => ({
+      id: company.id,
+      name: company.companyName,
+      timezone: company.timezone,
+      cronPattern: getCronScheduleFor7PM(company.timezone),
+      localTime: new Date().toLocaleString("en-US", {
+        timeZone: company.timezone,
+        timeStyle: "medium",
+        dateStyle: "short",
+      }),
+      utcTime: new Date().toISOString(),
+    }));
+
+    res.json({
+      message: "Cron schedule debug information",
+      timestamp: new Date().toISOString(),
+      companies: schedules,
+    });
+  } catch (error) {
+    console.error("Error getting debug info:", error);
+    res.status(500).json({
+      error: "Failed to get debug information",
       details: error.message,
     });
   }

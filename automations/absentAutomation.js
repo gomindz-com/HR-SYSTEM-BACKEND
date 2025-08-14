@@ -11,19 +11,21 @@ const cronJobs = new Map();
 function getCronScheduleFor7PM(timezone) {
   // Handle common timezone cases with a simple mapping
   const timezoneMap = {
-    'UTC': 19,
-    'America/New_York': 0,      // UTC+0 (7 PM EST = 12 AM UTC next day)
-    'America/Chicago': 1,       // UTC+1 (7 PM CST = 1 AM UTC next day)  
-    'America/Denver': 2,        // UTC+2 (7 PM MST = 2 AM UTC next day)
-    'America/Los_Angeles': 3,   // UTC+3 (7 PM PST = 3 AM UTC next day)
-    'Europe/London': 19,        // UTC+19 (7 PM GMT = 7 PM UTC)
-    'Europe/Paris': 18,         // UTC+18 (7 PM CET = 6 PM UTC)
-    'Asia/Tokyo': 10,           // UTC+10 (7 PM JST = 10 AM UTC)
+    UTC: 19,
+    "America/New_York": 0, // UTC+0 (7 PM EST = 12 AM UTC next day)
+    "America/Chicago": 1, // UTC+1 (7 PM CST = 1 AM UTC next day)
+    "America/Denver": 2, // UTC+2 (7 PM MST = 2 AM UTC next day)
+    "America/Los_Angeles": 3, // UTC+3 (7 PM PST = 3 AM UTC next day)
+    "Europe/London": 19, // UTC+19 (7 PM GMT = 7 PM UTC)
+    "Europe/Paris": 18, // UTC+18 (7 PM CET = 6 PM UTC)
+    "Asia/Tokyo": 10, // UTC+10 (7 PM JST = 10 AM UTC)
+    "Africa/Abidjan": 19, // GMT (same as UTC)
+    "Africa/Banjul": 19, // GMT (same as UTC)
   };
 
   try {
     // First validate the timezone
-    if (!timezone || typeof timezone !== 'string') {
+    if (!timezone || typeof timezone !== "string") {
       console.log(`Invalid timezone format: ${timezone}, using UTC fallback`);
       return "0 19 * * 1-5";
     }
@@ -37,30 +39,33 @@ function getCronScheduleFor7PM(timezone) {
 
     // For other timezones, try dynamic calculation
     try {
-      const testDate = new Date('2025-08-11T12:00:00Z'); // Noon UTC
-      const localTime = testDate.toLocaleString('en-US', {
+      const testDate = new Date("2025-08-11T12:00:00Z"); // Noon UTC
+      const localTime = testDate.toLocaleString("en-US", {
         timeZone: timezone,
         hour12: false,
-        hour: 'numeric'
+        hour: "numeric",
       });
-      
+
       const localHour = parseInt(localTime);
       const offsetHours = localHour - 12; // Difference from UTC noon
       let targetUTCHour = 19 - offsetHours; // Adjust 7 PM by offset
-      
+
       // Handle day boundary crossings
       if (targetUTCHour < 0) targetUTCHour += 24;
       if (targetUTCHour >= 24) targetUTCHour -= 24;
-      
-      console.log(`🕐 Timezone ${timezone}: 7 PM local = ${targetUTCHour}:00 UTC (calculated)`);
+
+      console.log(
+        `🕐 Timezone ${timezone}: 7 PM local = ${targetUTCHour}:00 UTC (calculated)`
+      );
       return `0 ${targetUTCHour} * * 1-5`;
-      
     } catch (calcError) {
-      console.error(`Timezone calculation failed for ${timezone}:`, calcError.message);
+      console.error(
+        `Timezone calculation failed for ${timezone}:`,
+        calcError.message
+      );
       console.log(`Using UTC fallback for ${timezone}`);
       return "0 19 * * 1-5";
     }
-    
   } catch (error) {
     console.error(`Error processing timezone ${timezone}:`, error.message);
     console.log(`Using UTC fallback for ${timezone}`);
@@ -71,22 +76,30 @@ function getCronScheduleFor7PM(timezone) {
 /**
  * Mark employees as absent for a specific company
  */
-async function markEmployeesAbsent(companyId, companyTimezone) {
-  console.log(`🏢 Running absent automation for company ${companyId} (${companyTimezone})`);
-  
+async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
+  console.log(
+    `🏢 Running absent automation for company ${companyId} (${companyTimezone}) ${dryRun ? "[DRY RUN]" : ""}`
+  );
+
   try {
+    // Ensure fresh connection
     await prisma.$connect();
+    console.log(`📊 Database connected for company ${companyId} automation`);
 
     // Get company's local date at midnight for consistent comparison
     const now = new Date();
-    const companyLocalDateString = now.toLocaleDateString('en-CA', { 
-      timeZone: companyTimezone 
+    const companyLocalDateString = now.toLocaleDateString("en-CA", {
+      timeZone: companyTimezone,
     }); // Returns YYYY-MM-DD format
-    
+
     // Create date object for company's today at midnight
-    const companyDateMidnight = new Date(`${companyLocalDateString}T00:00:00.000Z`);
-    
-    console.log(`📅 Processing attendance for company ${companyId} on date: ${companyLocalDateString} (${companyTimezone})`);
+    const companyDateMidnight = new Date(
+      `${companyLocalDateString}T00:00:00.000Z`
+    );
+
+    console.log(
+      `📅 Processing attendance for company ${companyId} on date: ${companyLocalDateString} (${companyTimezone})`
+    );
 
     // Check if absent records already exist for today to prevent duplicates
     const existingAbsentRecords = await prisma.attendance.count({
@@ -101,7 +114,9 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
     });
 
     if (existingAbsentRecords > 0) {
-      console.log(`⚠️  Found ${existingAbsentRecords} existing absent records for today in company ${companyId}. Skipping to avoid duplicates.`);
+      console.log(
+        `⚠️  Found ${existingAbsentRecords} existing absent records for today in company ${companyId}. Skipping to avoid duplicates.`
+      );
       return { success: true, message: "Already processed", count: 0 };
     }
 
@@ -112,10 +127,14 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
         companyId: companyId,
       },
     });
-    
-    console.log(`📊 Total active employees in company ${companyId}: ${totalActiveEmployees}`);
+
+    console.log(
+      `📊 Total active employees in company ${companyId}: ${totalActiveEmployees}`
+    );
 
     // Find active employees who haven't checked in today
+    // IMPORTANT: Only mark as absent if they have NO attendance record for today
+    // This will NOT affect employees who are currently checked in (have timeIn but no timeOut)
     const employeesWithoutAttendance = await prisma.employee.findMany({
       where: {
         status: "ACTIVE",
@@ -136,11 +155,41 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
       },
     });
 
-    console.log(`👥 Found ${employeesWithoutAttendance.length} employees without attendance records in company ${companyId}`);
+    console.log(
+      `👥 Found ${employeesWithoutAttendance.length} employees without attendance records in company ${companyId}`
+    );
 
     if (employeesWithoutAttendance.length === 0) {
       console.log(`✅ No employees to mark as absent in company ${companyId}`);
-      return { success: true, message: "No employees to mark absent", count: 0 };
+      return {
+        success: true,
+        message: "No employees to mark absent",
+        count: 0,
+      };
+    }
+
+    // Log which employees would be marked absent (for transparency)
+    console.log(
+      `📋 Employees to be marked absent in company ${companyId}:`,
+      employeesWithoutAttendance
+        .map((emp) => `${emp.name} (ID: ${emp.id})`)
+        .join(", ")
+    );
+
+    if (dryRun) {
+      console.log(
+        `🧪 DRY RUN: Would mark ${employeesWithoutAttendance.length} employees as absent`
+      );
+      return {
+        success: true,
+        message: "Dry run completed",
+        count: employeesWithoutAttendance.length,
+        dryRun: true,
+        employees: employeesWithoutAttendance.map((emp) => ({
+          id: emp.id,
+          name: emp.name,
+        })),
+      };
     }
 
     // Create absent attendance records in a transaction
@@ -148,14 +197,16 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
       // Double-check within transaction to prevent race conditions
       const employeesToMarkAbsent = await tx.employee.findMany({
         where: {
-          id: { in: employeesWithoutAttendance.map(emp => emp.id) },
+          id: { in: employeesWithoutAttendance.map((emp) => emp.id) },
           status: "ACTIVE",
           companyId: companyId,
           attendances: {
             none: {
               date: {
                 gte: companyDateMidnight,
-                lt: new Date(companyDateMidnight.getTime() + 24 * 60 * 60 * 1000),
+                lt: new Date(
+                  companyDateMidnight.getTime() + 24 * 60 * 60 * 1000
+                ),
               },
             },
           },
@@ -184,22 +235,21 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
 
     const message = `✅ Marked ${result.count} employees as absent in company ${companyId}`;
     console.log(message);
-    
-    return { 
-      success: true, 
-      message: "Successfully processed", 
-      count: result.count,
-      date: companyLocalDateString
-    };
 
+    return {
+      success: true,
+      message: "Successfully processed",
+      count: result.count,
+      date: companyLocalDateString,
+    };
   } catch (error) {
     const errorMessage = `❌ Error in absent automation for company ${companyId}: ${error.message}`;
     console.error(errorMessage);
-    
-    return { 
-      success: false, 
-      message: errorMessage, 
-      error: error.message 
+
+    return {
+      success: false,
+      message: errorMessage,
+      error: error.message,
     };
   } finally {
     try {
@@ -216,7 +266,7 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
 async function initializeCompanyAutomation(company) {
   try {
     const cronPattern = getCronScheduleFor7PM(company.timezone);
-    
+
     // Stop existing job if it exists
     if (cronJobs.has(company.id)) {
       cronJobs.get(company.id).stop();
@@ -227,8 +277,24 @@ async function initializeCompanyAutomation(company) {
     const job = cron.schedule(
       cronPattern,
       async () => {
-        console.log(`⏰ [${new Date().toISOString()}] Triggering absent automation for company ${company.id} (${company.companyName})`);
-        await markEmployeesAbsent(company.id, company.timezone);
+        console.log(
+          `⏰ [${new Date().toISOString()}] Triggering absent automation for company ${company.id} (${company.companyName})`
+        );
+        try {
+          const result = await markEmployeesAbsent(
+            company.id,
+            company.timezone
+          );
+          console.log(
+            `✅ Automation completed for company ${company.id}:`,
+            result
+          );
+        } catch (error) {
+          console.error(
+            `❌ Automation failed for company ${company.id}:`,
+            error
+          );
+        }
       },
       {
         scheduled: true,
@@ -237,14 +303,21 @@ async function initializeCompanyAutomation(company) {
     );
 
     cronJobs.set(company.id, job);
-    
-    console.log(`✅ Initialized absent automation for company ${company.id} (${company.companyName})`);
+
+    console.log(
+      `✅ Initialized absent automation for company ${company.id} (${company.companyName})`
+    );
     console.log(`   📍 Timezone: ${company.timezone}`);
-    console.log(`   ⏰ Cron pattern: ${cronPattern} (runs at 7 PM ${company.timezone})`);
-    
+    console.log(
+      `   ⏰ Cron pattern: ${cronPattern} (runs at 7 PM ${company.timezone})`
+    );
+
     return { success: true, company: company.id, cronPattern };
   } catch (error) {
-    console.error(`❌ Failed to initialize automation for company ${company.id}:`, error);
+    console.error(
+      `❌ Failed to initialize automation for company ${company.id}:`,
+      error
+    );
     return { success: false, company: company.id, error: error.message };
   }
 }
@@ -254,7 +327,7 @@ async function initializeCompanyAutomation(company) {
  */
 async function initializeAllCompanyAutomations() {
   console.log("🚀 Initializing absent automation for all companies...");
-  
+
   try {
     // Get all companies with their timezones
     const companies = await prisma.company.findMany({
@@ -265,7 +338,9 @@ async function initializeAllCompanyAutomations() {
       },
     });
 
-    console.log(`📊 Found ${companies.length} companies to set up automation for`);
+    console.log(
+      `📊 Found ${companies.length} companies to set up automation for`
+    );
 
     const results = [];
     for (const company of companies) {
@@ -273,15 +348,24 @@ async function initializeAllCompanyAutomations() {
       results.push(result);
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
 
-    console.log(`✅ Successfully initialized automation for ${successCount} companies`);
+    console.log(
+      `✅ Successfully initialized automation for ${successCount} companies`
+    );
     if (failCount > 0) {
-      console.log(`❌ Failed to initialize automation for ${failCount} companies`);
+      console.log(
+        `❌ Failed to initialize automation for ${failCount} companies`
+      );
     }
 
-    return { success: true, total: companies.length, successful: successCount, failed: failCount };
+    return {
+      success: true,
+      total: companies.length,
+      successful: successCount,
+      failed: failCount,
+    };
   } catch (error) {
     console.error("❌ Error initializing company automations:", error);
     return { success: false, error: error.message };
@@ -296,10 +380,16 @@ function stopCompanyAutomation(companyId) {
     cronJobs.get(companyId).stop();
     cronJobs.delete(companyId);
     console.log(`🛑 Stopped absent automation for company ${companyId}`);
-    return { success: true, message: `Stopped automation for company ${companyId}` };
+    return {
+      success: true,
+      message: `Stopped automation for company ${companyId}`,
+    };
   } else {
     console.log(`⚠️  No active automation found for company ${companyId}`);
-    return { success: false, message: `No active automation for company ${companyId}` };
+    return {
+      success: false,
+      message: `No active automation for company ${companyId}`,
+    };
   }
 }
 
@@ -308,13 +398,13 @@ function stopCompanyAutomation(companyId) {
  */
 function stopAllAutomations() {
   console.log("🛑 Stopping all absent automations...");
-  
+
   let stoppedCount = 0;
   for (const [companyId, job] of cronJobs) {
     job.stop();
     stoppedCount++;
   }
-  
+
   cronJobs.clear();
   console.log(`✅ Stopped ${stoppedCount} automation jobs`);
   return { success: true, count: stoppedCount };
@@ -325,36 +415,45 @@ function stopAllAutomations() {
  */
 function getAutomationStatus() {
   const activeJobs = [];
-  
+
   for (const [companyId, job] of cronJobs) {
     activeJobs.push({
       companyId,
-      status: 'active',
-      nextRun: 'Daily at 7 PM company local time, Monday-Friday'
+      status: "active",
+      nextRun: "Daily at 7 PM company local time, Monday-Friday",
     });
   }
 
   return {
     totalJobs: activeJobs.length,
     activeJobs,
-    description: "Each company has its own cron job scheduled for 7 PM in their local timezone"
+    description:
+      "Each company has its own cron job scheduled for 7 PM in their local timezone",
   };
 }
 
 /**
  * Manually trigger automation for a specific company (for testing)
  */
-async function manuallyTriggerForCompany(companyId, companyTimezone = "UTC") {
-  console.log(`🚀 Manually triggering absent automation for company ${companyId}...`);
-  return await markEmployeesAbsent(companyId, companyTimezone);
+async function manuallyTriggerForCompany(
+  companyId,
+  companyTimezone = "UTC",
+  dryRun = false
+) {
+  console.log(
+    `🚀 Manually triggering absent automation for company ${companyId}... ${dryRun ? "[DRY RUN]" : ""}`
+  );
+  return await markEmployeesAbsent(companyId, companyTimezone, dryRun);
 }
 
 /**
  * Manually trigger automation for all companies (for testing)
  */
-async function manuallyTriggerForAllCompanies() {
-  console.log("🚀 Manually triggering absent automation for all companies...");
-  
+async function manuallyTriggerForAllCompanies(dryRun = false) {
+  console.log(
+    `🚀 Manually triggering absent automation for all companies... ${dryRun ? "[DRY RUN]" : ""}`
+  );
+
   try {
     const companies = await prisma.company.findMany({
       select: { id: true, companyName: true, timezone: true },
@@ -364,8 +463,16 @@ async function manuallyTriggerForAllCompanies() {
 
     const results = [];
     for (const company of companies) {
-      const result = await markEmployeesAbsent(company.id, company.timezone);
-      results.push({ companyId: company.id, companyName: company.companyName, ...result });
+      const result = await markEmployeesAbsent(
+        company.id,
+        company.timezone,
+        dryRun
+      );
+      results.push({
+        companyId: company.id,
+        companyName: company.companyName,
+        ...result,
+      });
     }
 
     return { success: true, results };
@@ -387,7 +494,9 @@ async function reinitializeAutomation() {
 // Handle graceful shutdown
 function setupGracefulShutdown() {
   const shutdownHandler = (signal) => {
-    console.log(`${signal} received, shutting down absent automation system...`);
+    console.log(
+      `${signal} received, shutting down absent automation system...`
+    );
     stopAllAutomations();
     process.exit(0);
   };
@@ -401,7 +510,7 @@ async function initialize() {
   console.log("🚀 Starting Absent Automation System...");
   console.log("⏰ Target time: 7:00 PM in each company's local timezone");
   console.log("📅 Schedule: Monday to Friday only");
-  
+
   setupGracefulShutdown();
   return await initializeAllCompanyAutomations();
 }
