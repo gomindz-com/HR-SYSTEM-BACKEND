@@ -16,7 +16,6 @@ export const updateUserProfile = async (req, res) => {
       "name",
       "email",
       "phone",
-      "position",
       "address",
       "dateOfBirth",
       "emergencyContact",
