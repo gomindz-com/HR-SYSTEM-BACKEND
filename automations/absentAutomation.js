@@ -82,9 +82,11 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
   );
 
   try {
-    // Ensure fresh connection
-    await prisma.$connect();
-    console.log(`📊 Database connected for company ${companyId} automation`);
+    // DON'T create new connections - use existing singleton
+    // await prisma.$connect(); // REMOVED - causes connection pool exhaustion
+    console.log(
+      `📊 Using existing database connection for company ${companyId} automation`
+    );
 
     // Get company's local date at midnight for consistent comparison
     const now = new Date();
@@ -252,18 +254,16 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       error: error.message,
     };
   } finally {
-    try {
-      await prisma.$disconnect();
-    } catch (disconnectError) {
-      console.error("Error disconnecting from database:", disconnectError);
-    }
+    // DON'T disconnect - keep singleton connection alive
+    // await prisma.$disconnect(); // REMOVED - breaks shared connection
+    // Database connection is managed by the singleton pattern in prisma.config.js
   }
 }
 
 /**
- * Initialize automation for a single company
+ * Initialize automation for a single company with delay
  */
-async function initializeCompanyAutomation(company) {
+async function initializeCompanyAutomationWithDelay(company, delaySeconds = 0) {
   try {
     const cronPattern = getCronScheduleFor7PM(company.timezone);
 
@@ -273,10 +273,20 @@ async function initializeCompanyAutomation(company) {
       console.log(`🛑 Stopped existing cron job for company ${company.id}`);
     }
 
-    // Create new cron job for this company
+    // Create new cron job for this company with staggered execution
     const job = cron.schedule(
       cronPattern,
       async () => {
+        // Add delay to stagger execution between companies
+        if (delaySeconds > 0) {
+          console.log(
+            `⏳ [${new Date().toISOString()}] Waiting ${delaySeconds} seconds before processing company ${company.id}`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, delaySeconds * 1000)
+          );
+        }
+
         console.log(
           `⏰ [${new Date().toISOString()}] Triggering absent automation for company ${company.id} (${company.companyName})`
         );
@@ -292,8 +302,25 @@ async function initializeCompanyAutomation(company) {
         } catch (error) {
           console.error(
             `❌ Automation failed for company ${company.id}:`,
-            error
+            error.message
           );
+
+          // Check if it's a database connection issue
+          if (
+            error.message.includes("Engine is not yet connected") ||
+            error.message.includes("Connection") ||
+            error.code === "P1001" ||
+            error.code === "P1002"
+          ) {
+            console.log(
+              `🔄 Database connection issue detected for company ${company.id}, will retry next scheduled time`
+            );
+          } else {
+            console.error(
+              `💥 Unexpected error for company ${company.id}:`,
+              error
+            );
+          }
         }
       },
       {
@@ -311,8 +338,11 @@ async function initializeCompanyAutomation(company) {
     console.log(
       `   ⏰ Cron pattern: ${cronPattern} (runs at 7 PM ${company.timezone})`
     );
+    if (delaySeconds > 0) {
+      console.log(`   ⏳ Execution delay: ${delaySeconds} seconds`);
+    }
 
-    return { success: true, company: company.id, cronPattern };
+    return { success: true, company: company.id, cronPattern, delaySeconds };
   } catch (error) {
     console.error(
       `❌ Failed to initialize automation for company ${company.id}:`,
@@ -323,7 +353,14 @@ async function initializeCompanyAutomation(company) {
 }
 
 /**
- * Initialize automation for all companies
+ * Initialize automation for a single company (backward compatibility)
+ */
+async function initializeCompanyAutomation(company) {
+  return await initializeCompanyAutomationWithDelay(company, 0);
+}
+
+/**
+ * Initialize automation for all companies with staggered execution
  */
 async function initializeAllCompanyAutomations() {
   console.log("🚀 Initializing absent automation for all companies...");
@@ -342,10 +379,37 @@ async function initializeAllCompanyAutomations() {
       `📊 Found ${companies.length} companies to set up automation for`
     );
 
+    // Group companies by timezone to identify potential conflicts
+    const timezoneGroups = {};
+    companies.forEach((company) => {
+      if (!timezoneGroups[company.timezone]) {
+        timezoneGroups[company.timezone] = [];
+      }
+      timezoneGroups[company.timezone].push(company);
+    });
+
+    console.log("🌍 Companies grouped by timezone:");
+    Object.entries(timezoneGroups).forEach(([tz, companyList]) => {
+      console.log(`   ${tz}: ${companyList.length} companies`);
+      if (companyList.length > 1) {
+        console.log(
+          `   ⚠️  Multiple companies in ${tz} - will stagger execution`
+        );
+      }
+    });
+
     const results = [];
+    let delayOffset = 0;
+
     for (const company of companies) {
-      const result = await initializeCompanyAutomation(company);
+      const result = await initializeCompanyAutomationWithDelay(
+        company,
+        delayOffset
+      );
       results.push(result);
+
+      // Add 30-second delay for each additional company to prevent concurrent execution
+      delayOffset += 30;
     }
 
     const successCount = results.filter((r) => r.success).length;
@@ -459,10 +523,21 @@ async function manuallyTriggerForAllCompanies(dryRun = false) {
       select: { id: true, companyName: true, timezone: true },
     });
 
-    console.log(`📊 Processing ${companies.length} companies...`);
+    console.log(
+      `📊 Processing ${companies.length} companies sequentially to avoid connection issues...`
+    );
 
     const results = [];
     for (const company of companies) {
+      console.log(
+        `🔄 Processing company ${company.id} (${company.companyName})...`
+      );
+
+      // Add small delay between companies to prevent overwhelming database
+      if (results.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+      }
+
       const result = await markEmployeesAbsent(
         company.id,
         company.timezone,

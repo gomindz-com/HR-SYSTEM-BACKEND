@@ -4,12 +4,20 @@ import { PrismaClient } from "@prisma/client";
 let prisma = null;
 
 if (process.env.NODE_ENV === "production") {
-  // In production, always create a new instance
+  // In production, always create a new instance with optimized connection settings
   prisma = new PrismaClient({
     log: ["error"], // Only log errors in production
     datasources: {
       db: {
         url: process.env.DATABASE_URL,
+      },
+    },
+    // Optimize connection pool for production automation workloads
+    __internal: {
+      engine: {
+        connectTimeout: 30000, // 30 seconds
+        queryTimeout: 60000, // 60 seconds
+        poolTimeout: 60000, // 60 seconds
       },
     },
   });
@@ -21,6 +29,14 @@ if (process.env.NODE_ENV === "production") {
       datasources: {
         db: {
           url: process.env.DATABASE_URL,
+        },
+      },
+      // Optimize connection pool for development
+      __internal: {
+        engine: {
+          connectTimeout: 10000, // 10 seconds
+          queryTimeout: 30000, // 30 seconds
+          poolTimeout: 30000, // 30 seconds
         },
       },
     });
