@@ -13,6 +13,36 @@ export const login = async (req, res) => {
 
     const user = await prisma.employee.findUnique({
       where: { email: normalizedEmail },
+      select: {
+        id: true,
+        position: true,
+        profilePic: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        dateOfBirth: true,
+        emergencyContact: true,
+        status: true,
+        role: true,
+        departmentId: true,
+        companyId: true,
+        password: true, // We need this for password comparison
+        createdAt: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
+        company: {
+          select: {
+            companyName: true,
+            companyAddress: true,
+            companyDescription: true,
+            companyTin: true,
+          },
+        },
+      },
     });
 
     if (!user) {
