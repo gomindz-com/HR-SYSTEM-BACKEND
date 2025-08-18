@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model Department {
   id         Int          @id @default(autoincrement())
   name       String
@@ -57,12 +58,9 @@ model Employee {
 }
 
 enum Role {
-  EMPLOYEE
-  DIRECTOR
-  HR
-  CTO
-  CEO
-  MANAGEMENT
+  STAFF
+  MANAGER
+  ADMIN
 }
 
 enum EmployeeStatus {

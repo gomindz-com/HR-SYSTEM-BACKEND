@@ -33,8 +33,7 @@ export const addDepartment = async (req, res) => {
     return res.status(401).json({ message: "you are not authenticated" });
   }
 
-
-  if(req.user.role !== "HR") {
+  if (req.user.role !== "ADMIN") {
     return res.status(401).json({ message: "you are not authorized" });
   }
 

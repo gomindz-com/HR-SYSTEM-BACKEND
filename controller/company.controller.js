@@ -51,7 +51,9 @@ export const signUpCompany = async (req, res) => {
     });
 
     if (existingCompanyWithTin) {
-      return res.status(400).json({ message: "Company with this TIN already exists" });
+      return res
+        .status(400)
+        .json({ message: "Company with this TIN already exists" });
     }
 
     const company = await prisma.company.create({
@@ -84,7 +86,7 @@ export const signUpCompany = async (req, res) => {
         password: hashedPassword,
         phone: HRPhone,
         address: HRAddress,
-        role: "HR",
+        role: "ADMIN",
         position: "HR Manager",
         companyId: company.id,
         profilePic: randomAvatar,

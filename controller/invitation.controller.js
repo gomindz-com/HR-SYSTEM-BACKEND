@@ -61,7 +61,7 @@ export const sendInvitation = async (req, res) => {
       data: {
         email: normalizedEmail,
         position,
-        role: role || "EMPLOYEE",
+        role: role || "STAFF",
         companyId,
         invitedBy: id,
         token,
@@ -176,19 +176,19 @@ export const acceptInvitation = async (req, res) => {
     }
 
     // Check if a user with the same role already exists for this company
-    // Only restrict HR roles to one per company
-    if (invitation.role === "HR") {
-      const existingHR = await prisma.employee.findFirst({
+    // Only restrict ADMIN roles to one per company
+    if (invitation.role === "ADMIN") {
+      const existingAdmin = await prisma.employee.findFirst({
         where: {
           companyId: invitation.companyId,
-          role: "HR",
+          role: "ADMIN",
         },
       });
 
-      if (existingHR) {
+      if (existingAdmin) {
         return res
           .status(401)
-          .json({ message: "An HR already exists for this company" });
+          .json({ message: "An Admin already exists for this company" });
       }
     }
 
