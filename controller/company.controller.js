@@ -4,28 +4,11 @@ import bcrypt from "bcryptjs";
 import moment from "moment-timezone";
 
 export const signUpCompany = async (req, res) => {
-  const {
-    companyName,
-    companyEmail,
-    companyTin,
-    companyAddress,
-    companyDescription,
-    timezone,
-    HRName,
-    HRPhone,
-    HRAddress,
-    HREmail,
-    HRPassword,
-    confirmHRPassword,
-  } = req.body;
+  const { companyName, HRName, HREmail, HRPassword, confirmHRPassword } =
+    req.body;
 
   try {
-    const existingCompany = await prisma.company.findUnique({
-      where: {
-        companyEmail,
-      },
-    });
-
+    // Check if HR email already exists
     const existingHR = await prisma.employee.findUnique({
       where: {
         email: HREmail,
@@ -33,37 +16,18 @@ export const signUpCompany = async (req, res) => {
     });
 
     if (existingHR) {
-      return res.status(400).json({ message: "HR already exists" });
+      return res.status(400).json({ message: "HR email already exists" });
     }
 
     if (HRPassword !== confirmHRPassword) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
-    if (existingCompany) {
-      return res.status(400).json({ message: "Company already exists" });
-    }
-
-    const existingCompanyWithTin = await prisma.company.findUnique({
-      where: {
-        companyTin,
-      },
-    });
-
-    if (existingCompanyWithTin) {
-      return res
-        .status(400)
-        .json({ message: "Company with this TIN already exists" });
-    }
-
     const company = await prisma.company.create({
       data: {
         companyName,
-        companyEmail,
-        companyTin,
-        companyAddress,
-        companyDescription,
-        timezone: timezone || "UTC", // Default to UTC if not provided
+        // Optional fields can be added later through settings
+        timezone: "UTC", // Default timezone
       },
     });
 
@@ -84,8 +48,7 @@ export const signUpCompany = async (req, res) => {
         name: HRName,
         email: HREmail,
         password: hashedPassword,
-        phone: HRPhone,
-        address: HRAddress,
+        // Optional fields can be added later through profile settings
         role: "ADMIN",
         position: "HR Manager",
         companyId: company.id,
