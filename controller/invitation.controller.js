@@ -2,6 +2,7 @@ import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+
 export const sendInvitation = async (req, res) => {
   const { email, role, position, departmentId } = req.body;
   const id = req.user.id;
@@ -17,8 +18,7 @@ export const sendInvitation = async (req, res) => {
       return res.status(400).json({ message: "departmentId is required" });
     }
 
-
-    if(req.user.role !== "HR") {
+    if (req.user.role !== "HR") {
       return res.status(401).json({ message: "only HR can send invitations" });
     }
 

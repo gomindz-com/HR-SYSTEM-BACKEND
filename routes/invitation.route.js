@@ -1,5 +1,8 @@
 import express from "express";
-import { acceptInvitation, sendInvitation } from "../controller/invitation.controller.js";
+import {
+  acceptInvitation,
+  sendInvitation,
+} from "../controller/invitation.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
