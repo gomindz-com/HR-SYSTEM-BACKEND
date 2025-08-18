@@ -314,33 +314,47 @@ export const getAttendanceStats = async (req, res) => {
   }
 
   try {
-    const [totalAttendance, totalDays, daysLate, daysAbsent, daysOnTime] =
-      await Promise.all([
-        prisma.attendance.count({
-          where: { employeeId, companyId, status: { not: "ABSENT" } },
-        }),
-        prisma.attendance.count({
-          where: { employeeId, companyId },
-        }),
-        prisma.attendance.count({
-          where: { employeeId, companyId, status: "LATE" },
-        }),
-        prisma.attendance.count({
-          where: { employeeId, companyId, status: "ABSENT" },
-        }),
-        prisma.attendance.count({
-          where: { employeeId, companyId, status: "ON_TIME" },
-        }),
-      ]);
+    const [
+      totalAttendance,
+      totalDays,
+      daysLate,
+      daysAbsent,
+      daysOnTime,
+      daysEarly,
+    ] = await Promise.all([
+      prisma.attendance.count({
+        where: { employeeId, companyId, status: { not: "ABSENT" } },
+      }),
+      prisma.attendance.count({
+        where: { employeeId, companyId },
+      }),
+      prisma.attendance.count({
+        where: { employeeId, companyId, status: "LATE" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId, companyId, status: "ABSENT" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId, companyId, status: "ON_TIME" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId, companyId, status: "EARLY" },
+      }),
+    ]);
 
     const attendancePercentage =
       totalDays > 0
         ? parseFloat(((totalAttendance / totalDays) * 100).toFixed(1))
         : 0;
 
-
     return res.status(200).json({
-      data: { attendancePercentage, daysLate, daysAbsent, daysOnTime },
+      data: {
+        attendancePercentage,
+        daysLate,
+        daysAbsent,
+        daysOnTime,
+        daysEarly,
+      },
     });
   } catch (error) {
     console.error("Error in getAttendanceStats controller", error);
@@ -356,24 +370,33 @@ export const getCompanyAttendanceStats = async (req, res) => {
   }
 
   try {
-    const [totalAttendance, totalDays, daysLate, daysAbsent, daysOnTime] =
-      await Promise.all([
-        prisma.attendance.count({
-          where: { companyId, status: { not: "ABSENT" } },
-        }),
-        prisma.attendance.count({
-          where: { companyId },
-        }),
-        prisma.attendance.count({
-          where: { companyId, status: "LATE" },
-        }),
-        prisma.attendance.count({
-          where: { companyId, status: "ABSENT" },
-        }),
-        prisma.attendance.count({
-          where: { companyId, status: "ON_TIME" },
-        }),
-      ]);
+    const [
+      totalAttendance,
+      totalDays,
+      daysLate,
+      daysAbsent,
+      daysOnTime,
+      daysEarly,
+    ] = await Promise.all([
+      prisma.attendance.count({
+        where: { companyId, status: { not: "ABSENT" } },
+      }),
+      prisma.attendance.count({
+        where: { companyId },
+      }),
+      prisma.attendance.count({
+        where: { companyId, status: "LATE" },
+      }),
+      prisma.attendance.count({
+        where: { companyId, status: "ABSENT" },
+      }),
+      prisma.attendance.count({
+        where: { companyId, status: "ON_TIME" },
+      }),
+      prisma.attendance.count({
+        where: { companyId, status: "EARLY" },
+      }),
+    ]);
 
     const attendancePercentage =
       totalDays > 0
@@ -381,7 +404,13 @@ export const getCompanyAttendanceStats = async (req, res) => {
         : 0;
 
     return res.status(200).json({
-      data: { attendancePercentage, daysLate, daysAbsent, daysOnTime },
+      data: {
+        attendancePercentage,
+        daysLate,
+        daysAbsent,
+        daysOnTime,
+        daysEarly,
+      },
     });
   } catch (error) {
     console.error("Error in getCompanyAttendanceStats controller", error);

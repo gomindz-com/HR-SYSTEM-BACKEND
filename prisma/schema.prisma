@@ -97,6 +97,7 @@ enum AttendanceStatus {
   ON_TIME
   ABSENT
   LATE
+  EARLY
 }
 
 enum LeaveType {
