@@ -2,6 +2,7 @@ import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+
 export const sendInvitation = async (req, res) => {
   const { email, role, position, departmentId } = req.body;
   const id = req.user.id;
@@ -131,6 +132,223 @@ export const sendInvitation = async (req, res) => {
   }
 };
 
+export const sendBulkInvitations = async (req, res) => {
+  const { invitations, autoCreateDepartments = true } = req.body;
+  const id = req.user.id;
+  const companyId = req.user.companyId;
+
+  try {
+    if (!companyId) {
+      return res.status(400).json({
+        message: "your session is not associated with any company",
+      });
+    }
+
+    if (req.user.role !== "ADMIN") {
+      return res.status(401).json({
+        message: "only ADMIN can send invitations",
+      });
+    }
+
+    if (
+      !invitations ||
+      !Array.isArray(invitations) ||
+      invitations.length === 0
+    ) {
+      return res.status(400).json({
+        message: "invitations array is required and must not be empty",
+      });
+    }
+
+    const results = [];
+    const errors = [];
+    const createdDepartments = new Map(); // Cache for created departments
+
+    // Get company info once
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      return res.status(400).json({ message: "Company not found" });
+    }
+
+    for (const invitation of invitations) {
+      const { email, role, position, departmentName } = invitation;
+
+      try {
+        // Normalize email
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check if user already exists
+        const existingUser = await prisma.employee.findUnique({
+          where: { email: normalizedEmail, companyId },
+        });
+
+        if (existingUser) {
+          errors.push({ email: normalizedEmail, error: "User already exists" });
+          continue;
+        }
+
+        // Check for existing pending invitation
+        const existingInvitation = await prisma.invitation.findFirst({
+          where: {
+            email: normalizedEmail,
+            companyId,
+            status: "PENDING",
+            expiresAt: { gt: new Date() },
+          },
+        });
+
+        if (existingInvitation) {
+          errors.push({
+            email: normalizedEmail,
+            error: "Invitation already sent",
+          });
+          continue;
+        }
+
+        // Handle department - either find existing or create new
+        let departmentId = null;
+
+        if (departmentName) {
+          // First check if we already created this department in this batch
+          if (createdDepartments.has(departmentName.toLowerCase())) {
+            departmentId = createdDepartments.get(departmentName.toLowerCase());
+          } else {
+            // Check if department already exists
+            let department = await prisma.department.findFirst({
+              where: {
+                name: { equals: departmentName, mode: "insensitive" },
+                companyId,
+              },
+            });
+
+            // If department doesn't exist and auto-creation is enabled, create it
+            if (!department && autoCreateDepartments) {
+              department = await prisma.department.create({
+                data: {
+                  name: departmentName,
+                  companyId,
+                  managerId: id,
+                },
+              });
+
+              // Cache the created department
+              createdDepartments.set(
+                departmentName.toLowerCase(),
+                department.id
+              );
+
+              console.log(`Created new department: ${departmentName}`);
+            }
+
+            if (department) {
+              departmentId = department.id;
+            } else {
+              errors.push({
+                email: normalizedEmail,
+                error: `Department "${departmentName}" not found and auto-creation is disabled`,
+              });
+              continue;
+            }
+          }
+        }
+
+        // Create invitation
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        await prisma.invitation.create({
+          data: {
+            email: normalizedEmail,
+            position,
+            role: role || "STAFF",
+            companyId,
+            invitedBy: id,
+            token,
+            expiresAt,
+            status: "PENDING",
+            createdAt: new Date(),
+            departmentId,
+          },
+        });
+
+        // Send email
+        const baseUrl =
+          process.env.NODE_ENV === "development"
+            ? "http://localhost:8080"
+            : process.env.CLIENT_URL ||
+              "https://hr-system-frontend-tester.vercel.app";
+
+        const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
+
+        try {
+          await transporter.sendMail({
+            from: `"HR System" <${process.env.GMAIL_USER}>`,
+            to: normalizedEmail,
+            subject: "Invitation to join company",
+            html: `
+              <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
+                  <h2 style="color: #007bff; margin-top: 0;">Company Invitation</h2>
+                  <p>Hello,</p>
+                  <p>You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"}</strong>.</p>
+                  ${departmentName ? `<p>Department: <strong>${departmentName}</strong></p>` : ""}
+                  <p>Please click the button below to accept the invitation:</p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${invitationUrl}" style="background: #007bff; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                      Accept Invitation
+                    </a>
+                  </div>
+                  <p style="color: #6c757d; font-size: 14px;">This invitation will expire in 24 hours.</p>
+                  <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
+                  <p style="color: #6c757d; font-size: 12px; margin-bottom: 0;">Thank you,<br/>The HR System Team</p>
+                </div>
+              </div>
+            `,
+          });
+        } catch (emailError) {
+          console.error("Failed to send bulk invitation email:", {
+            to: normalizedEmail,
+            error: emailError.message,
+            timestamp: new Date().toISOString(),
+          });
+          // Continue execution - invitation is already saved in database
+        }
+
+        results.push({
+          email: normalizedEmail,
+          status: "success",
+          departmentCreated: createdDepartments.has(
+            departmentName?.toLowerCase()
+          ),
+        });
+      } catch (error) {
+        errors.push({ email: email || "unknown", error: error.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      results,
+      errors,
+      summary: {
+        total: invitations.length,
+        successful: results.length,
+        failed: errors.length,
+        departmentsCreated: createdDepartments.size,
+      },
+    });
+  } catch (error) {
+    console.log("Error in sendBulkInvitations", error);
+    res.status(500).json({
+      message: "Failed to process bulk invitations",
+      error: error.message,
+    });
+  }
+};
+
 export const acceptInvitation = async (req, res) => {
   const { token } = req.params;
   const { name, password, confirmPassword } = req.body;
@@ -174,7 +392,6 @@ export const acceptInvitation = async (req, res) => {
       });
       return res.status(400).json({ message: "Invitation has expired" });
     }
-
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const idx = Math.floor(Math.random() * 100) + 1;
