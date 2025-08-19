@@ -172,6 +172,201 @@ export const checkOut = async (req, res) => {
   }
 };
 
+export const adminAddAttendance = async (req, res) => {
+  const { employeeId } = req.params;
+  const { companyId } = req.user;
+  const { timeIn } = req.body;
+
+  if (!employeeId)
+    return res.status(400).json({ message: "Employee ID is required" });
+  if (!companyId)
+    return res.status(400).json({ message: "Company ID is required" });
+  if (!timeIn) return res.status(400).json({ message: "Time In is required" });
+
+  try {
+    // Validate timeIn format
+    const parsedTimeIn = new Date(timeIn);
+    if (isNaN(parsedTimeIn.getTime())) {
+      return res.status(400).json({
+        message: "Invalid time format. Please provide a valid date/time.",
+      });
+    }
+
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(employeeId),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    // Get company settings for attendance rules
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workStartTime: true,
+        workEndTime: true,
+        lateThreshold: true,
+        checkInDeadline: true,
+      },
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: { employeeId: parseInt(employeeId), companyId, date: today },
+    });
+
+    if (existingAttendance && existingAttendance.timeIn) {
+      return res.status(400).json({
+        message: "You have already marked this employee as present today",
+      });
+    }
+
+    if (existingAttendance && existingAttendance.timeOut) {
+      return res.status(400).json({
+        message: "You have already marked this employee as checked out today",
+      });
+    }
+
+    const checkInResult = checkCheckInWindow(company);
+
+    if (!checkInResult.isAllowed) {
+      return res.status(400).json({
+        message: checkInResult.reason,
+        details: {
+          currentTime: checkInResult.currentTime,
+          workStartTime: checkInResult.workStartTime,
+          workEndTime: checkInResult.workEndTime,
+          deadline: checkInResult.deadline,
+        },
+      });
+    }
+
+    const now = new Date();
+    const status = determineAttendanceStatus(now, company);
+
+    // Use upsert to avoid unique constraint issues
+    const attendance = await prisma.attendance.upsert({
+      where: {
+        employeeId_date: { employeeId: parseInt(employeeId), date: today },
+      },
+      update: { timeIn, status },
+      create: {
+        employeeId: parseInt(employeeId),
+        companyId,
+        date: today,
+        timeIn,
+        status,
+      },
+    });
+
+    return res
+      .status(200)
+      .json({ message: "Attendance added successfully", data: { attendance } });
+  } catch (error) {
+    console.log("Error in adminAddAttendance controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const adminClockOut = async (req, res) => {
+  const { employeeId } = req.params;
+  const { companyId } = req.user;
+  const { timeOut } = req.body;
+
+  if (!employeeId)
+    return res.status(400).json({ message: "Employee ID is required" });
+  if (!companyId)
+    return res.status(400).json({ message: "Company ID is required" });
+  if (!timeOut)
+    return res.status(400).json({ message: "Time Out is required" });
+
+  try {
+    // Validate timeOut format
+    const parsedTimeOut = new Date(timeOut);
+    if (isNaN(parsedTimeOut.getTime())) {
+      return res.status(400).json({
+        message: "Invalid time format. Please provide a valid date/time.",
+      });
+    }
+
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(employeeId),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find existing attendance record
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId: parseInt(employeeId),
+        companyId,
+        date: today,
+      },
+    });
+
+    if (!existingAttendance) {
+      return res.status(404).json({
+        message: "cannot clock out without clock in"
+      });
+    }
+
+    if (existingAttendance.timeOut) {
+      return res.status(400).json({
+        message: "Employee has already been checked out today",
+      });
+    }
+
+    // Validate that timeOut is after timeIn
+    if (
+      existingAttendance.timeIn &&
+      parsedTimeOut <= existingAttendance.timeIn
+    ) {
+      return res.status(400).json({
+        message: "Time out must be after time in",
+      });
+    }
+
+    // Update attendance with timeOut
+    const updatedAttendance = await prisma.attendance.update({
+      where: { id: existingAttendance.id },
+      data: { timeOut: parsedTimeOut },
+    });
+
+    return res.status(200).json({
+      message: "Clock out successful",
+      data: {
+        attendance: updatedAttendance,
+        employee: employee.name,
+      },
+    });
+  } catch (error) {
+    console.log("Error in adminClockOut controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 export const listAttendance = async (req, res) => {
   const companyId = req.user?.companyId;
 
