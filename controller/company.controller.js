@@ -67,6 +67,17 @@ export const signUpCompany = async (req, res) => {
       data: { managerId: newHR.id },
     });
 
+    // Create a default company location (will use fixed 40m radius)
+    await prisma.companyLocation.create({
+      data: {
+        companyId: company.id,
+        name: "Main Office",
+        latitude: 0,
+        longitude: 0,
+        isActive: true,
+      },
+    });
+
     generateToken(newHR.id, res);
     res.status(201).json({
       success: true,
@@ -421,6 +432,181 @@ export const updateCompanyInfo = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating company info:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const createCompanyLocation = async (req, res) => {
+  const { id } = req.user;
+  const { companyId } = req.user;
+  const { name, latitude, longitude } = req.body;
+
+  if (!id || !companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  if (req.user.role !== "ADMIN") {
+    return res.status(401).json({
+      message: "You are not authorized to add a company location",
+    });
+  }
+
+  if (!name || !latitude || !longitude) {
+    return res.status(400).json({
+      message: "All fields are required",
+    });
+  }
+
+  try {
+    const newLocation = await prisma.companyLocation.create({
+      data: {
+        name,
+        latitude,
+        longitude,
+        companyId,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Company location added successfully",
+      data: newLocation,
+    });
+  } catch (error) {
+    console.error("Error in createCompanyLocation controller:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getCompanyLocations = async (req, res) => {
+  const { id } = req.user;
+  const { companyId } = req.user;
+
+  if (!id || !companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  if (req.user.role !== "ADMIN") {
+    return res.status(401).json({
+      message: "You are not authorized to get company locations",
+    });
+  }
+
+  try {
+    const locations = await prisma.companyLocation.findMany({
+      where: { companyId },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Company locations retrieved successfully",
+      data: { locations },
+    });
+  } catch (error) {
+    console.error("Error in getCompanyLocations controller:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateCompanyLocation = async (req, res) => {
+  const { id } = req.user;
+  const { companyId } = req.user;
+  const { id: locationId } = req.params;
+
+  if (!id || !companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  if (req.user.role !== "ADMIN") {
+    return res.status(401).json({
+      message: "You are not authorized to update a company location",
+    });
+  }
+
+  try {
+    const allowedUpdates = ["name", "latitude", "longitude"];
+
+    const updateData = {};
+
+    allowedUpdates.forEach((field) => {
+      if (req.body[field]) {
+        updateData[field] = req.body[field];
+      }
+    });
+
+    // Convert locationId to number for Prisma
+    const numericLocationId = parseInt(locationId, 10);
+
+    if (isNaN(numericLocationId)) {
+      return res.status(400).json({
+        message: "Invalid location ID format",
+      });
+    }
+
+    const updatedLocation = await prisma.companyLocation.update({
+      where: { id: numericLocationId },
+      data: updateData,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Company location updated successfully",
+      data: updatedLocation,
+    });
+  } catch (error) {
+    console.error("Error in updateCompanyLocation controller:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteCompanyLocation = async (req, res) => {
+  const { id: locationId } = req.params;
+
+  if (!req.user.id || !req.user.companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  if (!locationId) {
+    return res.status(400).json({
+      message: "Location ID is required",
+    });
+  }
+
+  if (req.user.role !== "ADMIN") {
+    return res.status(401).json({
+      message: "You are not authorized to delete a company location",
+    });
+  }
+
+  try {
+    // Convert locationId to number for Prisma
+    const numericLocationId = parseInt(locationId, 10);
+
+    if (isNaN(numericLocationId)) {
+      return res.status(400).json({
+        message: "Invalid location ID format",
+      });
+    }
+
+    const deletedLocation = await prisma.companyLocation.delete({
+      where: { id: numericLocationId },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Location deleted successfully",
+      data: deletedLocation,
+    });
+  } catch (error) {
+    console.error("Error in deleteCompanyLocation controller:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

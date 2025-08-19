@@ -5,15 +5,45 @@ import {
   checkCheckOutWindow,
   determineAttendanceStatus,
 } from "../lib/attendance-utils.js";
+import locationUtils from "../utils/location.util.js";
 export const checkIn = async (req, res) => {
-  const { qrPayload } = req.body;
+  const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
+
+  if (!longitude || !latitude) {
+    return res.status(400).json({ message: "location coordinates are required" });
+  }
 
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
       return res.status(400).json({ message: "Invalid QR code" });
+    }
+
+    const companyLocations = await prisma.companyLocation.findMany({
+      where: {
+        companyId,
+        isActive: true,
+      },
+    });
+
+    if (companyLocations.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "No company location configured" });
+    }
+
+    const locationValidation = locationUtils.validateLocation(
+      latitude,
+      longitude,
+      companyLocations
+    );
+
+    if (!locationValidation.valid) {
+      return res.status(400).json({
+        message: "You must be at the company location to clock in",
+      });
     }
 
     // Get company settings for attendance rules
@@ -101,14 +131,40 @@ export const checkIn = async (req, res) => {
 };
 
 export const checkOut = async (req, res) => {
-  const { qrPayload } = req.body;
+  const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
+
+  if (!longitude || !latitude) {
+    return res.status(400).json({ message: "location coordinates are required" });
+  }
 
   try {
     const qrData = verifyQrPayload(qrPayload);
     if (!qrData) {
       return res.status(400).json({ message: "Invalid QR code" });
+    }
+
+    const companyLocations = await prisma.companyLocation.findMany({
+      where: { companyId, isActive: true },
+    });
+
+    if (!companyLocations || companyLocations.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "No company location configured" });
+    }
+
+    const locationValidation = locationUtils.validateLocation(
+      latitude,
+      longitude,
+      companyLocations
+    );
+
+    if (!locationValidation.valid) {
+      return res.status(400).json({
+        message: "You must be at the company location to clock out",
+      });
     }
 
     // Get company settings for attendance rules
