@@ -44,8 +44,6 @@ app.use(express.json());
 // CORS configuration
 const allowedOrigins = [
   "http://localhost:8080",
-  "http://172.20.10.2:8080",
-  "https://subtle-strudel-6843d3.netlify.app",
 ];
 
 if (process.env.CLIENT_URL) {

@@ -7,6 +7,10 @@ import {
   getAvailableTimezones,
   updateCompanyInfo,
   getCompanyInfo,
+  createCompanyLocation,
+  getCompanyLocations,
+  updateCompanyLocation,
+  deleteCompanyLocation,
 } from "../controller/company.controller.js";
 
 const router = express.Router();
@@ -25,4 +29,8 @@ router.put("/info", verifyToken, updateCompanyInfo);
 router.get("/attendance-settings", verifyToken, getAttendanceSettings);
 router.put("/attendance-settings", verifyToken, updateAttendanceSettings);
 
+router.post("/locations", verifyToken, createCompanyLocation);
+router.get("/locations", verifyToken, getCompanyLocations);
+router.put("/locations/:id", verifyToken, updateCompanyLocation);
+router.delete("/locations/:id", verifyToken, deleteCompanyLocation);
 export default router;
