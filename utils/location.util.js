@@ -1,5 +1,5 @@
 // Fixed radius for all company locations (in meters)
-const FIXED_RADIUS = 50;
+const FIXED_RADIUS = 100;
 
 /**
  * Calculate distance between two coordinates using Haversine formula
