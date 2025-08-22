@@ -17,7 +17,7 @@ export const listEmployees = async (req, res) => {
     req.query;
 
   // Build where clause
-  const where = { companyId };
+  const where = { companyId, deleted: false };
 
   // Handle search across multiple fields (name, email, position)
   if (search) {
@@ -181,6 +181,143 @@ export const updateEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating employee", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteEmployee = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.user.companyId;
+
+  if (!id || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  try {
+    const employee = await prisma.employee.update({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+      data: {
+        deleted: true,
+      },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    return res.status(200).json({ message: "Employee deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting employee", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const listArchivedEmployees = async (req, res) => {
+  const companyId = req.user.companyId;
+
+  if (!companyId) {
+    return res.status(400).json({ message: "Company ID is required" });
+  }
+
+  // Pagination params
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 10;
+  const skip = (page - 1) * pageSize;
+
+  // Filtering params
+  const { name, email, departmentId, status, role, position, search } =
+    req.query;
+
+  // Build where clause - only deleted employees
+  const where = { companyId, deleted: true };
+
+  // Handle search across multiple fields (name, email, position)
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { position: { contains: search, mode: "insensitive" } },
+    ];
+  } else {
+    // Individual field filters
+    if (name) where.name = { contains: name, mode: "insensitive" };
+    if (email) where.email = { contains: email, mode: "insensitive" };
+    if (position) where.position = { contains: position, mode: "insensitive" };
+  }
+
+  if (departmentId) where.departmentId = parseInt(departmentId);
+  if (status) where.status = status;
+  if (role) where.role = role;
+
+  try {
+    const [employees, total] = await Promise.all([
+      prisma.employee.findMany({
+        where,
+        orderBy: { name: "asc" },
+        skip,
+        take: pageSize,
+        include: {
+          department: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.employee.count({ where }),
+    ]);
+    return res.status(200).json({
+      data: {
+        employees,
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (error) {
+    // Only log critical errors, not connection issues
+    if (error.code === "P1001" || error.code === "P1002") {
+      // Database connection errors - don't spam the console
+      console.log("Database connection issue - retrying...");
+    } else {
+      console.error("Error fetching archived employees:", error.message);
+    }
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const reinstateEmployee = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.user.companyId;
+
+  if (!id || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  try {
+    const employee = await prisma.employee.update({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+      data: {
+        deleted: false,
+      },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    return res
+      .status(200)
+      .json({ message: "Employee reinstated successfully" });
+  } catch (error) {
+    console.error("Error reinstating employee", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

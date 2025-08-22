@@ -12,7 +12,9 @@ export const checkIn = async (req, res) => {
   const companyId = req.user.companyId;
 
   if (!longitude || !latitude) {
-    return res.status(400).json({ message: "location coordinates are required" });
+    return res
+      .status(400)
+      .json({ message: "location coordinates are required" });
   }
 
   try {
@@ -45,6 +47,9 @@ export const checkIn = async (req, res) => {
         message: "You must be at the company location to clock in",
       });
     }
+
+    // Get the validated location for storage
+    const validatedLocation = locationValidation.location;
 
     // Get company settings for attendance rules
     const company = await prisma.company.findUnique({
@@ -111,6 +116,7 @@ export const checkIn = async (req, res) => {
       update: {
         timeIn: now,
         status,
+        locationId: validatedLocation.id,
       },
       create: {
         employeeId,
@@ -118,6 +124,7 @@ export const checkIn = async (req, res) => {
         date: today,
         timeIn: now,
         status,
+        locationId: validatedLocation.id,
       },
     });
 
@@ -136,7 +143,9 @@ export const checkOut = async (req, res) => {
   const companyId = req.user.companyId;
 
   if (!longitude || !latitude) {
-    return res.status(400).json({ message: "location coordinates are required" });
+    return res
+      .status(400)
+      .json({ message: "location coordinates are required" });
   }
 
   try {
@@ -166,6 +175,9 @@ export const checkOut = async (req, res) => {
         message: "You must be at the company location to clock out",
       });
     }
+
+    // Get the validated location for storage
+    const validatedLocation = locationValidation.location;
 
     // Get company settings for attendance rules
     const company = await prisma.company.findUnique({
@@ -384,7 +396,7 @@ export const adminClockOut = async (req, res) => {
 
     if (!existingAttendance) {
       return res.status(404).json({
-        message: "cannot clock out without clock in"
+        message: "cannot clock out without clock in",
       });
     }
 
@@ -436,7 +448,7 @@ export const listAttendance = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   // Filters
-  const { employeeId, status, date } = req.query;
+  const { employeeId, status, date, locationId } = req.query;
   const where = { companyId };
 
   // Safe parse for employeeId
@@ -462,6 +474,14 @@ export const listAttendance = async (req, res) => {
     };
   }
 
+  // Location filter
+  if (locationId) {
+    const parsedLocationId = parseInt(locationId);
+    if (!isNaN(parsedLocationId)) {
+      where.locationId = parsedLocationId;
+    }
+  }
+
   try {
     const [attendanceRecords, total] = await Promise.all([
       prisma.attendance.findMany({
@@ -476,6 +496,12 @@ export const listAttendance = async (req, res) => {
               name: true,
               email: true,
               profilePic: true,
+            },
+          },
+          location: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -527,6 +553,12 @@ export const myAttendance = async (req, res) => {
             name: true,
             email: true,
             profilePic: true,
+          },
+        },
+        location: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -679,6 +711,9 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
   const limit = Math.max(1, parseInt(req.query.limit) || 10);
   const skip = (page - 1) * limit;
 
+  // Get location filter
+  const { locationId } = req.query;
+
   if (!employeeId || !companyId) {
     return res
       .status(400)
@@ -698,11 +733,22 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
   }
 
   try {
+    // Build where clause with location filter
+    const where = {
+      employeeId: parsedEmployeeId,
+      companyId,
+    };
+
+    // Add location filter if provided
+    if (locationId) {
+      const parsedLocationId = parseInt(locationId);
+      if (!isNaN(parsedLocationId)) {
+        where.locationId = parsedLocationId;
+      }
+    }
+
     const attendance = await prisma.attendance.findMany({
-      where: {
-        employeeId: parsedEmployeeId,
-        companyId,
-      },
+      where,
       orderBy: {
         date: "desc",
       },
@@ -716,16 +762,17 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
             profilePic: true,
           },
         },
+        location: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
     // Get total count for pagination
-    const total = await prisma.attendance.count({
-      where: {
-        employeeId: parsedEmployeeId,
-        companyId,
-      },
-    });
+    const total = await prisma.attendance.count({ where });
 
     if (!attendance || attendance.length === 0) {
       return res.status(200).json({
@@ -753,5 +800,72 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
   } catch (error) {
     console.error("Error in listSpecificEmployeeAttendance controller", error);
     return res.status(500).json("Internal Server Error");
+  }
+};
+
+export const viewEmployeeAttendanceStats = async (req, res) => {
+  const companyId = req.user?.companyId;
+
+  const { employeeId } = req.params;
+
+  if (!employeeId || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  // Convert employeeId to number for Prisma
+  const parsedEmployeeId = parseInt(employeeId, 10);
+
+  try {
+    const [
+      totalAttendance,
+      totalDays,
+      daysLate,
+      daysAbsent,
+      daysOnTime,
+      daysEarly,
+    ] = await Promise.all([
+      prisma.attendance.count({
+        where: {
+          employeeId: parsedEmployeeId,
+          companyId,
+          status: { not: "ABSENT" },
+        },
+      }),
+      prisma.attendance.count({
+        where: { employeeId: parsedEmployeeId, companyId },
+      }),
+      prisma.attendance.count({
+        where: { employeeId: parsedEmployeeId, companyId, status: "LATE" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId: parsedEmployeeId, companyId, status: "ABSENT" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId: parsedEmployeeId, companyId, status: "ON_TIME" },
+      }),
+      prisma.attendance.count({
+        where: { employeeId: parsedEmployeeId, companyId, status: "EARLY" },
+      }),
+    ]);
+
+    const attendancePercentage =
+      totalDays > 0
+        ? parseFloat(((totalAttendance / totalDays) * 100).toFixed(1))
+        : 0;
+
+    return res.status(200).json({
+      data: {
+        attendancePercentage,
+        daysLate,
+        daysAbsent,
+        daysOnTime,
+        daysEarly,
+      },
+    });
+  } catch (error) {
+    console.error("Error in getAttendanceStats controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };

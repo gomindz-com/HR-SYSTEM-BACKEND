@@ -29,6 +29,7 @@ export const login = async (req, res) => {
         companyId: true,
         password: true, // We need this for password comparison
         createdAt: true,
+        deleted: true,
         department: {
           select: {
             name: true,
@@ -47,6 +48,12 @@ export const login = async (req, res) => {
 
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (user.deleted) {
+      return res
+        .status(401)
+        .json({ message: "your account has been deleted, contact hr manager" });
     }
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);

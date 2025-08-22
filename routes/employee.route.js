@@ -4,12 +4,18 @@ import {
   listEmployees,
   getEmployeeDetails,
   updateEmployee,
+  deleteEmployee,
+  listArchivedEmployees,
+  reinstateEmployee,
 } from "../controller/employee.controller.js";
 
 const router = express.Router();
 
 router.get("/", verifyToken, listEmployees);
-router.get("/:id", verifyToken, getEmployeeDetails);  
+router.get("/archived", verifyToken, listArchivedEmployees);
+router.get("/:id", verifyToken, getEmployeeDetails);
 router.put("/update-employee/:id", verifyToken, updateEmployee);
+router.put("/delete-employee/:id", verifyToken, deleteEmployee);
+router.put("/reinstate-employee/:id", verifyToken, reinstateEmployee);
 
 export default router;

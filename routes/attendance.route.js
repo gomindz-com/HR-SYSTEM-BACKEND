@@ -10,6 +10,7 @@ import {
   myAttendance,
   adminAddAttendance,
   adminClockOut,
+  viewEmployeeAttendanceStats,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -22,6 +23,7 @@ router.post("/check-out", checkOut);
 router.get("/my-attendance", myAttendance);
 router.get("/", listAttendance);
 router.get("/stats", getAttendanceStats);
+router.get("/employee-stats/:employeeId", viewEmployeeAttendanceStats);
 router.get("/company-stats", getCompanyAttendanceStats);
 router.get("/employee/:employeeId", listSpecificEmployeeAttendance);
 
