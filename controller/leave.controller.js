@@ -7,6 +7,7 @@ export const requestLeave = async (req, res) => {
   const companyId = req.user.companyId;
   const { leaveType, startDate, endDate, comments } = req.body;
 
+  // Basic validation
   if (!companyId) {
     return res.status(400).json({ message: "company id is required" });
   }
@@ -19,19 +20,118 @@ export const requestLeave = async (req, res) => {
     return res.status(400).json({ message: "missing required field" });
   }
 
-  if (startDate > endDate) {
-    return res
-      .status(400)
-      .json({ message: "start date must be before end date" });
+  // Validate leave type
+  const validLeaveTypes = [
+    "STUDY",
+    "MATERNITY",
+    "SICK",
+    "PERSONAL",
+    "VACATION",
+    "ANNUAL",
+  ];
+  if (!validLeaveTypes.includes(leaveType)) {
+    return res.status(400).json({
+      message: "invalid leave type",
+      validTypes: validLeaveTypes,
+    });
+  }
+
+  // Date validation
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
+
+  // Check if dates are valid
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return res.status(400).json({ message: "invalid date format" });
+  }
+
+  // Check if start date is in the past
+  if (start < today) {
+    return res.status(400).json({
+      message: "start date cannot be in the past",
+      startDate: startDate,
+      today: today.toISOString().split("T")[0],
+    });
+  }
+
+  // Check if end date is in the past
+  if (end < today) {
+    return res.status(400).json({
+      message: "end date cannot be in the past",
+      endDate: endDate,
+      today: today.toISOString().split("T")[0],
+    });
+  }
+
+  // Check if start date is before end date
+  if (start > end) {
+    return res.status(400).json({
+      message: "start date must be before end date",
+      startDate: startDate,
+      endDate: endDate,
+    });
+  }
+
+  // Check if leave duration is reasonable (max 90 days)
+  const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  if (days > 90) {
+    return res.status(400).json({
+      message: "leave duration cannot exceed 90 days",
+      requestedDays: days,
+      maxDays: 90,
+    });
+  }
+
+  // Check if leave duration is at least 1 day
+  if (days < 1) {
+    return res.status(400).json({
+      message: "leave duration must be at least 1 day",
+      requestedDays: days,
+    });
   }
 
   try {
     const attachments = req.files ? req.files.map((file) => file.path) : [];
 
-    // Calculate days properly
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    // Check if user already has a pending leave request for overlapping dates
+    const existingLeave = await prisma.leaveRequest.findFirst({
+      where: {
+        employeeId: id,
+        companyId: companyId,
+        status: "PENDING",
+        OR: [
+          {
+            startDate: { lte: end },
+            endDate: { gte: start },
+          },
+        ],
+      },
+    });
+
+    if (existingLeave) {
+      return res.status(400).json({
+        message:
+          "you already have a pending leave request for overlapping dates",
+        existingRequest: {
+          id: existingLeave.id,
+          startDate: existingLeave.startDate,
+          endDate: existingLeave.endDate,
+          leaveType: existingLeave.leaveType,
+        },
+      });
+    }
+
+    // Check if user has sufficient leave balance (optional - you can implement this based on your business logic)
+    // const leaveBalance = await getLeaveBalance(id, companyId);
+    // if (leaveBalance.daysLeft < days) {
+    //   return res.status(400).json({
+    //     message: "insufficient leave balance",
+    //     requestedDays: days,
+    //     availableDays: leaveBalance.daysLeft
+    //   });
+    // }
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
