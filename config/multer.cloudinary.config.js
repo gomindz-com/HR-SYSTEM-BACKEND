@@ -18,8 +18,8 @@ const storage = new CloudinaryStorage({
     const ext = path.extname(file.originalname).slice(1).toLowerCase();
 
     let folderName;
-    if (file.fieldname === "profilePic") {
-      folderName = "PROFILE_PICTURES";
+    if (file.fieldname === "attachmentUrls") {
+      folderName = "LEAVE_ATTACHMENTS";
     } else {
       folderName = "OTHERS";
     }

@@ -18,6 +18,13 @@ export const sendInvitation = async (req, res) => {
       return res.status(400).json({ message: "departmentId is required" });
     }
 
+    // Only ADMIN can send invitations
+    if (req.user.role !== "ADMIN") {
+      return res
+        .status(401)
+        .json({ message: "only ADMIN can send invitations" });
+    }
+
     // Normalize email to handle case sensitivity and whitespace
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -144,9 +151,10 @@ export const sendBulkInvitations = async (req, res) => {
       });
     }
 
+    // Only ADMIN can send bulk invitations
     if (req.user.role !== "ADMIN") {
       return res.status(401).json({
-        message: "only ADMIN can send invitations",
+        message: "only ADMIN can send bulk invitations",
       });
     }
 

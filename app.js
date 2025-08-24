@@ -9,6 +9,8 @@ import attendanceRoutes from "./routes/attendance.route.js";
 import employeeRoutes from "./routes/employee.route.js";
 import userRoutes from "./routes/user.route.js";
 import companyRoutes from "./routes/company.route.js";
+import leaveRoutes from "./routes/leave.route.js";
+import reportRoutes from "./routes/report.route.js";
 
 // Load environment variables first
 dotenv.config();
@@ -34,6 +36,22 @@ try {
 } catch (error) {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
+}
+
+// Initialize leave reminder cron job
+let leaveReminderCron = null;
+try {
+  const startLeaveReminderCron = await import(
+    "./automations/leaveReminderCron.js"
+  );
+  startLeaveReminderCron.default();
+  leaveReminderCron = startLeaveReminderCron;
+  console.log(
+    "📧 Leave reminder cron job initialized - will run daily at 9:00 AM"
+  );
+} catch (error) {
+  console.error("❌ Failed to initialize leave reminder cron:", error);
+  // Don't exit the process, just log the error
 }
 
 const app = express();
@@ -80,6 +98,8 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/company", companyRoutes);
+app.use("/api/leave", leaveRoutes);
+app.use("/api/report", reportRoutes);
 
 // ESSENTIAL ADMIN ENDPOINTS
 
@@ -151,13 +171,48 @@ app.post("/api/admin/dry-run-absent-automation", async (req, res) => {
   }
 });
 
-// Emergency stop all automations
-app.post("/api/admin/emergency-stop-automations", async (req, res) => {
+// Manual trigger endpoint using the dedicated function
+app.post("/api/admin/trigger-absent-automation-manual", async (req, res) => {
   try {
     if (!automationInitialized) {
-      return res.json({
-        message: "Automation system was not initialized, nothing to stop",
+      return res.status(500).json({
+        error: "Absent automation not initialized",
+      });
+    }
+
+    const { manuallyTriggerForAllCompanies } = await import(
+      "./automations/absentAutomation.js"
+    );
+    const result = await manuallyTriggerForAllCompanies(false);
+
+    if (result.success) {
+      res.json({
+        message: "Manual trigger completed successfully",
         timestamp: new Date().toISOString(),
+        results: result.results,
+      });
+    } else {
+      console.error("❌ Manual trigger failed:", result.error);
+      res.status(500).json({
+        error: "Failed to execute manual trigger",
+        details: result.error,
+      });
+    }
+  } catch (error) {
+    console.error("Error in manual trigger:", error);
+    res.status(500).json({
+      error: "Failed to execute manual trigger",
+      details: error.message,
+    });
+  }
+});
+
+// Emergency stop endpoint
+app.post("/api/admin/stop-all-automations", async (req, res) => {
+  try {
+    if (!automationInitialized) {
+      return res.status(500).json({
+        error: "No automations running",
       });
     }
 
