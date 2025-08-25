@@ -3,6 +3,12 @@ import bcrypt from "bcryptjs";
 import { generateToken } from "../emails/utils.js";
 import crypto from "crypto";
 import { forgotPasswordEmail } from "../emails/forgotPasswordEmail.js";
+import {
+  createActivity,
+  ACTIVITY_TYPES,
+  PRIORITY_LEVELS,
+  ICON_TYPES,
+} from "../lib/activity-utils.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -183,6 +189,16 @@ export const resetPassword = async (req, res) => {
         resetPasswordToken: null,
         resetPasswordExpires: null,
       },
+    });
+
+    // Create activity for password reset
+    await createActivity({
+      companyId: user.companyId,
+      type: ACTIVITY_TYPES.PASSWORD_CHANGE,
+      title: "Password Reset",
+      description: `${user.name} reset their password`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
     });
 
     res.status(200).json({

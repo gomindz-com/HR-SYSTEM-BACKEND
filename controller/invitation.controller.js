@@ -2,6 +2,12 @@ import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import {
+  createActivity,
+  ACTIVITY_TYPES,
+  PRIORITY_LEVELS,
+  ICON_TYPES,
+} from "../lib/activity-utils.js";
 
 export const sendInvitation = async (req, res) => {
   const { email, role, position, departmentId } = req.body;
@@ -422,6 +428,16 @@ export const acceptInvitation = async (req, res) => {
     await prisma.invitation.update({
       where: { id: invitation.id },
       data: { status: "ACCEPTED" },
+    });
+
+    // Create activity for new employee joining
+    await createActivity({
+      companyId: invitation.companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_ADDED,
+      title: "New Employee Joined",
+      description: `${name} joined the company as ${invitation.position}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
     });
 
     res.status(200).json({

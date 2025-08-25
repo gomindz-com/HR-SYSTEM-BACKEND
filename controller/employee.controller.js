@@ -175,6 +175,16 @@ export const updateEmployee = async (req, res) => {
       data: updateData,
     });
 
+    // Create activity for employee update
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Updated",
+      description: `${employee.name}'s information was updated by admin`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
     return res.status(200).json({
       message: "info updated successfully",
       data: updatedEmployee,
@@ -209,6 +219,16 @@ export const deleteEmployee = async (req, res) => {
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
+
+    // Create activity for employee deletion
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_DELETED,
+      title: "Employee Deleted",
+      description: `${employee.name} was removed from the company`,
+      priority: PRIORITY_LEVELS.HIGH,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
 
     return res.status(200).json({ message: "Employee deleted successfully" });
   } catch (error) {

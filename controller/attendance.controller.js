@@ -6,6 +6,12 @@ import {
   determineAttendanceStatus,
 } from "../lib/attendance-utils.js";
 import locationUtils from "../utils/location.util.js";
+import {
+  createActivity,
+  ACTIVITY_TYPES,
+  PRIORITY_LEVELS,
+  ICON_TYPES,
+} from "../lib/activity-utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
@@ -128,6 +134,16 @@ export const checkIn = async (req, res) => {
       },
     });
 
+    // Create activity for successful check-in
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.ATTENDANCE,
+      title: "Employee Check-in",
+      description: `${req.user.name} checked in at ${now.toLocaleTimeString()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.ATTENDANCE,
+    });
+
     return res
       .status(201)
       .json({ message: "Check-in successful", data: { attendance } });
@@ -229,6 +245,16 @@ export const checkOut = async (req, res) => {
     const attendance = await prisma.attendance.update({
       where: { id: existingAttendance.id },
       data: { timeOut: now },
+    });
+
+    // Create activity for successful check-out
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.ATTENDANCE,
+      title: "Employee Check-out",
+      description: `${req.user.name} checked out at ${now.toLocaleTimeString()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.ATTENDANCE,
     });
 
     return res

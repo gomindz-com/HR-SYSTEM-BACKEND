@@ -1,5 +1,11 @@
 import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
+import {
+  createActivity,
+  ACTIVITY_TYPES,
+  PRIORITY_LEVELS,
+  ICON_TYPES,
+} from "../lib/activity-utils.js";
 
 // REQUEST LEAVE
 export const requestLeave = async (req, res) => {
@@ -145,6 +151,16 @@ export const requestLeave = async (req, res) => {
         status: "PENDING",
         attachmentUrls: attachments,
       },
+    });
+
+    // Create activity for new leave request
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.LEAVE_REQUEST,
+      title: "New Leave Request",
+      description: `${req.user.name} requested ${leaveType} leave for ${days} days`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.LEAVE,
     });
 
     return res.status(201).json({
@@ -394,6 +410,16 @@ export const approveLeave = async (req, res) => {
     // Send the email
     await transporter.sendMail(emailContent);
 
+    // Create activity for approved leave request
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.LEAVE_REQUEST,
+      title: "Leave Request Approved",
+      description: `${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave request was approved`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.LEAVE,
+    });
+
     return res
       .status(200)
       .json({ message: "leave request approved successfully" });
@@ -481,6 +507,16 @@ export const rejectLeave = async (req, res) => {
 
     // Send the email
     await transporter.sendMail(emailContent);
+
+    // Create activity for rejected leave request
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.LEAVE_REQUEST,
+      title: "Leave Request Rejected",
+      description: `${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave request was rejected`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.LEAVE,
+    });
 
     return res
       .status(200)
