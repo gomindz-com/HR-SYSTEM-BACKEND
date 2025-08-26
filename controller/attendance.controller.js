@@ -345,8 +345,8 @@ export const adminAddAttendance = async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const status = determineAttendanceStatus(now, company);
+    // Determine status based on the inputted check-in time, not current time
+    const status = determineAttendanceStatus(parsedTimeIn, company);
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({

@@ -830,14 +830,20 @@ export const reportStats = async (req, res) => {
     // Priority: Custom date range takes precedence over time period
     if (dateFrom || dateTo) {
       if (dateFrom) {
-        dateFilter.gte = new Date(dateFrom);
+        // Set start of day for dateFrom
+        const startDate = new Date(dateFrom);
+        startDate.setHours(0, 0, 0, 0);
+        dateFilter.gte = startDate;
       }
       if (dateTo) {
-        dateFilter.lte = new Date(dateTo);
+        // Set end of day for dateTo to include the full day
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        dateFilter.lte = endDate;
       }
     } else if (timePeriod && timePeriod !== "all") {
       const now = new Date();
-      let startDate;
+      let startDate, endDate;
 
       switch (timePeriod) {
         case "day":
@@ -846,26 +852,39 @@ export const reportStats = async (req, res) => {
             now.getMonth(),
             now.getDate()
           );
+          endDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() + 1
+          );
           break;
         case "week":
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          endDate = new Date(now);
           break;
         case "month":
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now);
           break;
         case "quarter":
           const quarter = Math.floor(now.getMonth() / 3);
           startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          endDate = new Date(now);
           break;
         case "year":
           startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now);
           break;
         default:
           startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Default to last 30 days
+          endDate = new Date(now);
       }
 
       if (startDate) {
         dateFilter.gte = startDate;
+      }
+      if (endDate) {
+        dateFilter.lte = endDate;
       }
     }
     // If both are "all" or undefined, no date filtering is applied
@@ -893,12 +912,34 @@ export const reportStats = async (req, res) => {
     });
 
     // Get leave request statistics
+    let leaveWhereClause = { companyId };
+
+    if (Object.keys(dateFilter).length > 0) {
+      // For leave requests, check if the leave period overlaps with the filter period
+      if (dateFilter.gte && dateFilter.lte) {
+        leaveWhereClause = {
+          ...leaveWhereClause,
+          AND: [
+            { startDate: { lte: dateFilter.lte } },
+            { endDate: { gte: dateFilter.gte } },
+          ],
+        };
+      } else if (dateFilter.gte) {
+        leaveWhereClause = {
+          ...leaveWhereClause,
+          endDate: { gte: dateFilter.gte },
+        };
+      } else if (dateFilter.lte) {
+        leaveWhereClause = {
+          ...leaveWhereClause,
+          startDate: { lte: dateFilter.lte },
+        };
+      }
+    }
+
     const leaveStats = await prisma.leaveRequest.groupBy({
       by: ["status"],
-      where: {
-        companyId,
-        ...(Object.keys(dateFilter).length > 0 && { startDate: dateFilter }),
-      },
+      where: leaveWhereClause,
       _count: {
         status: true,
       },
@@ -946,6 +987,7 @@ export const reportStats = async (req, res) => {
       ON_TIME: 0,
       ABSENT: 0,
       LATE: 0,
+      EARLY: 0,
     };
 
     attendanceStats.forEach((stat) => {
@@ -964,33 +1006,39 @@ export const reportStats = async (req, res) => {
     });
 
     // Calculate attendance rate
-    const totalAttendance = attendanceCounts.ON_TIME + attendanceCounts.LATE;
+    const totalPresent =
+      attendanceCounts.ON_TIME + attendanceCounts.LATE + attendanceCounts.EARLY;
+    const totalAbsent = attendanceCounts.ABSENT;
+    const totalRecords = totalPresent + totalAbsent;
 
     let attendanceRate;
     if (Object.keys(dateFilter).length > 0) {
       // If filtering by date, calculate rate based on filtered data
-      attendanceRate =
-        totalAttendance > 0
-          ? Math.round(
-              (totalAttendance / (totalAttendance + attendanceCounts.ABSENT)) *
-                100
-            )
-          : 0;
+      if (totalRecords > 0) {
+        attendanceRate = Math.round((totalPresent / totalRecords) * 100);
+      } else {
+        // If no records in filtered period, attendance rate is 0%
+        attendanceRate = 0;
+      }
     } else {
       // If no date filter, calculate overall company attendance rate
-      const totalCompanyEmployees = await prisma.employee.count({
-        where: { companyId },
-      });
-
-      if (totalCompanyEmployees > 0) {
-        const totalPresentEmployees = await prisma.attendance.count({
+      // This should be based on total employees, not just attendance records
+      if (totalEmployees > 0) {
+        // For overall company rate, we need to count unique employees who have attendance records
+        const employeesWithAttendance = await prisma.attendance.groupBy({
+          by: ["employeeId"],
           where: {
             companyId,
-            status: { in: ["ON_TIME", "LATE"] },
+            status: { in: ["ON_TIME", "LATE", "EARLY"] },
+          },
+          _count: {
+            employeeId: true,
           },
         });
+
+        const totalPresentEmployees = employeesWithAttendance.length;
         attendanceRate = Math.round(
-          (totalPresentEmployees / totalCompanyEmployees) * 100
+          (totalPresentEmployees / totalEmployees) * 100
         );
       } else {
         attendanceRate = 0;
@@ -1055,12 +1103,13 @@ export const reportStats = async (req, res) => {
           totalEmployees,
           totalDepartments,
           attendanceRate,
-          totalAttendance: totalAttendance + attendanceCounts.ABSENT,
+          totalAttendance: totalRecords,
         },
         attendance: {
           present: attendanceCounts.ON_TIME,
           absent: attendanceCounts.ABSENT,
           late: attendanceCounts.LATE,
+          early: attendanceCounts.EARLY,
         },
         leave: {
           pending: leaveCounts.PENDING,

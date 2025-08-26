@@ -97,7 +97,7 @@ export const getWeeklyAttendanceOverview = async (req, res) => {
       const nextDate = new Date(currentDate);
       nextDate.setDate(currentDate.getDate() + 1);
 
-      const [present, absent, late] = await Promise.all([
+      const [onTime, absent, late, early] = await Promise.all([
         prisma.attendance.count({
           where: {
             companyId,
@@ -128,13 +128,24 @@ export const getWeeklyAttendanceOverview = async (req, res) => {
             status: "LATE",
           },
         }),
+        prisma.attendance.count({
+          where: {
+            companyId,
+            date: {
+              gte: currentDate,
+              lt: nextDate,
+            },
+            status: "EARLY",
+          },
+        }),
       ]);
 
       attendanceData.push({
         day: weekDays[i],
-        present,
+        onTime,
         absent,
         late,
+        early,
       });
     }
 
@@ -173,6 +184,8 @@ export const getDepartmentDistribution = async (req, res) => {
       },
     });
 
+    console.log("📊 Raw department data:", departmentData);
+
     // Transform data to match frontend expectations
     const transformedData = departmentData
       .map((dept) => ({
@@ -180,7 +193,6 @@ export const getDepartmentDistribution = async (req, res) => {
         value: dept.employees.length,
         color: "", // We'll assign colors after filtering
       }))
-      .filter((dept) => dept.value > 0) // Only show departments with employees
       .sort((a, b) => b.value - a.value) // Sort by employee count descending
       .map((dept, index) => {
         const colors = [
@@ -197,6 +209,8 @@ export const getDepartmentDistribution = async (req, res) => {
           color: colors[index % colors.length],
         };
       });
+
+    console.log("📊 Final transformed data:", transformedData);
 
     res.status(200).json({ success: true, data: transformedData });
   } catch (error) {

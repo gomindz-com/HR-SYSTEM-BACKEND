@@ -1,5 +1,10 @@
 import prisma from "../config/prisma.config.js";
-
+import {
+  createActivity,
+  ACTIVITY_TYPES,
+  PRIORITY_LEVELS,
+  ICON_TYPES,
+} from "../lib/activity-utils.js";
 export const listEmployees = async (req, res) => {
   const companyId = req.user.companyId;
 
@@ -201,6 +206,7 @@ export const deleteEmployee = async (req, res) => {
 
   if (!id || !companyId) {
     return res
+
       .status(400)
       .json({ message: "Employee ID and Company ID are required" });
   }
