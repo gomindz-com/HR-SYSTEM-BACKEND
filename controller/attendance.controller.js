@@ -599,19 +599,22 @@ export const myAttendance = async (req, res) => {
       skip,
       take: limit,
     });
-    if (!myattendance || myattendance.length === 0) {
-      return res.status(404).json({ message: "No attendance records found" });
+    // Return empty array if no records found, not 404
+    if (!myattendance) {
+      myattendance = [];
     }
+
+    const total = await prisma.attendance.count({
+      where: { employeeId, companyId },
+    });
 
     return res.status(200).json({
       data: { attendance: myattendance },
       pagination: {
         page,
         limit,
-        totalPages: Math.ceil(myattendance.length / limit),
-        total: await prisma.attendance.count({
-          where: { employeeId, companyId },
-        }),
+        totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+        total,
       },
     });
   } catch (error) {
