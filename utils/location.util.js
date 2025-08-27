@@ -26,13 +26,14 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 /**
  * Check if coordinates are within allowed radius of any company location
- * Uses a fixed 40-meter radius for all company locations
+ * Uses dynamic radius based on device type for better Android compatibility
  * @param {number} userLat - User's latitude
  * @param {number} userLng - User's longitude
  * @param {Array} companyLocations - Array of company location objects
+ * @param {string} userAgent - User agent string to detect device type
  * @returns {Object} Validation result with location info
  */
-function validateLocation(userLat, userLng, companyLocations) {
+function validateLocation(userLat, userLng, companyLocations, userAgent = "") {
   if (!companyLocations || companyLocations.length === 0) {
     return {
       valid: false,
@@ -40,6 +41,9 @@ function validateLocation(userLat, userLng, companyLocations) {
       location: null,
     };
   }
+
+  // Dynamic radius: Android gets more lenient radius due to GPS accuracy issues
+  const radius = userAgent.includes("Android") ? 100 : FIXED_RADIUS;
 
   // Check against all active locations
   for (const location of companyLocations) {
@@ -52,12 +56,14 @@ function validateLocation(userLat, userLng, companyLocations) {
       location.longitude
     );
 
-    if (distance <= FIXED_RADIUS) {
+    if (distance <= radius) {
       return {
         valid: true,
         message: `Check-in allowed at ${location.name}`,
         location: location,
         distance: Math.round(distance),
+        radius: radius, // Include which radius was used
+        deviceType: userAgent.includes("Android") ? "Android" : "iOS/Other",
       };
     }
   }
@@ -66,6 +72,7 @@ function validateLocation(userLat, userLng, companyLocations) {
     valid: false,
     message: "Not within allowed company locations",
     location: null,
+    radius: radius, // Include which radius was used for debugging
   };
 }
 

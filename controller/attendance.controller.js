@@ -17,6 +17,9 @@ export const checkIn = async (req, res) => {
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
+  // Get user agent from request headers
+  const userAgent = req.headers["user-agent"] || "";
+
   if (!longitude || !latitude) {
     return res
       .status(400)
@@ -45,7 +48,8 @@ export const checkIn = async (req, res) => {
     const locationValidation = locationUtils.validateLocation(
       latitude,
       longitude,
-      companyLocations
+      companyLocations,
+      userAgent
     );
 
     if (!locationValidation.valid) {
@@ -158,6 +162,9 @@ export const checkOut = async (req, res) => {
   const employeeId = req.user.id;
   const companyId = req.user.companyId;
 
+  // Get user agent from request headers
+  const userAgent = req.headers["user-agent"] || "";
+
   if (!longitude || !latitude) {
     return res
       .status(400)
@@ -183,7 +190,8 @@ export const checkOut = async (req, res) => {
     const locationValidation = locationUtils.validateLocation(
       latitude,
       longitude,
-      companyLocations
+      companyLocations,
+      userAgent
     );
 
     if (!locationValidation.valid) {
