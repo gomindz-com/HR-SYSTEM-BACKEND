@@ -101,7 +101,6 @@ app.use("/api/leave", leaveRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/shift", shiftRoutes);
-// ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status
 app.get("/api/admin/automation-status", async (req, res) => {
