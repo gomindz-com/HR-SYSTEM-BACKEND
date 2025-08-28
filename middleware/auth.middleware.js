@@ -32,12 +32,6 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log("Token verified successfully:", {
-      userId: decoded.id,
-      tokenSource,
-      userAgent: req.headers["user-agent"],
-    });
-
     const user = await prisma.employee.findUnique({
       where: { id: decoded.id },
       select: {

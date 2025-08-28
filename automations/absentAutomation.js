@@ -5,22 +5,23 @@ import prisma from "../config/prisma.config.js";
 const cronJobs = new Map();
 
 /**
- * Convert timezone to cron schedule for 7 PM (19:00)
+ * Convert timezone to cron schedule for 11:50 PM (23:50)
  * Simplified version with better error handling
  */
-function getCronScheduleFor7PM(timezone) {
+
+function getCronScheduleFor11_50PM(timezone) {
   // Handle common timezone cases with a simple mapping
   const timezoneMap = {
-    UTC: 19,
-    "America/New_York": 0, // UTC+0 (7 PM EST = 12 AM UTC next day)
-    "America/Chicago": 1, // UTC+1 (7 PM CST = 1 AM UTC next day)
-    "America/Denver": 2, // UTC+2 (7 PM MST = 2 AM UTC next day)
-    "America/Los_Angeles": 3, // UTC+3 (7 PM PST = 3 AM UTC next day)
-    "Europe/London": 19, // UTC+19 (7 PM GMT = 7 PM UTC)
-    "Europe/Paris": 18, // UTC+18 (7 PM CET = 6 PM UTC)
-    "Asia/Tokyo": 10, // UTC+10 (7 PM JST = 10 AM UTC)
-    "Africa/Abidjan": 19, // GMT (same as UTC)
-    "Africa/Banjul": 19, // GMT (same as UTC)
+    UTC: 23,
+    "America/New_York": 4, // UTC+4 (11:50 PM EST = 4:50 AM UTC next day)
+    "America/Chicago": 5, // UTC+5 (11:50 PM CST = 5:50 AM UTC next day)
+    "America/Denver": 6, // UTC+6 (11:50 PM MST = 6:50 AM UTC next day)
+    "America/Los_Angeles": 7, // UTC+7 (11:50 PM PST = 7:50 AM UTC next day)
+    "Europe/London": 23, // UTC+23 (11:50 PM GMT = 11:50 PM UTC)
+    "Europe/Paris": 22, // UTC+22 (11:50 PM CET = 10:50 PM UTC)
+    "Asia/Tokyo": 14, // UTC+14 (11:50 PM JST = 2:50 PM UTC)
+    "Africa/Abidjan": 23, // GMT (same as UTC)
+    "Africa/Banjul": 23, // GMT (same as UTC)
   };
 
   try {
@@ -33,8 +34,8 @@ function getCronScheduleFor7PM(timezone) {
     // Check if we have a direct mapping
     if (timezoneMap[timezone]) {
       const hour = timezoneMap[timezone];
-      console.log(`🕐 Timezone ${timezone}: 7 PM local = ${hour}:00 UTC`);
-      return `0 ${hour} * * 1-5`;
+      console.log(`🕐 Timezone ${timezone}: 11:50 PM local = ${hour}:50 UTC`);
+      return `50 ${hour} * * 1-5`;
     }
 
     // For other timezones, try dynamic calculation
@@ -48,28 +49,28 @@ function getCronScheduleFor7PM(timezone) {
 
       const localHour = parseInt(localTime);
       const offsetHours = localHour - 12; // Difference from UTC noon
-      let targetUTCHour = 19 - offsetHours; // Adjust 7 PM by offset
+      let targetUTCHour = 23 - offsetHours; // Adjust 11:50 PM by offset
 
       // Handle day boundary crossings
       if (targetUTCHour < 0) targetUTCHour += 24;
       if (targetUTCHour >= 24) targetUTCHour -= 24;
 
       console.log(
-        `🕐 Timezone ${timezone}: 7 PM local = ${targetUTCHour}:00 UTC (calculated)`
+        `🕐 Timezone ${timezone}: 11:50 PM local = ${targetUTCHour}:50 UTC (calculated)`
       );
-      return `0 ${targetUTCHour} * * 1-5`;
+      return `50 ${targetUTCHour} * * 1-5`;
     } catch (calcError) {
       console.error(
         `Timezone calculation failed for ${timezone}:`,
         calcError.message
       );
       console.log(`Using UTC fallback for ${timezone}`);
-      return "0 19 * * 1-5";
+      return "50 23 * * 1-5";
     }
   } catch (error) {
     console.error(`Error processing timezone ${timezone}:`, error.message);
     console.log(`Using UTC fallback for ${timezone}`);
-    return "0 19 * * 1-5";
+    return "50 23 * * 1-5";
   }
 }
 
@@ -82,12 +83,6 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
   );
 
   try {
-    // DON'T create new connections - use existing singleton
-    // await prisma.$connect(); // REMOVED - causes connection pool exhaustion
-    console.log(
-      `📊 Using existing database connection for company ${companyId} automation`
-    );
-
     // Get company's local date at midnight for consistent comparison
     const now = new Date();
     const companyLocalDateString = now.toLocaleDateString("en-CA", {
@@ -134,8 +129,6 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       `📊 Total active employees in company ${companyId}: ${totalActiveEmployees}`
     );
 
-    // Find active employees who haven't checked in today
-    // IMPORTANT: Only mark as absent if they have NO attendance record for today
     // This will NOT affect employees who are currently checked in (have timeIn but no timeOut)
     const employeesWithoutAttendance = await prisma.employee.findMany({
       where: {
@@ -265,7 +258,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
  */
 async function initializeCompanyAutomationWithDelay(company, delaySeconds = 0) {
   try {
-    const cronPattern = getCronScheduleFor7PM(company.timezone);
+    const cronPattern = getCronScheduleFor11_50PM(company.timezone);
 
     // Stop existing job if it exists
     if (cronJobs.has(company.id)) {
@@ -336,7 +329,7 @@ async function initializeCompanyAutomationWithDelay(company, delaySeconds = 0) {
     );
     console.log(`   📍 Timezone: ${company.timezone}`);
     console.log(
-      `   ⏰ Cron pattern: ${cronPattern} (runs at 7 PM ${company.timezone})`
+      `   ⏰ Cron pattern: ${cronPattern} (runs at 11:50 PM ${company.timezone})`
     );
     if (delaySeconds > 0) {
       console.log(`   ⏳ Execution delay: ${delaySeconds} seconds`);
@@ -484,7 +477,7 @@ function getAutomationStatus() {
     activeJobs.push({
       companyId,
       status: "active",
-      nextRun: "Daily at 7 PM company local time, Monday-Friday",
+      nextRun: "Daily at 11:50 PM company local time, Monday-Friday",
     });
   }
 
@@ -492,7 +485,7 @@ function getAutomationStatus() {
     totalJobs: activeJobs.length,
     activeJobs,
     description:
-      "Each company has its own cron job scheduled for 7 PM in their local timezone",
+      "Each company has its own cron job scheduled for 11:50 PM in their local timezone",
   };
 }
 
@@ -583,7 +576,7 @@ function setupGracefulShutdown() {
 // Initialize the automation system
 async function initialize() {
   console.log("🚀 Starting Absent Automation System...");
-  console.log("⏰ Target time: 7:00 PM in each company's local timezone");
+  console.log("⏰ Target time: 11:50 PM in each company's local timezone");
   console.log("📅 Schedule: Monday to Friday only");
 
   setupGracefulShutdown();
@@ -601,5 +594,5 @@ export {
   manuallyTriggerForAllCompanies,
   reinitializeAutomation,
   markEmployeesAbsent,
-  getCronScheduleFor7PM,
+  getCronScheduleFor11_50PM,
 };

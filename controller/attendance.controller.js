@@ -67,6 +67,8 @@ export const checkIn = async (req, res) => {
       select: {
         workStartTime: true,
         workEndTime: true,
+        workStartTime2: true,
+        workEndTime2: true,
         lateThreshold: true,
         checkInDeadline: true,
       },
@@ -93,6 +95,11 @@ export const checkIn = async (req, res) => {
         .json({ message: "You have already checked in today" });
     }
 
+    const user = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { shiftType: true },
+    });
+
     // Check if employee has already checked out today (prevent check-in after checkout)
     if (existingAttendance && existingAttendance.timeOut) {
       return res.status(400).json({
@@ -101,22 +108,22 @@ export const checkIn = async (req, res) => {
     }
 
     // Check if check-in is allowed based on company settings
-    const checkInResult = checkCheckInWindow(company);
+    const checkInResult = checkCheckInWindow(company, user.shiftType);
 
     if (!checkInResult.isAllowed) {
       return res.status(400).json({
         message: checkInResult.reason,
         details: {
           currentTime: checkInResult.currentTime,
-          workStartTime: checkInResult.workStartTime,
-          workEndTime: checkInResult.workEndTime,
+          shiftStart: checkInResult.shiftStart,
+          shiftEnd: checkInResult.shiftEnd,
           deadline: checkInResult.deadline,
         },
       });
     }
 
     const now = new Date();
-    const status = determineAttendanceStatus(now, company);
+    const status = determineAttendanceStatus(now, company, user.shiftType);
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -208,6 +215,7 @@ export const checkOut = async (req, res) => {
       where: { id: companyId },
       select: {
         workEndTime: true,
+        workEndTime2: true,
       },
     });
 
@@ -215,15 +223,20 @@ export const checkOut = async (req, res) => {
       return res.status(400).json({ message: "Company not found" });
     }
 
+    const user = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { shiftType: true },
+    });
+
     // Check if check-out is allowed based on company settings
-    const checkOutResult = checkCheckOutWindow(company);
+    const checkOutResult = checkCheckOutWindow(company, user.shiftType);
 
     if (!checkOutResult.isAllowed) {
       return res.status(400).json({
         message: checkOutResult.reason,
         details: {
           currentTime: checkOutResult.currentTime,
-          workEndTime: checkOutResult.workEndTime,
+          shiftEnd: checkOutResult.shiftEnd,
         },
       });
     }
@@ -339,22 +352,27 @@ export const adminAddAttendance = async (req, res) => {
       });
     }
 
-    const checkInResult = checkCheckInWindow(company);
+    const user = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { shiftType: true },
+    });
+
+    const checkInResult = checkCheckInWindow(company, user.shiftType);
 
     if (!checkInResult.isAllowed) {
       return res.status(400).json({
         message: checkInResult.reason,
         details: {
           currentTime: checkInResult.currentTime,
-          workStartTime: checkInResult.workStartTime,
-          workEndTime: checkInResult.workEndTime,
+          shiftStart: checkInResult.shiftStart,
+          shiftEnd: checkInResult.shiftEnd,
           deadline: checkInResult.deadline,
         },
       });
     }
 
     // Determine status based on the inputted check-in time, not current time
-    const status = determineAttendanceStatus(parsedTimeIn, company);
+    const status = determineAttendanceStatus(parsedTimeIn, company, user.shiftType);
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -407,7 +425,7 @@ export const adminClockOut = async (req, res) => {
         id: parseInt(employeeId),
         companyId,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, shiftType: true },
     });
 
     if (!employee) {
