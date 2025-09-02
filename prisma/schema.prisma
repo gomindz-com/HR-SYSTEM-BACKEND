@@ -75,6 +75,17 @@ enum InvitationStatus {
   EXPIRED
 }
 
+enum BenefitCategory {
+  CAR_ALLOWANCE      // Car allowance
+  FOOD_ALLOWANCE     // Food/meal allowance
+  HOUSING_ALLOWANCE  // Housing allowance
+  TRANSPORT_ALLOWANCE // Transport allowance
+  MEDICAL_ALLOWANCE  
+  HEALTH_INSURANCE    
+  RETIREMENT          
+  OTHER             
+}
+
 // ========================================
 // CORE COMPANY MODELS
 // ========================================
@@ -102,6 +113,7 @@ model Company {
   performanceReviews PerformanceReview[]
   invitations        Invitation[]
   activities         Activity[]
+  employeeBenefits   EmployeeBenefit[]
   createdAt          DateTime            @default(now())
 }
 
@@ -158,6 +170,8 @@ model Employee {
   reviewsGiven          PerformanceReview[] @relation("Reviewer")
   sentInvitations       Invitation[]
   hrForCompanies        Company[]           @relation("Company_hr")
+  benefits              EmployeeBenefit[]
+  payrollProfile        EmployeePayrollProfile?
 }
 
 model Department {
@@ -223,23 +237,69 @@ model LeaveRequest {
 // PAYROLL SYSTEM MODELS
 // ========================================
 model Payroll {
-  id            Int           @id @default(autoincrement())
-  employeeId    Int
-  employee      Employee      @relation(fields: [employeeId], references: [id])
-  companyId     Int
-  company       Company       @relation(fields: [companyId], references: [id])
-  periodStart   DateTime
-  periodEnd     DateTime
-  baseSalary    Float
-  bonuses       Float?
-  deductions    Float?
-  taxes         Float?
-  netPay        Float
-  status        PayrollStatus @default(PENDING)
-  processedDate DateTime?
-  paymentMethod String?
-  notes         String?
-  createdAt     DateTime      @default(now())
+  id                  Int           @id @default(autoincrement())
+  employeeId          Int
+  employee            Employee      @relation(fields: [employeeId], references: [id])
+  companyId           Int
+  company             Company       @relation(fields: [companyId], references: [id])
+  periodStart         DateTime
+  periodEnd           DateTime
+  baseSalary          Float
+  bonuses             Float?        @default(0)
+  benefitsCost        Float?        @default(0)    // Benefits ADD to gross salary
+  grossPay            Float?                       // baseSalary + bonuses + benefitsCost
+  
+  // Only actual DEDUCTIONS (subtract from gross)
+  incomeTax           Float?        @default(0)    // From EmployeeTaxProfile
+  socialSecurity      Float?        @default(0)    // From EmployeeTaxProfile  
+  attendancePenalties Float?        @default(0)    // Calculated in controller
+  totalDeductions     Float?        @default(0)    // Sum of above 3
+  
+  netPay              Float                        // grossPay - totalDeductions
+  status              PayrollStatus @default(PENDING)
+  processedDate       DateTime?
+  paymentMethod       String?
+  notes               String?
+  hoursWorked         Float?        @default(0)
+  createdAt           DateTime      @default(now())
+}
+
+// ========================================
+// SIMPLIFIED BENEFITS & TAX SYSTEM
+// ========================================
+model EmployeeBenefit {
+  id           String   @id @default(cuid())
+  employeeId   Int
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  companyId    Int
+  company      Company  @relation(fields: [companyId], references: [id])
+  
+  benefitType  BenefitCategory
+  amount       Float    // Monthly amount
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Employee payroll configuration (flexible for future features)
+model EmployeePayrollProfile {
+  id                String   @id @default(cuid())
+  employeeId        Int      @unique
+  employee          Employee @relation(fields: [employeeId], references: [id])
+  
+  // Tax configuration
+  taxBracket        String?  // "15%", "20%", "25%", etc.
+  socialSecurityRate Float   @default(0.06) // 6%
+  customTaxRate     Float?   // Override for special cases
+  taxExemptions     Int      @default(0)    // Number of exemptions
+  
+  // Future payroll settings can be added here
+  // overtimeRate      Float?   // When overtime is implemented
+  // payFrequency      String?  // MONTHLY, BIWEEKLY, etc.
+  // paymentMethod     String?  // BANK_TRANSFER, CASH, MOBILE_MONEY
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 // ========================================
@@ -293,9 +353,11 @@ model Invitation {
   updatedAt    DateTime         @updatedAt
 }
 
+
 // ========================================
 // ACTIVITY TRACKING MODELS
 // ========================================
+
 model Activity {
   id          Int      @id @default(autoincrement())
   companyId   Int
