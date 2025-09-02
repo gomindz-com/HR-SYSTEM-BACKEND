@@ -267,6 +267,7 @@ model Payroll {
 // ========================================
 // SIMPLIFIED BENEFITS & TAX SYSTEM
 // ========================================
+
 model EmployeeBenefit {
   id           String   @id @default(cuid())
   employeeId   Int
@@ -289,9 +290,8 @@ model EmployeePayrollProfile {
   
   // Tax configuration
   taxBracket        String?  // "15%", "20%", "25%", etc.
-  socialSecurityRate Float   @default(0.06) // 6%
-  customTaxRate     Float?   // Override for special cases
-  taxExemptions     Int      @default(0)    // Number of exemptions
+  socialSecurityRate Float   @default(0) 
+  customTaxRate     Float?   @default(0)
   
   // Future payroll settings can be added here
   // overtimeRate      Float?   // When overtime is implemented
