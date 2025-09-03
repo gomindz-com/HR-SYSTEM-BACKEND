@@ -38,11 +38,6 @@ enum AttendanceStatus {
   EARLY
 }
 
-enum Shift {
-  MORNING_SHIFT
-  AFTERNOON_SHIFT
-}
-
 enum LeaveType {
   STUDY
   MATERNITY
@@ -107,8 +102,6 @@ model Company {
   timezone           String              @default("UTC")
   workStartTime      String              @default("09:00") // Format: HH:MM
   workEndTime        String              @default("17:00") // Format: HH:MM
-  workStartTime2     String              @default("17:00") // Second shift start time
-  workEndTime2       String              @default("23:59") // Second shift end time
   lateThreshold      Int                 @default(15) // Minutes after workStartTime
   checkInDeadline    Int                 @default(15) // Minutes after workEndTime (grace period)
   employees          Employee[]
@@ -156,7 +149,6 @@ model Employee {
   status                EmployeeStatus      @default(ACTIVE)
   avatar                String?
   role                  Role
-  shiftType             Shift?              @default(MORNING_SHIFT)
   dateOfBirth           DateTime?
   deleted               Boolean             @default(false)
   address               String?
