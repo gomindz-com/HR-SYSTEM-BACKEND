@@ -347,3 +347,86 @@ export const reinstateEmployee = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const updateEmployeeProfile = async (req, res) => {
+  const companyId = req.user.companyId;
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Employee ID is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Check if the employee exists and belongs to the company
+  const employee = await prisma.employee.findFirst({
+    where: {
+      id: parseInt(id),
+      companyId,
+    },
+  });
+
+  if (!employee) {
+    return res.status(404).json({ message: "Employee not found" });
+  }
+
+  const allowedUpdates = [
+    "name",
+    "email",
+    "phone",
+    "position",
+    "departmentId",
+    "address",
+    "role",
+    "status",
+  ];
+
+  const updateData = {};
+
+  allowedUpdates.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  });
+
+  // Convert departmentId to integer if provided
+  if (updateData.departmentId) {
+    updateData.departmentId = parseInt(updateData.departmentId);
+  }
+
+  try {
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+      include: {
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create activity for employee profile update
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Profile Updated",
+      description: `${employee.name}'s profile was updated by admin`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    return res.status(200).json({
+      message: "Employee profile updated successfully",
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error("Error updating employee profile", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
