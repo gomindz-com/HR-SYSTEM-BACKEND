@@ -8,6 +8,7 @@ import {
   listArchivedEmployees,
   reinstateEmployee,
   updateEmployeeProfile,
+  toggleEmployeeStatus,
 } from "../controller/employee.controller.js";
 
 const router = express.Router();
@@ -17,6 +18,7 @@ router.get("/archived", verifyToken, listArchivedEmployees);
 router.get("/:id", verifyToken, getEmployeeDetails);
 router.put("/update-employee/:id", verifyToken, updateEmployee);
 router.put("/update-profile/:id", verifyToken, updateEmployeeProfile);
+router.put("/toggle-status/:id", verifyToken, toggleEmployeeStatus);
 router.put("/delete-employee/:id", verifyToken, deleteEmployee);
 router.put("/reinstate-employee/:id", verifyToken, reinstateEmployee);
 

@@ -374,12 +374,14 @@ export const updateEmployeeProfile = async (req, res) => {
   }
 
   const allowedUpdates = [
+    "employeeId",
     "name",
     "email",
     "phone",
     "position",
     "departmentId",
     "address",
+    "salary",
     "role",
     "status",
   ];
@@ -427,6 +429,69 @@ export const updateEmployeeProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating employee profile", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const toggleEmployeeStatus = async (req, res) => {
+  const companyId = req.user.companyId;
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Employee ID is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    // Get the current employee
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    // Toggle status: ACTIVE <-> INACTIVE
+    const newStatus = employee.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    // Update the employee status
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: { status: newStatus },
+      include: {
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create activity for status change
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Status Toggled",
+      description: `${employee.name} was marked as ${newStatus.toLowerCase()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    return res.status(200).json({
+      message: `Employee marked as ${newStatus.toLowerCase()}`,
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error("Error toggling employee status", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

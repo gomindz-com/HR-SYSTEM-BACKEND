@@ -228,6 +228,45 @@ export const getCompanyPayrolls = async (req, res) => {
   }
 };
 
+export const getEmployeeBenefits = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { companyId } = req.user;
+
+    // Validate employee exists and belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), companyId, deleted: false },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Fetch employee benefits
+    const benefits = await prisma.employeeBenefit.findMany({
+      where: {
+        employeeId: parseInt(employeeId),
+        companyId,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: benefits,
+    });
+  } catch (error) {
+    console.error("Error fetching employee benefits:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 export const addEmployeeBenefit = async (req, res) => {
   try {
     const { employeeId } = req.params; // From URL params
@@ -321,103 +360,155 @@ export const updateEmployeeBenefit = async (req, res) => {
   }
 };
 export const removeEmployeeBenefit = async (req, res) => {
-    try {
-      const { employeeId, benefitId } = req.params;  // Both from URL params
-      const { companyId } = req.user;
-  
-      const benefit = await prisma.employeeBenefit.update({
-        where: {
-          id: benefitId,
-          employeeId: parseInt(employeeId),  // Ensure benefit belongs to this employee
-          companyId
-        },
-        data: {
-          isActive: false
-        }
-      });
-  
-      res.json({
-        success: true,
-        message: "Benefit removed successfully",
-        data: benefit
-      });
-  
-    } catch (error) {
-      if (error.code === 'P2025') {
-        return res.status(404).json({
-          success: false,
-          message: "Benefit not found"
-        });
-      }
-  
-      console.error("Error removing employee benefit:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error"
-      });
-    }
-  };
-  export const updatePayrollSetting = async (req, res) => {
-    try {
-      const { employeeId } = req.params;  // From URL params
-      const { taxBracket, socialSecurityRate, customTaxRate } = req.body;
-      const { companyId } = req.user;
-  
-      // Verify employee belongs to company
-      const employee = await prisma.employee.findFirst({
-        where: { id: parseInt(employeeId), companyId, deleted: false }
-      });
-  
-      if (!employee) {
-        return res.status(404).json({
-          success: false,
-          message: "Employee not found"
-        });
-      }
-  
-      // Validate rates
-      if (socialSecurityRate !== undefined && (socialSecurityRate < 0 || socialSecurityRate > 1)) {
-        return res.status(400).json({
-          success: false,
-          message: "Social security rate must be between 0 and 1"
-        });
-      }
-  
-      if (customTaxRate !== undefined && (customTaxRate < 0 || customTaxRate > 1)) {
-        return res.status(400).json({
-          success: false,
-          message: "Custom tax rate must be between 0 and 1"
-        });
-      }
-  
-      // Update or create payroll profile
-      const profile = await prisma.employeePayrollProfile.upsert({
-        where: { employeeId: parseInt(employeeId) },
-        update: {
-          ...(taxBracket !== undefined && { taxBracket }),
-          ...(socialSecurityRate !== undefined && { socialSecurityRate }),
-          ...(customTaxRate !== undefined && { customTaxRate }),
-        },
+  try {
+    const { employeeId, benefitId } = req.params; // Both from URL params
+    const { companyId } = req.user;
 
-        create: {
-          employeeId: parseInt(employeeId),
-          taxBracket: taxBracket || null,
-          socialSecurityRate: socialSecurityRate || 0,
-          customTaxRate: customTaxRate || null,
-        }
-      });
-  
-      res.json({
-        success: true,
-        message: "Payroll settings updated successfully",
-        data: profile
-      });
-  
-    } catch (error) {
-      console.error("Error updating payroll settings:", error);
-      res.status(500).json({
+    const benefit = await prisma.employeeBenefit.update({
+      where: {
+        id: benefitId,
+        employeeId: parseInt(employeeId), // Ensure benefit belongs to this employee
+        companyId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "Benefit removed successfully",
+      data: benefit,
+    });
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({
         success: false,
-        message: "Internal server error"
+        message: "Benefit not found",
       });
     }
-  };
+
+    console.error("Error removing employee benefit:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+export const getEmployeePayrollSettings = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { companyId } = req.user;
+
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), companyId, deleted: false },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Fetch payroll profile or return defaults
+    let profile = await prisma.employeePayrollProfile.findUnique({
+      where: { employeeId: parseInt(employeeId) },
+    });
+
+    // If no profile exists, return default values
+    if (!profile) {
+      profile = {
+        id: null,
+        employeeId: parseInt(employeeId),
+        taxBracket: null,
+        socialSecurityRate: 0,
+        customTaxRate: 0, // This ensures payroll calculation works even without settings
+        createdAt: null,
+        updatedAt: null,
+      };
+    }
+
+    res.json({
+      success: true,
+      data: profile,
+    });
+  } catch (error) {
+    console.error("Error fetching payroll settings:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const updatePayrollSetting = async (req, res) => {
+  try {
+    const { employeeId } = req.params; // From URL params
+    const { taxBracket, socialSecurityRate, customTaxRate } = req.body;
+    const { companyId } = req.user;
+
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), companyId, deleted: false },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Validate rates
+    if (
+      socialSecurityRate !== undefined &&
+      (socialSecurityRate < 0 || socialSecurityRate > 1)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Social security rate must be between 0 and 1",
+      });
+    }
+
+    if (
+      customTaxRate !== undefined &&
+      (customTaxRate < 0 || customTaxRate > 1)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Custom tax rate must be between 0 and 1",
+      });
+    }
+
+    // Update or create payroll profile
+    const profile = await prisma.employeePayrollProfile.upsert({
+      where: { employeeId: parseInt(employeeId) },
+      update: {
+        ...(taxBracket !== undefined && { taxBracket }),
+        ...(socialSecurityRate !== undefined && { socialSecurityRate }),
+        ...(customTaxRate !== undefined && { customTaxRate }),
+      },
+
+      create: {
+        employeeId: parseInt(employeeId),
+        taxBracket: taxBracket || null,
+        socialSecurityRate: socialSecurityRate || 0,
+        customTaxRate: customTaxRate || null,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "Payroll settings updated successfully",
+      data: profile,
+    });
+  } catch (error) {
+    console.error("Error updating payroll settings:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
