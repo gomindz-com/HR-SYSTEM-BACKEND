@@ -53,22 +53,36 @@ const sendLeaveReminderEmail = async (leaveRequest, daysLeft) => {
 const checkAndSendReminders = async () => {
   try {
     const today = new Date();
+
+    // Set time to start of day for consistent comparison
+    today.setHours(0, 0, 0, 0);
+
     const threeDaysFromNow = new Date(today);
     threeDaysFromNow.setDate(today.getDate() + 3);
+    threeDaysFromNow.setHours(23, 59, 59, 999); // End of day
 
     const oneDayFromNow = new Date(today);
     oneDayFromNow.setDate(today.getDate() + 1);
+    oneDayFromNow.setHours(23, 59, 59, 999); // End of day
 
     // Get approved leave requests ending in 3 days or 1 day
     const leaveRequests = await prisma.leaveRequest.findMany({
       where: {
         status: "APPROVED",
-        endDate: {
-          in: [
-            threeDaysFromNow.toISOString().split("T")[0],
-            oneDayFromNow.toISOString().split("T")[0],
-          ],
-        },
+        OR: [
+          {
+            endDate: {
+              gte: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000), // Start of day + 3 days
+              lte: threeDaysFromNow, // End of day + 3 days
+            },
+          },
+          {
+            endDate: {
+              gte: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000), // Start of day + 1 day
+              lte: oneDayFromNow, // End of day + 1 day
+            },
+          },
+        ],
       },
       include: {
         employee: {
