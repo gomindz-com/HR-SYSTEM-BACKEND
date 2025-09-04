@@ -14,10 +14,10 @@ import reportRoutes from "./routes/report.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 // Load environment variables first
 dotenv.config();
-
+/**
+ * COMMENTED OUT: Absent automation disabled temporarily
 // Initialize the new automation system
 let automationInitialized = false;
-// COMMENTED OUT: Absent automation disabled temporarily
 try {
   const { initialize } = await import("./automations/absentAutomation.js");
   const result = await initialize();
@@ -37,6 +37,9 @@ try {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
 }
+*/
+
+
 
 // Initialize leave reminder cron job
 let leaveReminderCron = null;
