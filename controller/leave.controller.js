@@ -129,15 +129,6 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-    // Check if user has sufficient leave balance (optional - you can implement this based on your business logic)
-    // const leaveBalance = await getLeaveBalance(id, companyId);
-    // if (leaveBalance.daysLeft < days) {
-    //   return res.status(400).json({
-    //     message: "insufficient leave balance",
-    //     requestedDays: days,
-    //     availableDays: leaveBalance.daysLeft
-    //   });
-    // }
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
