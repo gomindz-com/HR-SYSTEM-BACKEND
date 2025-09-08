@@ -14,8 +14,7 @@ import reportRoutes from "./routes/report.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 // Load environment variables first
 dotenv.config();
-/**
- * COMMENTED OUT: Absent automation disabled temporarily
+ // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
 // Initialize the new automation system
 let automationInitialized = false;
 try {
@@ -37,7 +36,6 @@ try {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
 }
-*/
 
 
 
