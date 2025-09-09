@@ -382,6 +382,7 @@ export const updateEmployeeProfile = async (req, res) => {
     "departmentId",
     "address",
     "salary",
+    "sumBonuses",
     "role",
     "status",
   ];

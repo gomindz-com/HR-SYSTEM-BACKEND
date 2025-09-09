@@ -1,7 +1,6 @@
 import express from "express";
 import {
   generateAllEmployeesPayroll,
-  getCompanyPayrolls,
   getEmployeeBenefits,
   addEmployeeBenefit,
   updateEmployeeBenefit,
@@ -13,6 +12,14 @@ import {
   bulkSalaryAdjustment,
   bulkUpdateTaxSettings,
   bulkInitializePayrollProfiles,
+  bulkUpdateBonus,
+  getPayrollDetails,
+  getPayrollPreview,
+  getDraftPayrolls,
+  updatePayrollRecord,
+  finalizePayroll,
+  finalizeAllPayrolls,
+  getFinalizedPayrolls,
 } from "../controller/payroll.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -22,9 +29,6 @@ router.use(verifyToken);
 
 // Generate payroll for all employees
 router.post("/generate", generateAllEmployeesPayroll);
-
-// Get company payrolls with filters and pagination
-router.get("/", getCompanyPayrolls);
 
 // Get employee benefits
 router.get("/employees/:employeeId/benefits", getEmployeeBenefits);
@@ -65,5 +69,37 @@ router.post("/bulk/tax-settings", bulkUpdateTaxSettings);
 
 // Bulk initialize payroll profiles for multiple employees
 router.post("/bulk/payroll-profiles/initialize", bulkInitializePayrollProfiles);
+
+// Bulk update bonus for multiple employees
+router.post("/bulk/bonus/update", bulkUpdateBonus);
+
+// ============================================
+// NEW PAYROLL WORKFLOW ROUTES (SPECIFIC ROUTES FIRST)
+// ============================================
+
+// Get draft payrolls (for Review & Edit tab)
+router.get("/drafts", getDraftPayrolls);
+
+// Get finalized payrolls (for History tab)
+router.get("/finalized", getFinalizedPayrolls);
+
+// Get payroll preview (before generation)
+router.post("/preview", getPayrollPreview);
+
+// Finalize all draft payrolls
+router.put("/finalize-all", finalizeAllPayrolls);
+
+// ============================================
+// ADDITIONAL PAYROLL ROUTES (PARAMETER ROUTES LAST)
+// ============================================
+
+// Get detailed payroll information
+router.get("/:payrollId", getPayrollDetails);
+
+// Update individual payroll record (for editing)
+router.put("/:payrollId/update", updatePayrollRecord);
+
+// Finalize payroll record
+router.put("/:payrollId/finalize", finalizePayroll);
 
 export default router;

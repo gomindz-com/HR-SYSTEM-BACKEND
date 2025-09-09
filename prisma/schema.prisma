@@ -59,8 +59,8 @@ enum LeaveStatus {
 }
 
 enum PayrollStatus {
-  PENDING
-  PROCESSED
+  DRAFT
+  FINALIZED
   PAID
 }
 
@@ -169,10 +169,10 @@ model Employee {
   resetPasswordExpires  DateTime?
   attendances           Attendance[]        @relation("EmployeeAttendance")
   leaveRequests         LeaveRequest[]
+  sumBonuses            Float?     @default(0)
   payrolls              Payroll[]
   performanceReviews    PerformanceReview[]
   notifications         Notification[]
-  qrSecret              String?
   createdAt             DateTime            @default(now())
   managedDepartments    Department[]        @relation("DepartmentManager")
   approvedLeaveRequests LeaveRequest[]      @relation("LeaveApprover")
@@ -181,6 +181,7 @@ model Employee {
   hrForCompanies        Company[]           @relation("Company_hr")
   benefits              EmployeeBenefit[]
   payrollProfile        EmployeePayrollProfile?
+  finalizedPayrolls     Payroll[]           @relation("PayrollFinalizedBy")
 }
 
 model Department {
@@ -265,7 +266,10 @@ model Payroll {
   totalDeductions     Float?        @default(0)    // Sum of above 3
   
   netPay              Float                        // grossPay - totalDeductions
-  status              PayrollStatus @default(PENDING)
+  status              PayrollStatus @default(DRAFT)
+  finalizedAt         DateTime?
+  finalizedBy         Int?
+  finalizedByUser     Employee?     @relation("PayrollFinalizedBy", fields: [finalizedBy], references: [id])
   processedDate       DateTime?
   paymentMethod       String?
   notes               String?

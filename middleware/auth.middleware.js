@@ -52,11 +52,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.error("JWT verification error:", {
-      error: error.message,
-      tokenSource,
-      userAgent: req.headers["user-agent"],
-    });
+    console.error("JWT verification error:", error);
     return res.status(403).json({ message: "Invalid/Expired token" });
   }
 };

@@ -1,233 +1,9 @@
 import prisma from "../config/prisma.config.js";
 import { PayrollCalculator } from "../lib/payrollCalculation.js";
 
-export const generateAllEmployeesPayroll = async (req, res) => {
-  const companyId = req.user.companyId;
-  const { periodStart, periodEnd } = req.body;
-
-  if (!companyId) {
-    return res.status(400).json({
-      message: "Company ID is required",
-    });
-  }
-
-  if (!periodStart || !periodEnd) {
-    return res.status(400).json({
-      message: "Period start and end are required",
-    });
-  }
-
-  try {
-    const employees = await prisma.employee.findMany({
-      where: { companyId, deleted: false },
-      include: {
-        benefits: { where: { isActive: true } },
-        payrollProfile: true,
-        attendances: { where: { date: { gte: periodStart, lte: periodEnd } } },
-      },
-    });
-
-    const payrollRecords = [];
-    const failedEmployees = [];
-
-    // process each employee
-    for (const employee of employees) {
-      try {
-        // calculate payroll
-        const calculation =
-          PayrollCalculator.calculateEmployeePayroll(employee);
-
-        // save to database
-        const payroll = await prisma.payroll.create({
-          data: {
-            employeeId: employee.id,
-            companyId,
-            periodStart: new Date(periodStart),
-            periodEnd: new Date(periodEnd),
-            ...calculation,
-            status: "PENDING",
-          },
-        });
-
-        payrollRecords.push(payroll);
-      } catch (error) {
-        failedEmployees.push({
-          employeeId: employee.id,
-          error: error.message,
-        });
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      message: `Payroll generated for ${payrollRecords.length} employees`,
-      data: {
-        processed: payrollRecords.length,
-        failed: failedEmployees.length,
-        payrollRecords,
-        failedEmployees,
-      },
-    });
-  } catch (error) {
-    console.error("Error in generateAllEmployeesPayroll controller:", error);
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
-
-export const getCompanyPayrolls = async (req, res) => {
-  try {
-    const companyId = req.user.companyId;
-
-    // Validation
-    if (!companyId) {
-      return res.status(400).json({
-        success: false,
-        message: "Company ID is required",
-      });
-    }
-
-    // Pagination
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
-    const skip = (page - 1) * pageSize;
-
-    // Extract filters from query
-    const { employeeId, status, createdAt, period } = req.query;
-
-    // Build where clause
-    const where = { companyId };
-
-    // Employee filter
-    const parsedEmployeeId = parseInt(employeeId);
-    if (employeeId && !isNaN(parsedEmployeeId)) {
-      where.employeeId = parsedEmployeeId;
-    }
-
-    // Status filter
-    if (status) {
-      where.status = status;
-    }
-
-    // Date filter by specific day
-    if (createdAt) {
-      const filterDate = new Date(createdAt);
-      filterDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(filterDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      where.createdAt = {
-        gte: filterDate,
-        lt: nextDay,
-      };
-    }
-
-    // Period filter (e.g., "2024-01" for January 2024)
-    if (period) {
-      const [year, month] = period.split("-");
-      if (year && month) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0);
-        where.periodStart = { gte: startDate };
-        where.periodEnd = { lte: endDate };
-      }
-    }
-
-    // Fetch data with summary statistics
-    const [payrollRecords, total, summary] = await Promise.all([
-      prisma.payroll.findMany({
-        where,
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip,
-        take: pageSize,
-        include: {
-          employee: {
-            select: {
-              id: true,
-              name: true,
-              profilePic: true,
-              email: true,
-              position: true,
-              department: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      }),
-      prisma.payroll.count({ where }),
-      prisma.payroll.aggregate({
-        where,
-        _sum: {
-          grossPay: true,
-          netPay: true,
-          totalDeductions: true,
-          benefitsCost: true,
-          incomeTax: true,
-          socialSecurity: true,
-          attendancePenalties: true,
-        },
-        _count: {
-          id: true,
-        },
-      }),
-    ]);
-
-    // Calculate additional statistics
-    const statusCounts = await prisma.payroll.groupBy({
-      by: ["status"],
-      where,
-      _count: {
-        status: true,
-      },
-    });
-
-    const statusSummary = statusCounts.reduce(
-      (acc, item) => {
-        acc[item.status.toLowerCase()] = item._count.status;
-        return acc;
-      },
-      { pending: 0, processed: 0, paid: 0 }
-    );
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        payrolls: payrollRecords,
-        summary: {
-          totalEmployees: summary._count.id || 0,
-          totalGrossPay: summary._sum.grossPay || 0,
-          totalNetPay: summary._sum.netPay || 0,
-          totalDeductions: summary._sum.totalDeductions || 0,
-          totalBenefits: summary._sum.benefitsCost || 0,
-          totalTaxes: summary._sum.incomeTax || 0,
-          totalSSN: summary._sum.socialSecurity || 0,
-          totalPenalties: summary._sum.attendancePenalties || 0,
-        },
-        statusSummary,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error in getCompanyPayrolls controller:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
-
+// ================================
+// BENEFITS AND PAYROLL SETTING
+// ================================
 export const getEmployeeBenefits = async (req, res) => {
   try {
     const { employeeId } = req.params;
@@ -1098,6 +874,710 @@ export const bulkInitializePayrollProfiles = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in bulk payroll profile initialization:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const bulkUpdateBonus = async (req, res) => {
+  try {
+    const { employeeIds, bonus } = req.body;
+    const { companyId } = req.user;
+
+    // Validate input
+    if (
+      !employeeIds ||
+      !Array.isArray(employeeIds) ||
+      employeeIds.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee IDs array is required and must not be empty",
+      });
+    }
+
+    if (bonus === undefined || bonus === null || bonus < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Bonus must be a non-negative number",
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const employeeId of employeeIds) {
+      try {
+        // Validate employee exists and belongs to company
+        const employee = await prisma.employee.findFirst({
+          where: { id: parseInt(employeeId), companyId, deleted: false },
+        });
+
+        if (!employee) {
+          errors.push({ employeeId, error: "Employee not found" });
+          continue;
+        }
+
+        // Update employee bonus
+        const updatedEmployee = await prisma.employee.update({
+          where: { id: parseInt(employeeId) },
+          data: { sumBonuses: parseFloat(bonus) },
+          select: { id: true, name: true, sumBonuses: true },
+        });
+
+        results.push({
+          employeeId,
+          employee: updatedEmployee,
+          oldBonus: employee.sumBonuses || 0,
+          newBonus: parseFloat(bonus),
+          status: "success",
+        });
+      } catch (error) {
+        console.error(
+          `Error updating bonus for employee ${employeeId}:`,
+          error
+        );
+        errors.push({ employeeId, error: "Failed to update bonus" });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk bonus update completed. ${results.length} successful, ${errors.length} failed.`,
+      data: {
+        successful: results,
+        failed: errors,
+        summary: {
+          total: employeeIds.length,
+          successful: results.length,
+          failed: errors.length,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in bulk bonus update:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// ============================================
+//  PAYROLL ENDPOINTS
+// ============================================
+
+export const generateAllEmployeesPayroll = async (req, res) => {
+  const companyId = req.user.companyId;
+  const { periodStart, periodEnd } = req.body;
+
+  if (!companyId) {
+    return res.status(400).json({
+      message: "Company ID is required",
+    });
+  }
+
+  if (!periodStart || !periodEnd) {
+    return res.status(400).json({
+      message: "Period start and end are required",
+    });
+  }
+
+  try {
+    const employees = await prisma.employee.findMany({
+      where: { companyId, deleted: false },
+      include: {
+        benefits: { where: { isActive: true } },
+        payrollProfile: true,
+        attendances: {
+          where: {
+            date: { gte: new Date(periodStart), lte: new Date(periodEnd) },
+          },
+        },
+      },
+    });
+
+    const payrollRecords = [];
+    const failedEmployees = [];
+
+    // process each employee
+    for (const employee of employees) {
+      try {
+        // calculate payroll
+        const calculation =
+          PayrollCalculator.calculateEmployeePayroll(employee);
+
+        // save to database
+        const payroll = await prisma.payroll.create({
+          data: {
+            employeeId: employee.id,
+            companyId,
+            periodStart: new Date(periodStart),
+            periodEnd: new Date(periodEnd),
+            ...calculation,
+            bonuses: calculation.bonuses, // Include bonuses in payroll record
+            status: "DRAFT",
+          },
+        });
+
+        payrollRecords.push(payroll);
+      } catch (error) {
+        failedEmployees.push({
+          employeeId: employee.id,
+          error: error.message,
+        });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Payroll generated for ${payrollRecords.length} employees`,
+      data: {
+        processed: payrollRecords.length,
+        failed: failedEmployees.length,
+        payrollRecords,
+        failedEmployees,
+      },
+    });
+  } catch (error) {
+    console.error("Error in generateAllEmployeesPayroll controller:", error);
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getPayrollDetails = async (req, res) => {
+  try {
+    const { payrollId } = req.params;
+    const { companyId } = req.user;
+
+    // Validate payrollId is a valid number
+    const parsedPayrollId = parseInt(payrollId);
+    if (isNaN(parsedPayrollId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payroll ID",
+      });
+    }
+
+    // Validate payroll exists and belongs to company
+    const payroll = await prisma.payroll.findFirst({
+      where: {
+        id: parsedPayrollId,
+        companyId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            position: true,
+            profilePic: true,
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payroll) {
+      return res.status(404).json({
+        success: false,
+        message: "Payroll record not found",
+      });
+    }
+
+    // Get employee benefits for this period
+    const benefits = await prisma.employeeBenefit.findMany({
+      where: {
+        employeeId: payroll.employeeId,
+        companyId,
+        isActive: true,
+      },
+    });
+
+    // Get attendance records for this period
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        employeeId: payroll.employeeId,
+        date: {
+          gte: payroll.periodStart,
+          lte: payroll.periodEnd,
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payroll,
+        benefits,
+        attendances,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payroll details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getPayrollPreview = async (req, res) => {
+  try {
+    const { periodStart, periodEnd, employeeIds } = req.body;
+    const { companyId } = req.user;
+
+    if (!periodStart || !periodEnd) {
+      return res.status(400).json({
+        success: false,
+        message: "Period start and end are required",
+      });
+    }
+
+    // Get employees for preview
+    const whereClause = { companyId, deleted: false };
+    if (employeeIds && employeeIds.length > 0) {
+      whereClause.id = { in: employeeIds.map((id) => parseInt(id)) };
+    }
+
+    const employees = await prisma.employee.findMany({
+      where: whereClause,
+      include: {
+        benefits: { where: { isActive: true } },
+        payrollProfile: true,
+        attendances: {
+          where: {
+            date: { gte: new Date(periodStart), lte: new Date(periodEnd) },
+          },
+        },
+      },
+    });
+
+    const previewData = [];
+    const errors = [];
+
+    // Calculate preview for each employee
+    for (const employee of employees) {
+      try {
+        const calculation =
+          PayrollCalculator.calculateEmployeePayroll(employee);
+        previewData.push({
+          employeeId: employee.id,
+          employeeName: employee.name,
+          employeeEmail: employee.email,
+          position: employee.position,
+          department: employee.department?.name,
+          ...calculation,
+        });
+      } catch (error) {
+        errors.push({
+          employeeId: employee.id,
+          employeeName: employee.name,
+          error: error.message,
+        });
+      }
+    }
+
+    // Calculate totals
+    const totals = previewData.reduce(
+      (acc, item) => ({
+        totalGross: acc.totalGross + item.grossPay,
+        totalNet: acc.totalNet + item.netPay,
+        totalDeductions: acc.totalDeductions + item.totalDeductions,
+        totalBenefits: acc.totalBenefits + item.benefitsCost,
+        totalTaxes: acc.totalTaxes + item.incomeTax,
+        totalSSN: acc.totalSSN + item.socialSecurity,
+        totalPenalties: acc.totalPenalties + item.attendancePenalties,
+      }),
+      {
+        totalGross: 0,
+        totalNet: 0,
+        totalDeductions: 0,
+        totalBenefits: 0,
+        totalTaxes: 0,
+        totalSSN: 0,
+        totalPenalties: 0,
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        preview: previewData,
+        errors,
+        totals,
+        summary: {
+          totalEmployees: previewData.length,
+          failedEmployees: errors.length,
+          periodStart,
+          periodEnd,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error generating payroll preview:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// ============================================
+// NEW PAYROLL WORKFLOW ENDPOINTS
+// ============================================
+
+export const getDraftPayrolls = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
+
+    // Get draft payrolls only
+    const where = {
+      companyId,
+      status: "DRAFT",
+    };
+
+    const [payrollRecords, total] = await Promise.all([
+      prisma.payroll.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              position: true,
+              department: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.payroll.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payrolls: payrollRecords,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching draft payrolls:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const updatePayrollRecord = async (req, res) => {
+  try {
+    const { payrollId } = req.params;
+    const {
+      baseSalary,
+      bonuses,
+      benefitsCost,
+      incomeTax,
+      socialSecurity,
+      attendancePenalties,
+      notes,
+    } = req.body;
+    const { companyId } = req.user;
+
+    // Validate payrollId is a valid number
+    const parsedPayrollId = parseInt(payrollId);
+    if (isNaN(parsedPayrollId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payroll ID",
+      });
+    }
+
+    // Validate payroll exists and is in DRAFT status
+    const payroll = await prisma.payroll.findFirst({
+      where: {
+        id: parsedPayrollId,
+        companyId,
+        status: "DRAFT", // Only allow editing DRAFT records
+      },
+    });
+
+    if (!payroll) {
+      return res.status(404).json({
+        success: false,
+        message: "Draft payroll record not found",
+      });
+    }
+
+    // Calculate new values
+    const newGrossPay =
+      (baseSalary || payroll.baseSalary) +
+      (bonuses || payroll.bonuses || 0) +
+      (benefitsCost || payroll.benefitsCost || 0);
+
+    const newTotalDeductions =
+      (incomeTax || payroll.incomeTax || 0) +
+      (socialSecurity || payroll.socialSecurity || 0) +
+      (attendancePenalties || payroll.attendancePenalties || 0);
+
+    const newNetPay = newGrossPay - newTotalDeductions;
+
+    // Update payroll record
+    const updatedPayroll = await prisma.payroll.update({
+      where: { id: parsedPayrollId },
+      data: {
+        ...(baseSalary !== undefined && { baseSalary }),
+        ...(bonuses !== undefined && { bonuses }),
+        ...(benefitsCost !== undefined && { benefitsCost }),
+        ...(incomeTax !== undefined && { incomeTax }),
+        ...(socialSecurity !== undefined && { socialSecurity }),
+        ...(attendancePenalties !== undefined && { attendancePenalties }),
+        ...(notes !== undefined && { notes }),
+        grossPay: newGrossPay,
+        totalDeductions: newTotalDeductions,
+        netPay: newNetPay,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Payroll record updated successfully",
+      data: updatedPayroll,
+    });
+  } catch (error) {
+    console.error("Error updating payroll record:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const finalizePayroll = async (req, res) => {
+  try {
+    const { payrollId } = req.params;
+    const { companyId, id: userId } = req.user;
+
+    // Validate payrollId is a valid number
+    const parsedPayrollId = parseInt(payrollId);
+    if (isNaN(parsedPayrollId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payroll ID",
+      });
+    }
+
+    // Validate payroll exists and is in DRAFT status
+    const payroll = await prisma.payroll.findFirst({
+      where: {
+        id: parsedPayrollId,
+        companyId,
+        status: "DRAFT",
+      },
+    });
+
+    if (!payroll) {
+      return res.status(404).json({
+        success: false,
+        message: "Draft payroll record not found",
+      });
+    }
+
+    // Finalize the payroll
+    const finalizedPayroll = await prisma.payroll.update({
+      where: { id: parsedPayrollId },
+      data: {
+        status: "FINALIZED",
+        finalizedAt: new Date(),
+        finalizedBy: userId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Payroll finalized successfully",
+      data: finalizedPayroll,
+    });
+  } catch (error) {
+    console.error("Error finalizing payroll:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const finalizeAllPayrolls = async (req, res) => {
+  try {
+    const { companyId, id: userId } = req.user;
+
+    // Get all draft payrolls for the company
+    const draftPayrolls = await prisma.payroll.findMany({
+      where: {
+        companyId,
+        status: "DRAFT",
+      },
+      select: {
+        id: true,
+        employee: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (draftPayrolls.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No draft payroll records found to finalize",
+      });
+    }
+
+    // Finalize all draft payrolls in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const finalizedPayrolls = [];
+
+      for (const payroll of draftPayrolls) {
+        const finalizedPayroll = await tx.payroll.update({
+          where: { id: payroll.id },
+          data: {
+            status: "FINALIZED",
+            finalizedAt: new Date(),
+            finalizedBy: userId,
+          },
+        });
+        finalizedPayrolls.push({
+          id: finalizedPayroll.id,
+          employeeName: payroll.employee.name,
+        });
+      }
+
+      return finalizedPayrolls;
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully finalized ${result.length} payroll records`,
+      data: {
+        finalizedCount: result.length,
+        finalizedPayrolls: result,
+      },
+    });
+  } catch (error) {
+    console.error("Error finalizing all payrolls:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getFinalizedPayrolls = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
+
+    // Get finalized payrolls only
+    const where = {
+      companyId,
+      status: "FINALIZED",
+    };
+
+    const [payrollRecords, total] = await Promise.all([
+      prisma.payroll.findMany({
+        where,
+        orderBy: { finalizedAt: "desc" },
+        skip,
+        take: pageSize,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              position: true,
+              department: {
+                select: { name: true },
+              },
+            },
+          },
+          finalizedByUser: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      }),
+      prisma.payroll.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payrolls: payrollRecords,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching finalized payrolls:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
