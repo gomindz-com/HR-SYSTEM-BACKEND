@@ -20,6 +20,8 @@ import {
   finalizePayroll,
   finalizeAllPayrolls,
   getFinalizedPayrolls,
+  getPaidPayrolls,
+  markPeriodAsPaid,
 } from "../controller/payroll.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -83,6 +85,9 @@ router.get("/drafts", getDraftPayrolls);
 // Get finalized payrolls (for History tab)
 router.get("/finalized", getFinalizedPayrolls);
 
+// Get paid payrolls (for Paid tab)
+router.get("/paid", getPaidPayrolls);
+
 // Get payroll preview (before generation)
 router.post("/preview", getPayrollPreview);
 
@@ -101,5 +106,6 @@ router.put("/:payrollId/update", updatePayrollRecord);
 
 // Finalize payroll record
 router.put("/:payrollId/finalize", finalizePayroll);
+router.post("/mark-period-as-paid", markPeriodAsPaid);
 
 export default router;

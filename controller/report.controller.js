@@ -1,5 +1,4 @@
 import prisma from "../config/prisma.config.js";
-
 export const employeeReport = async (req, res) => {
   try {
     // Extract and validate user context
@@ -302,7 +301,6 @@ export const employeeReport = async (req, res) => {
     });
   }
 };
-
 export const leaveReport = async (req, res) => {
   try {
     // Extract and validate user context
@@ -558,7 +556,6 @@ export const leaveReport = async (req, res) => {
     });
   }
 };
-
 export const attendanceReport = async (req, res) => {
   try {
     // Extract and validate user context
@@ -808,7 +805,6 @@ export const attendanceReport = async (req, res) => {
     });
   }
 };
-
 export const payrollReports = async (req, res) => {
   try {
     // Extract and validate user context
@@ -901,15 +897,6 @@ export const payrollReports = async (req, res) => {
 
     // Handle different report types
     switch (reportType) {
-      case "summary":
-        return await generatePayrollSummaryReport(
-          req,
-          res,
-          whereClause,
-          pageNum,
-          limitNum,
-          skip
-        );
       case "detailed":
         return await generateDetailedPayrollReport(
           req,
@@ -939,13 +926,14 @@ export const payrollReports = async (req, res) => {
           skip
         );
       default:
-        return await generatePayrollSummaryReport(
+        return await generateDetailedPayrollReport(
           req,
           res,
           whereClause,
           pageNum,
           limitNum,
-          skip
+          skip,
+          search
         );
     }
   } catch (error) {
@@ -970,6 +958,277 @@ export const payrollReports = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Internal server error occurred while generating payroll report",
+    });
+  }
+};
+// Helper function for payroll summary report
+const generatePayrollSummaryReport = async (
+  req,
+  res,
+  whereClause,
+  pageNum,
+  limitNum,
+  skip
+) => {
+  try {
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: skip,
+      take: limitNum,
+    });
+
+    const totalCount = await prisma.payroll.count({ where: whereClause });
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    const formattedPayrolls = payrolls.map((payroll) => ({
+      id: payroll.id,
+      employeeName: payroll.employee.name,
+      department: payroll.employee.department?.name || "Unknown",
+      periodStart: payroll.periodStart,
+      periodEnd: payroll.periodEnd,
+      baseSalary: payroll.baseSalary,
+      bonuses: payroll.bonuses,
+      grossPay: payroll.grossPay,
+      totalDeductions: payroll.totalDeductions,
+      netPay: payroll.netPay,
+      status: payroll.status,
+      createdAt: payroll.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedPayrolls,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in generatePayrollSummaryReport:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// Helper function for detailed payroll report
+const generateDetailedPayrollReport = async (
+  req,
+  res,
+  whereClause,
+  pageNum,
+  limitNum,
+  skip,
+  search
+) => {
+  try {
+    // Add search filter if provided
+    if (search && search.trim()) {
+      whereClause.employee = {
+        ...whereClause.employee,
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            email: true,
+            position: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: skip,
+      take: limitNum,
+    });
+
+    const totalCount = await prisma.payroll.count({ where: whereClause });
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    const formattedPayrolls = payrolls.map((payroll) => ({
+      id: payroll.id,
+      employeeName: payroll.employee.name,
+      employeeEmail: payroll.employee.email,
+      position: payroll.employee.position,
+      department: payroll.employee.department?.name || "Unknown",
+      periodStart: payroll.periodStart,
+      periodEnd: payroll.periodEnd,
+      baseSalary: payroll.baseSalary,
+      bonuses: payroll.bonuses,
+      benefitsCost: payroll.benefitsCost,
+      incomeTax: payroll.incomeTax,
+      socialSecurity: payroll.socialSecurity,
+      attendancePenalties: payroll.attendancePenalties,
+      grossPay: payroll.grossPay,
+      totalDeductions: payroll.totalDeductions,
+      netPay: payroll.netPay,
+      status: payroll.status,
+      notes: payroll.notes,
+      createdAt: payroll.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedPayrolls,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in generateDetailedPayrollReport:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// Helper function for benefits report
+const generateBenefitsReport = async (
+  req,
+  res,
+  whereClause,
+  pageNum,
+  limitNum,
+  skip
+) => {
+  try {
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: skip,
+      take: limitNum,
+    });
+
+    const totalCount = await prisma.payroll.count({ where: whereClause });
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    const formattedPayrolls = payrolls.map((payroll) => ({
+      id: payroll.id,
+      employeeName: payroll.employee.name,
+      department: payroll.employee.department?.name || "Unknown",
+      periodStart: payroll.periodStart,
+      periodEnd: payroll.periodEnd,
+      baseSalary: payroll.baseSalary,
+      benefitsCost: payroll.benefitsCost,
+      grossPay: payroll.grossPay,
+      status: payroll.status,
+      createdAt: payroll.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedPayrolls,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in generateBenefitsReport:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// Helper function for tax report
+const generateTaxReport = async (
+  req,
+  res,
+  whereClause,
+  pageNum,
+  limitNum,
+  skip
+) => {
+  try {
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: skip,
+      take: limitNum,
+    });
+
+    const totalCount = await prisma.payroll.count({ where: whereClause });
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    const formattedPayrolls = payrolls.map((payroll) => ({
+      id: payroll.id,
+      employeeName: payroll.employee.name,
+      department: payroll.employee.department?.name || "Unknown",
+      periodStart: payroll.periodStart,
+      periodEnd: payroll.periodEnd,
+      grossPay: payroll.grossPay,
+      incomeTax: payroll.incomeTax,
+      socialSecurity: payroll.socialSecurity,
+      totalTaxes: payroll.incomeTax + payroll.socialSecurity,
+      netPay: payroll.netPay,
+      status: payroll.status,
+      createdAt: payroll.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedPayrolls,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error("Error in generateTaxReport:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
     });
   }
 };

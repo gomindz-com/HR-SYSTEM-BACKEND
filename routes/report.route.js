@@ -4,6 +4,7 @@ import {
   employeeReport,
   attendanceReport,
   leaveReport,
+  payrollReports,
   reportStats,
 } from "../controller/report.controller.js";
 const router = express.Router();
@@ -12,6 +13,7 @@ router.use(verifyToken);
 router.get("/employee-report", employeeReport);
 router.get("/attendance-report", attendanceReport);
 router.get("/leave-report", leaveReport);
+router.get("/payroll-report", payrollReports);
 router.get("/stats", reportStats);
 
 export default router;

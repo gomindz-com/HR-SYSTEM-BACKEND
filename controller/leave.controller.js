@@ -380,7 +380,7 @@ export const approveLeave = async (req, res) => {
 
     // Send email notification to the employee
     const emailContent = {
-      from: process.env.GMAIL_USER,
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
       to: leaveRequest.employee.email,
       subject: "Leave Request Approved",
       html: `
@@ -475,7 +475,7 @@ export const rejectLeave = async (req, res) => {
 
     // Send email notification to the employee
     const emailContent = {
-      from: process.env.GMAIL_USER,
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
       to: leaveRequest.employee.email,
       subject: "Leave Request Rejected",
       html: `
