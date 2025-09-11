@@ -1486,14 +1486,22 @@ export const getFinalizedPayrolls = async (req, res) => {
       ];
     }
 
-    // Add date range filter
+    // Add date range filter - filter by payroll period, not creation date
     if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) {
-        where.createdAt.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        where.createdAt.lte = new Date(dateTo);
+      where.AND = where.AND || [];
+      if (dateFrom && dateTo) {
+        where.AND.push({
+          periodStart: { lte: new Date(dateTo) },
+          periodEnd: { gte: new Date(dateFrom) },
+        });
+      } else if (dateFrom) {
+        where.AND.push({
+          periodEnd: { gte: new Date(dateFrom) },
+        });
+      } else if (dateTo) {
+        where.AND.push({
+          periodStart: { lte: new Date(dateTo) },
+        });
       }
     }
 
@@ -1594,14 +1602,22 @@ export const getPaidPayrolls = async (req, res) => {
       ];
     }
 
-    // Add date range filter
+    // Add date range filter - filter by payroll period, not creation date
     if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) {
-        where.createdAt.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        where.createdAt.lte = new Date(dateTo);
+      where.AND = where.AND || [];
+      if (dateFrom && dateTo) {
+        where.AND.push({
+          periodStart: { lte: new Date(dateTo) },
+          periodEnd: { gte: new Date(dateFrom) },
+        });
+      } else if (dateFrom) {
+        where.AND.push({
+          periodEnd: { gte: new Date(dateFrom) },
+        });
+      } else if (dateTo) {
+        where.AND.push({
+          periodStart: { lte: new Date(dateTo) },
+        });
       }
     }
 
@@ -1735,7 +1751,7 @@ export const markPeriodAsPaid = async (req, res) => {
   const startDate = new Date(periodStart);
   const endDate = new Date(periodEnd);
 
-  if (isNaN(startDate.getTime() || endDate.getTime())) {
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
     return res
       .status(400)
       .json({ success: false, message: "Invalid date format" });
@@ -1756,34 +1772,76 @@ export const markPeriodAsPaid = async (req, res) => {
       .status(404)
       .json({ success: false, message: "Company not found" });
   }
+
   try {
+    // First, check if there are any finalized payrolls in the specified period
+    const existingPayrolls = await prisma.payroll.findMany({
+      where: {
+        companyId,
+        status: "FINALIZED",
+        periodStart: {
+          lte: endDate,
+        },
+        periodEnd: {
+          gte: startDate,
+        },
+      },
+      select: {
+        id: true,
+        employee: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (existingPayrolls.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No finalized payroll records found for the specified period",
+        data: {
+          periodStart: startDate,
+          periodEnd: endDate,
+          foundRecords: 0,
+        },
+      });
+    }
+
+    // Update the payrolls to PAID status
     const updatedCount = await prisma.$transaction(async (tx) => {
       const updatedResult = await tx.payroll.updateMany({
         where: {
           companyId,
           status: "FINALIZED",
-          createdAt: {
-            gte: startDate,
+          periodStart: {
             lte: endDate,
+          },
+          periodEnd: {
+            gte: startDate,
           },
         },
         data: {
           status: "PAID",
+          processedDate: new Date(),
         },
       });
 
       return updatedResult.count;
     });
 
-    if (updatedCount === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No payrolls found to mark as paid" });
-    }
-
     res.status(200).json({
       success: true,
-      message: `${updatedCount} payrolls marked as paid`,
+      message: `${updatedCount} payroll records marked as paid for the period ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
+      data: {
+        updatedCount,
+        periodStart: startDate,
+        periodEnd: endDate,
+        payrollRecords: existingPayrolls.map((p) => ({
+          id: p.id,
+          employeeName: p.employee.name,
+        })),
+      },
     });
   } catch (error) {
     console.error("Error in markPeriodAsPaidController", error);

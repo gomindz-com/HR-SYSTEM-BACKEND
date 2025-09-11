@@ -862,16 +862,32 @@ export const payrollReports = async (req, res) => {
       whereClause.status = status;
     }
 
-    // Period filters
+    // Period filters - filter by payroll period overlap, not exact match
     if (periodStart && periodEnd) {
-      whereClause.periodStart = { gte: new Date(periodStart) };
-      whereClause.periodEnd = { lte: new Date(periodEnd) };
+      whereClause.AND = whereClause.AND || [];
+      whereClause.AND.push({
+        periodStart: { lte: new Date(periodEnd) },
+        periodEnd: { gte: new Date(periodStart) },
+      });
     } else if (timePeriod) {
       const now = new Date();
       let startDate = new Date();
       let endDate = new Date();
 
       switch (timePeriod.toLowerCase()) {
+        case "day":
+          // Today
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case "week":
+          // This week (Sunday to Saturday)
+          const dayOfWeek = startDate.getDay();
+          startDate.setDate(startDate.getDate() - dayOfWeek);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setDate(endDate.getDate() + (6 - dayOfWeek));
+          endDate.setHours(23, 59, 59, 999);
+          break;
         case "month":
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -891,8 +907,11 @@ export const payrollReports = async (req, res) => {
           break;
       }
 
-      whereClause.periodStart = { gte: startDate };
-      whereClause.periodEnd = { lte: endDate };
+      whereClause.AND = whereClause.AND || [];
+      whereClause.AND.push({
+        periodStart: { lte: endDate },
+        periodEnd: { gte: startDate },
+      });
     }
 
     // Handle different report types
