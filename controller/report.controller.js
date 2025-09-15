@@ -862,12 +862,17 @@ export const payrollReports = async (req, res) => {
       whereClause.status = status;
     }
 
-    // Period filters - filter by payroll period overlap, not exact match
+    // Period filters - filter by creation date (when payroll was created)
     if (periodStart && periodEnd) {
       whereClause.AND = whereClause.AND || [];
+      const fromDate = new Date(periodStart);
+      const toDate = new Date(periodEnd);
+      toDate.setHours(23, 59, 59, 999);
       whereClause.AND.push({
-        periodStart: { lte: new Date(periodEnd) },
-        periodEnd: { gte: new Date(periodStart) },
+        createdAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
       });
     } else if (timePeriod) {
       const now = new Date();
@@ -908,9 +913,12 @@ export const payrollReports = async (req, res) => {
       }
 
       whereClause.AND = whereClause.AND || [];
+      endDate.setHours(23, 59, 59, 999);
       whereClause.AND.push({
-        periodStart: { lte: endDate },
-        periodEnd: { gte: startDate },
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
       });
     }
 

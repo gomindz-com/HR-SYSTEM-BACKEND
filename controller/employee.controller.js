@@ -18,18 +18,28 @@ export const listEmployees = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   // Filtering params
-  const { name, email, departmentId, status, role, position, search } =
-    req.query;
+  const {
+    name,
+    email,
+    departmentId,
+    status,
+    role,
+    position,
+    search,
+    minSalary,
+    maxSalary,
+  } = req.query;
 
   // Build where clause
   const where = { companyId, deleted: false };
 
-  // Handle search across multiple fields (name, email, position)
+  // Handle search across multiple fields (name, email, position, employeeId)
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
       { position: { contains: search, mode: "insensitive" } },
+      { employeeId: { contains: search, mode: "insensitive" } },
     ];
   } else {
     // Individual field filters
@@ -41,6 +51,17 @@ export const listEmployees = async (req, res) => {
   if (departmentId) where.departmentId = parseInt(departmentId);
   if (status) where.status = status;
   if (role) where.role = role;
+
+  // Salary range filtering
+  if (minSalary !== undefined || maxSalary !== undefined) {
+    where.salary = {};
+    if (minSalary !== undefined) {
+      where.salary.gte = parseFloat(minSalary);
+    }
+    if (maxSalary !== undefined) {
+      where.salary.lte = parseFloat(maxSalary);
+    }
+  }
 
   try {
     const [employees, total] = await Promise.all([

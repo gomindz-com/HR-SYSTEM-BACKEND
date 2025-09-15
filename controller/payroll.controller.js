@@ -1,5 +1,11 @@
 import prisma from "../config/prisma.config.js";
 import { PayrollCalculator } from "../lib/payrollCalculation.js";
+import {
+  sendBenefitEmail,
+  sendSalaryUpdateEmail,
+  sendPayrollSettingsEmail,
+  sendBonusUpdateEmail,
+} from "../utils/emailUtils.js";
 
 // ================================
 // BENEFITS AND PAYROLL SETTING
@@ -92,6 +98,9 @@ export const addEmployeeBenefit = async (req, res) => {
       },
     });
 
+    // Send email notification
+    await sendBenefitEmail(employee, benefit, "created");
+
     res.status(201).json({
       success: true,
       message: "Benefit added successfully",
@@ -111,6 +120,18 @@ export const updateEmployeeBenefit = async (req, res) => {
     const { amount, isActive } = req.body;
     const { companyId } = req.user;
 
+    // Get employee information for email
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), companyId, deleted: false },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
     const benefit = await prisma.employeeBenefit.update({
       where: {
         id: benefitId,
@@ -122,6 +143,9 @@ export const updateEmployeeBenefit = async (req, res) => {
         ...(isActive !== undefined && { isActive }),
       },
     });
+
+    // Send email notification
+    await sendBenefitEmail(employee, benefit, "updated");
 
     res.json({
       success: true,
@@ -154,6 +178,18 @@ export const toggleEmployeeBenefit = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "isActive must be a boolean value",
+      });
+    }
+
+    // Get employee information for email
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(employeeId), companyId, deleted: false },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
       });
     }
 
@@ -192,6 +228,10 @@ export const toggleEmployeeBenefit = async (req, res) => {
         isActive,
       },
     });
+
+    // Send email notification
+    const action = isActive ? "activated" : "deactivated";
+    await sendBenefitEmail(employee, benefit, action);
 
     res.json({
       success: true,
@@ -300,6 +340,13 @@ export const updatePayrollSetting = async (req, res) => {
       });
     }
 
+    // Prepare update data for email notification
+    const updateData = {};
+    if (taxBracket !== undefined) updateData.taxBracket = taxBracket;
+    if (socialSecurityRate !== undefined)
+      updateData.socialSecurityRate = socialSecurityRate;
+    if (customTaxRate !== undefined) updateData.customTaxRate = customTaxRate;
+
     // Update or create payroll profile
     const profile = await prisma.employeePayrollProfile.upsert({
       where: { employeeId: parseInt(employeeId) },
@@ -316,6 +363,9 @@ export const updatePayrollSetting = async (req, res) => {
         customTaxRate: customTaxRate || null,
       },
     });
+
+    // Send email notification
+    await sendPayrollSettingsEmail(employee, updateData);
 
     res.json({
       success: true,
@@ -405,6 +455,9 @@ export const bulkAssignBenefits = async (req, res) => {
             isActive: true,
           },
         });
+
+        // Send email notification
+        await sendBenefitEmail(employee, benefit, "created");
 
         results.push({ employeeId, benefit, status: "success" });
       } catch (error) {
@@ -516,6 +569,10 @@ export const bulkToggleBenefits = async (req, res) => {
           where: { id: existingBenefit.id },
           data: { isActive },
         });
+
+        // Send email notification
+        const action = isActive ? "activated" : "deactivated";
+        await sendBenefitEmail(employee, updatedBenefit, action);
 
         results.push({
           employeeId,
@@ -629,8 +686,17 @@ export const bulkSalaryAdjustment = async (req, res) => {
         const updatedEmployee = await prisma.employee.update({
           where: { id: parseInt(employeeId) },
           data: { salary: newSalary },
-          select: { id: true, name: true, salary: true },
+          select: { id: true, name: true, salary: true, email: true },
         });
+
+        // Send email notification
+        await sendSalaryUpdateEmail(
+          updatedEmployee,
+          employee.salary,
+          newSalary,
+          adjustmentType,
+          adjustmentValue
+        );
 
         results.push({
           employeeId,
@@ -756,6 +822,9 @@ export const bulkUpdateTaxSettings = async (req, res) => {
             customTaxRate: customTaxRate ? parseFloat(customTaxRate) : 0,
           },
         });
+
+        // Send email notification
+        await sendPayrollSettingsEmail(employee, updateData);
 
         results.push({ employeeId, payrollProfile, status: "success" });
       } catch (error) {
@@ -924,8 +993,15 @@ export const bulkUpdateBonus = async (req, res) => {
         const updatedEmployee = await prisma.employee.update({
           where: { id: parseInt(employeeId) },
           data: { sumBonuses: parseFloat(bonus) },
-          select: { id: true, name: true, sumBonuses: true },
+          select: { id: true, name: true, sumBonuses: true, email: true },
         });
+
+        // Send email notification
+        await sendBonusUpdateEmail(
+          updatedEmployee,
+          employee.sumBonuses || 0,
+          parseFloat(bonus)
+        );
 
         results.push({
           employeeId,
@@ -971,7 +1047,13 @@ export const bulkUpdateBonus = async (req, res) => {
 
 export const generateAllEmployeesPayroll = async (req, res) => {
   const companyId = req.user.companyId;
-  const { periodStart, periodEnd } = req.body;
+  const {
+    periodStart,
+    periodEnd,
+    includeBenefits = true,
+    applyTaxes = true,
+    includeAttendance = true,
+  } = req.body;
 
   if (!companyId) {
     return res.status(400).json({
@@ -1006,8 +1088,10 @@ export const generateAllEmployeesPayroll = async (req, res) => {
     for (const employee of employees) {
       try {
         // calculate payroll
-        const calculation =
-          PayrollCalculator.calculateEmployeePayroll(employee);
+        const calculation = PayrollCalculator.calculateEmployeePayroll(
+          employee,
+          { includeBenefits, applyTaxes, includeAttendance }
+        );
 
         // save to database
         const payroll = await prisma.payroll.create({
@@ -1051,7 +1135,14 @@ export const generateAllEmployeesPayroll = async (req, res) => {
 
 export const getPayrollPreview = async (req, res) => {
   try {
-    const { periodStart, periodEnd, employeeIds } = req.body;
+    const {
+      periodStart,
+      periodEnd,
+      employeeIds,
+      includeBenefits = true,
+      applyTaxes = true,
+      includeAttendance = true,
+    } = req.body;
     const { companyId } = req.user;
 
     if (!periodStart || !periodEnd) {
@@ -1086,8 +1177,10 @@ export const getPayrollPreview = async (req, res) => {
     // Calculate preview for each employee
     for (const employee of employees) {
       try {
-        const calculation =
-          PayrollCalculator.calculateEmployeePayroll(employee);
+        const calculation = PayrollCalculator.calculateEmployeePayroll(
+          employee,
+          { includeBenefits, applyTaxes, includeAttendance }
+        );
         previewData.push({
           employeeId: employee.id,
           employeeName: employee.name,
@@ -1220,7 +1313,6 @@ export const updatePayrollRecord = async (req, res) => {
       benefitsCost,
       incomeTax,
       socialSecurity,
-      attendancePenalties,
       notes,
     } = req.body;
     const { companyId } = req.user;
@@ -1259,7 +1351,7 @@ export const updatePayrollRecord = async (req, res) => {
     const newTotalDeductions =
       (incomeTax || payroll.incomeTax || 0) +
       (socialSecurity || payroll.socialSecurity || 0) +
-      (attendancePenalties || payroll.attendancePenalties || 0);
+      (payroll.attendancePenalties || 0);
 
     const newNetPay = newGrossPay - newTotalDeductions;
 
@@ -1272,7 +1364,6 @@ export const updatePayrollRecord = async (req, res) => {
         ...(benefitsCost !== undefined && { benefitsCost }),
         ...(incomeTax !== undefined && { incomeTax }),
         ...(socialSecurity !== undefined && { socialSecurity }),
-        ...(attendancePenalties !== undefined && { attendancePenalties }),
         ...(notes !== undefined && { notes }),
         grossPay: newGrossPay,
         totalDeductions: newTotalDeductions,
@@ -1486,21 +1577,29 @@ export const getFinalizedPayrolls = async (req, res) => {
       ];
     }
 
-    // Add date range filter - filter by payroll period, not creation date
+    // Add date range filter - filter by creation date (when payroll was created)
     if (dateFrom || dateTo) {
       where.AND = where.AND || [];
       if (dateFrom && dateTo) {
+        const fromDate = new Date(dateFrom);
+        const toDate = new Date(dateTo);
+        // Set to end of day for inclusive range
+        toDate.setHours(23, 59, 59, 999);
         where.AND.push({
-          periodStart: { lte: new Date(dateTo) },
-          periodEnd: { gte: new Date(dateFrom) },
+          createdAt: {
+            gte: fromDate,
+            lte: toDate,
+          },
         });
       } else if (dateFrom) {
         where.AND.push({
-          periodEnd: { gte: new Date(dateFrom) },
+          createdAt: { gte: new Date(dateFrom) },
         });
       } else if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
         where.AND.push({
-          periodStart: { lte: new Date(dateTo) },
+          createdAt: { lte: toDate },
         });
       }
     }
@@ -1602,21 +1701,29 @@ export const getPaidPayrolls = async (req, res) => {
       ];
     }
 
-    // Add date range filter - filter by payroll period, not creation date
+    // Add date range filter - filter by creation date (when payroll was created)
     if (dateFrom || dateTo) {
       where.AND = where.AND || [];
       if (dateFrom && dateTo) {
+        const fromDate = new Date(dateFrom);
+        const toDate = new Date(dateTo);
+        // Set to end of day for inclusive range
+        toDate.setHours(23, 59, 59, 999);
         where.AND.push({
-          periodStart: { lte: new Date(dateTo) },
-          periodEnd: { gte: new Date(dateFrom) },
+          createdAt: {
+            gte: fromDate,
+            lte: toDate,
+          },
         });
       } else if (dateFrom) {
         where.AND.push({
-          periodEnd: { gte: new Date(dateFrom) },
+          createdAt: { gte: new Date(dateFrom) },
         });
       } else if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
         where.AND.push({
-          periodStart: { lte: new Date(dateTo) },
+          createdAt: { lte: toDate },
         });
       }
     }
@@ -1736,6 +1843,77 @@ export const getPayrollDetails = async (req, res) => {
   }
 };
 
+export const markIndividualPayrollAsPaid = async (req, res) => {
+  try {
+    const { payrollId } = req.params;
+    const { companyId } = req.user;
+
+    // Validate payrollId is a valid number
+    const parsedPayrollId = parseInt(payrollId);
+    if (isNaN(parsedPayrollId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payroll ID",
+      });
+    }
+
+    // Check if payroll exists and is in FINALIZED status
+    const payroll = await prisma.payroll.findFirst({
+      where: {
+        id: parsedPayrollId,
+        companyId,
+        status: "FINALIZED",
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!payroll) {
+      return res.status(404).json({
+        success: false,
+        message: "Finalized payroll record not found",
+      });
+    }
+
+    // Update payroll to PAID status
+    const updatedPayroll = await prisma.payroll.update({
+      where: { id: parsedPayrollId },
+      data: {
+        status: "PAID",
+        processedDate: new Date(),
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Payroll for ${payroll.employee.name} marked as paid successfully`,
+      data: updatedPayroll,
+    });
+  } catch (error) {
+    console.error("Error marking individual payroll as paid:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 export const markPeriodAsPaid = async (req, res) => {
   const companyId = req.user.companyId;
 
@@ -1774,16 +1952,18 @@ export const markPeriodAsPaid = async (req, res) => {
   }
 
   try {
-    // First, check if there are any finalized payrolls in the specified period
+    // Set end of day for inclusive range
+    const endOfDay = new Date(endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // First, check if there are any finalized payrolls created in the specified period
     const existingPayrolls = await prisma.payroll.findMany({
       where: {
         companyId,
         status: "FINALIZED",
-        periodStart: {
-          lte: endDate,
-        },
-        periodEnd: {
+        createdAt: {
           gte: startDate,
+          lte: endOfDay,
         },
       },
       select: {
@@ -1799,11 +1979,13 @@ export const markPeriodAsPaid = async (req, res) => {
     if (existingPayrolls.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No finalized payroll records found for the specified period",
+        message: `No finalized payroll records found for the period ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}. Please check if payrolls were created during this time period.`,
         data: {
           periodStart: startDate,
           periodEnd: endDate,
           foundRecords: 0,
+          suggestion:
+            "Try expanding the date range or check if payrolls exist in a different time period.",
         },
       });
     }
@@ -1814,11 +1996,9 @@ export const markPeriodAsPaid = async (req, res) => {
         where: {
           companyId,
           status: "FINALIZED",
-          periodStart: {
-            lte: endDate,
-          },
-          periodEnd: {
+          createdAt: {
             gte: startDate,
+            lte: endOfDay,
           },
         },
         data: {
@@ -1830,9 +2010,23 @@ export const markPeriodAsPaid = async (req, res) => {
       return updatedResult.count;
     });
 
+    // Handle case where no records were actually updated (edge case)
+    if (updatedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: `No payroll records were updated. This might happen if the records were already marked as paid or if there was a race condition.`,
+        data: {
+          periodStart: startDate,
+          periodEnd: endDate,
+          updatedCount: 0,
+          foundRecords: existingPayrolls.length,
+        },
+      });
+    }
+
     res.status(200).json({
       success: true,
-      message: `${updatedCount} payroll records marked as paid for the period ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
+      message: `${updatedCount} payroll record${updatedCount === 1 ? "" : "s"} marked as paid for the period ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
       data: {
         updatedCount,
         periodStart: startDate,

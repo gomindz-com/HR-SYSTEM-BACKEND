@@ -22,6 +22,7 @@ import {
   getFinalizedPayrolls,
   getPaidPayrolls,
   markPeriodAsPaid,
+  markIndividualPayrollAsPaid,
 } from "../controller/payroll.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -106,6 +107,11 @@ router.put("/:payrollId/update", updatePayrollRecord);
 
 // Finalize payroll record
 router.put("/:payrollId/finalize", finalizePayroll);
+
+// Mark individual payroll as paid
+router.put("/:payrollId/mark-paid", markIndividualPayrollAsPaid);
+
+// Mark period as paid (bulk operation)
 router.post("/mark-period-as-paid", markPeriodAsPaid);
 
 export default router;
