@@ -89,7 +89,7 @@ app.use(
   })
 );
 
-app.use(cookieParser());
+app.use(cookieParser());     
 
 // ROUTES
 app.use("/api/auth", authRoutes);

@@ -129,7 +129,6 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         employeeId: id,
@@ -365,6 +364,8 @@ export const approveLeave = async (req, res) => {
       data: {
         status: "APPROVED",
         approverId: req.user.id,
+        isApproved: true,
+        approvedAt: new Date(),
         updatedAt: new Date(),
       },
     });
