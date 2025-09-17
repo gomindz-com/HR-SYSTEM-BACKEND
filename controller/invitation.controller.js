@@ -10,7 +10,7 @@ import {
 } from "../lib/activity-utils.js";
 
 export const sendInvitation = async (req, res) => {
-  const { email, role, position, departmentId } = req.body;
+  const { email, role, position, departmentId, employeeId } = req.body;
   const id = req.user.id;
   const companyId = req.user.companyId;
 
@@ -78,6 +78,7 @@ export const sendInvitation = async (req, res) => {
         role: role || "STAFF",
         companyId,
         invitedBy: id,
+        employeeId: employeeId || null,
         token,
         expiresAt,
         status: "PENDING",
@@ -188,7 +189,7 @@ export const sendBulkInvitations = async (req, res) => {
     }
 
     for (const invitation of invitations) {
-      const { email, role, position, departmentName } = invitation;
+      const { email, role, position, departmentName, employeeId } = invitation;
 
       try {
         // Normalize email
@@ -280,6 +281,7 @@ export const sendBulkInvitations = async (req, res) => {
             role: role || "STAFF",
             companyId,
             invitedBy: id,
+            employeeId: employeeId || null,
             token,
             expiresAt,
             status: "PENDING",
@@ -418,6 +420,7 @@ export const acceptInvitation = async (req, res) => {
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,
+        employeeId: invitation.employeeId || null,
         profilePic: randomAvatar,
         position: invitation.position,
         createdAt: new Date(),

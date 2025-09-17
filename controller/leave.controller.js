@@ -129,16 +129,6 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-    // Check if user has sufficient leave balance (optional - you can implement this based on your business logic)
-    // const leaveBalance = await getLeaveBalance(id, companyId);
-    // if (leaveBalance.daysLeft < days) {
-    //   return res.status(400).json({
-    //     message: "insufficient leave balance",
-    //     requestedDays: days,
-    //     availableDays: leaveBalance.daysLeft
-    //   });
-    // }
-
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         employeeId: id,
@@ -374,13 +364,15 @@ export const approveLeave = async (req, res) => {
       data: {
         status: "APPROVED",
         approverId: req.user.id,
+        isApproved: true,
+        approvedAt: new Date(),
         updatedAt: new Date(),
       },
     });
 
     // Send email notification to the employee
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: process.env.GMAIL_USER,
       to: leaveRequest.employee.email,
       subject: "Leave Request Approved",
       html: `
@@ -475,7 +467,7 @@ export const rejectLeave = async (req, res) => {
 
     // Send email notification to the employee
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: process.env.GMAIL_USER,
       to: leaveRequest.employee.email,
       subject: "Leave Request Rejected",
       html: `
