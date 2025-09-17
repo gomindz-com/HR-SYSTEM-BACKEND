@@ -238,6 +238,7 @@ model LeaveRequest {
   isApproved    Boolean?
   rejectReason  String?
   approvedAt    DateTime?
+  leaveBalance Int?
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @default(now())

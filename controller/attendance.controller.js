@@ -520,7 +520,10 @@ export const listAttendance = async (req, res) => {
     const [attendanceRecords, total] = await Promise.all([
       prisma.attendance.findMany({
         where,
-        orderBy: { date: "desc" },
+        orderBy: {
+          date: "desc",
+        },
+  
         skip,
         take: pageSize,
         include: {
