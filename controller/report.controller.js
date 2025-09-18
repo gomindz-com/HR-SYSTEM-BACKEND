@@ -29,11 +29,11 @@ export const employeeReport = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
       });
     }
 
@@ -332,11 +332,11 @@ export const leaveReport = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
       });
     }
 
@@ -586,11 +586,11 @@ export const attendanceReport = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
       });
     }
 
@@ -836,11 +836,11 @@ export const payrollReports = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
       return res.status(400).json({
         success: false,
         message:
-          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100",
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
       });
     }
 
@@ -858,8 +858,16 @@ export const payrollReports = async (req, res) => {
     }
 
     // Status filter
-    if (status && ["PENDING", "PROCESSED", "PAID"].includes(status)) {
+    if (status && ["DRAFT", "FINALIZED", "PAID"].includes(status)) {
       whereClause.status = status;
+    }
+
+    // Search filter for employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        ...whereClause.employee,
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
     }
 
     // Period filters - filter by creation date (when payroll was created)

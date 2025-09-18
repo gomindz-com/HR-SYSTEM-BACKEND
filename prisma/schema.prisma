@@ -1,6 +1,3 @@
-// ========================================
-// DATABASE CONFIGURATION
-// ========================================
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,254 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ========================================
-// ENUMS
-// ========================================
+model Company {
+  id                 Int                 @id @default(autoincrement())
+  companyName        String
+  companyEmail       String?             @unique
+  companyTin         String?             @unique
+  companyAddress     String?
+  hrId               Int?
+  companyDescription String?
+  timezone           String              @default("UTC")
+  workStartTime      String              @default("09:00")
+  workEndTime        String              @default("17:00")
+  workStartTime2     String              @default("17:00")
+  workEndTime2       String              @default("23:59")
+  lateThreshold      Int                 @default(15)
+  checkInDeadline    Int                 @default(15)
+  createdAt          DateTime            @default(now())
+  activities         Activity[]
+  attendances        Attendance[]
+  hr                 Employee?           @relation("Company_hr", fields: [hrId], references: [id])
+  locations          CompanyLocation[]
+  departments        Department[]
+  employees          Employee[]
+  EmployeeBenefit    EmployeeBenefit[]
+  invitations        Invitation[]
+  leaveRequests      LeaveRequest[]
+  payrolls           Payroll[]
+  performanceReviews PerformanceReview[]
+}
+
+model CompanyLocation {
+  id          Int          @id @default(autoincrement())
+  companyId   Int
+  name        String
+  latitude    Float
+  longitude   Float
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attendances Attendance[]
+  company     Company      @relation(fields: [companyId], references: [id])
+}
+
+model Employee {
+  id                                    Int                     @id @default(autoincrement())
+  employeeId                            String?                 @unique
+  name                                  String
+  email                                 String                  @unique
+  phone                                 String?
+  profilePic                            String?
+  password                              String
+  position                              String?
+  departmentId                          Int?
+  companyId                             Int
+  location                              String?
+  status                                EmployeeStatus          @default(ACTIVE)
+  avatar                                String?
+  role                                  Role
+  shiftType                             Shift?                  @default(MORNING_SHIFT)
+  dateOfBirth                           DateTime?
+  deleted                               Boolean                 @default(false)
+  address                               String?
+  emergencyContact                      String?
+  employmentType                        EmploymentType          @default(FULL_TIME)
+  salary                                Float?
+  lastLogin                             DateTime?
+  resetPasswordToken                    String?
+  resetPasswordExpires                  DateTime?
+  sumBonuses                            Float?                  @default(0)
+  createdAt                             DateTime                @default(now())
+  attendances                           Attendance[]            @relation("EmployeeAttendance")
+  hrForCompanies                        Company[]               @relation("Company_hr")
+  managedDepartments                    Department[]            @relation("DepartmentManager")
+  company                               Company                 @relation(fields: [companyId], references: [id])
+  department                            Department?             @relation(fields: [departmentId], references: [id])
+  EmployeeBenefit                       EmployeeBenefit[]
+  EmployeePayrollProfile                EmployeePayrollProfile?
+  sentInvitations                       Invitation[]
+  approvedLeaveRequests                 LeaveRequest[]          @relation("LeaveApprover")
+  leaveRequests                         LeaveRequest[]
+  notifications                         Notification[]
+  payrolls                              Payroll[]
+  Payroll_Payroll_finalizedByToEmployee Payroll[]               @relation("Payroll_finalizedByToEmployee")
+  performanceReviews                    PerformanceReview[]
+  reviewsGiven                          PerformanceReview[]     @relation("Reviewer")
+}
+
+model Department {
+  id         Int          @id @default(autoincrement())
+  name       String
+  managerId  Int?
+  createdAt  DateTime     @default(now())
+  companyId  Int
+  company    Company      @relation(fields: [companyId], references: [id])
+  manager    Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees  Employee[]
+  Invitation Invitation[]
+}
+
+model Attendance {
+  id         Int              @id @default(autoincrement())
+  employeeId Int
+  companyId  Int
+  locationId Int?
+  date       DateTime
+  timeIn     DateTime?
+  timeOut    DateTime?
+  status     AttendanceStatus
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  company    Company          @relation(fields: [companyId], references: [id])
+  employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id])
+  location   CompanyLocation? @relation(fields: [locationId], references: [id])
+
+  @@unique([employeeId, date])
+}
+
+model LeaveRequest {
+  id             Int         @id @default(autoincrement())
+  employeeId     Int
+  companyId      Int
+  leaveType      LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  days           Int
+  status         LeaveStatus @default(PENDING)
+  approverId     Int?
+  comments       String?
+  attachmentUrls Json?
+  isApproved     Boolean?
+  rejectReason   String?
+  approvedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now())
+  approver       Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
+  company        Company     @relation(fields: [companyId], references: [id])
+  employee       Employee    @relation(fields: [employeeId], references: [id])
+}
+
+model Payroll {
+  id                                     Int           @id @default(autoincrement())
+  employeeId                             Int
+  companyId                              Int
+  periodStart                            DateTime
+  periodEnd                              DateTime
+  baseSalary                             Float
+  bonuses                                Float?        @default(0)
+  benefitsCost                           Float?        @default(0)
+  grossPay                               Float?
+  incomeTax                              Float?        @default(0)
+  socialSecurity                         Float?        @default(0)
+  attendancePenalties                    Float?        @default(0)
+  totalDeductions                        Float?        @default(0)
+  netPay                                 Float
+  status                                 PayrollStatus @default(DRAFT)
+  finalizedAt                            DateTime?
+  finalizedBy                            Int?
+  processedDate                          DateTime?
+  paymentMethod                          String?
+  notes                                  String?
+  hoursWorked                            Float?        @default(0)
+  createdAt                              DateTime      @default(now())
+  company                                Company       @relation(fields: [companyId], references: [id])
+  employee                               Employee      @relation(fields: [employeeId], references: [id])
+  Employee_Payroll_finalizedByToEmployee Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
+}
+
+model PerformanceReview {
+  id          Int          @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  reviewerId  Int
+  periodStart DateTime
+  periodEnd   DateTime
+  score       Float
+  rating      Float
+  comments    String?
+  status      ReviewStatus @default(IN_PROGRESS)
+  createdAt   DateTime     @default(now())
+  company     Company      @relation(fields: [companyId], references: [id])
+  employee    Employee     @relation(fields: [employeeId], references: [id])
+  reviewer    Employee     @relation("Reviewer", fields: [reviewerId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      Employee @relation(fields: [userId], references: [id])
+}
+
+model Invitation {
+  id           Int              @id @default(autoincrement())
+  email        String
+  role         Role
+  invitedBy    Int
+  employeeId   String?          // Optional field to link to specific employee
+  position     String
+  companyId    Int
+  departmentId Int
+  status       InvitationStatus @default(PENDING)
+  token        String           @unique
+  expiresAt    DateTime
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  company      Company          @relation(fields: [companyId], references: [id])
+  department   Department       @relation(fields: [departmentId], references: [id])
+  inviter      Employee         @relation(fields: [invitedBy], references: [id])
+}
+
+model Activity {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  type        String
+  title       String
+  description String
+  priority    String   @default("NORMAL")
+  icon        String   @default("default")
+  createdAt   DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id])
+}
+
+model EmployeeBenefit {
+  id          String          @id
+  employeeId  Int
+  companyId   Int
+  benefitType BenefitCategory
+  amount      Float
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime
+  Company     Company         @relation(fields: [companyId], references: [id])
+  Employee    Employee        @relation(fields: [employeeId], references: [id])
+}
+
+model EmployeePayrollProfile {
+  id                 String   @id
+  employeeId         Int      @unique
+  taxBracket         String?
+  socialSecurityRate Float    @default(0)
+  customTaxRate      Float?   @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+  Employee           Employee @relation(fields: [employeeId], references: [id])
+}
+
 enum Role {
   STAFF
   MANAGER
@@ -54,8 +296,8 @@ enum LeaveStatus {
 }
 
 enum PayrollStatus {
-  PENDING
-  PROCESSED
+  DRAFT
+  FINALIZED
   PAID
 }
 
@@ -75,236 +317,18 @@ enum InvitationStatus {
   EXPIRED
 }
 
-// ========================================
-// CORE COMPANY MODELS
-// ========================================
-model Company {
-  id                 Int                 @id @default(autoincrement())
-  companyName        String
-  companyEmail       String?             @unique
-  companyTin         String?             @unique
-  companyAddress     String?
-  hrId               Int?
-  hr                 Employee?           @relation("Company_hr", fields: [hrId], references: [id])
-  companyDescription String?
-  // Attendance Settings
-  timezone           String              @default("UTC")
-  workStartTime      String              @default("09:00") // Format: HH:MM
-  workEndTime        String              @default("17:00") // Format: HH:MM
-  lateThreshold      Int                 @default(15) // Minutes after workStartTime
-  checkInDeadline    Int                 @default(15) // Minutes after workEndTime (grace period)
-  employees          Employee[]
-  departments        Department[]
-  attendances        Attendance[]
-  leaveRequests      LeaveRequest[]
-  locations          CompanyLocation[]
-  payrolls           Payroll[]
-  performanceReviews PerformanceReview[]
-  invitations        Invitation[]
-  activities         Activity[]
-  createdAt          DateTime            @default(now())
+enum BenefitCategory {
+  CAR_ALLOWANCE
+  FOOD_ALLOWANCE
+  HOUSING_ALLOWANCE
+  TRANSPORT_ALLOWANCE
+  MEDICAL_ALLOWANCE
+  HEALTH_INSURANCE
+  RETIREMENT
+  OTHER
 }
 
-model CompanyLocation {
-  id        Int          @id @default(autoincrement())
-  companyId Int
-  company   Company      @relation(fields: [companyId], references: [id])
-  name      String
-  latitude  Float
-  longitude Float
-  isActive  Boolean      @default(true)
-  attendances Attendance[] // Reverse relation to track attendance from this location
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-}
-
-// ========================================
-// EMPLOYEE MANAGEMENT MODELS
-// ========================================
-model Employee {
-  id                    Int                 @id @default(autoincrement())
-  name                  String
-  email                 String              @unique
-  phone                 String?
-  profilePic            String?
-  password              String
-  position              String?
-  departmentId          Int?
-  department            Department?         @relation(fields: [departmentId], references: [id])
-  companyId             Int
-  company               Company             @relation(fields: [companyId], references: [id])
-  location              String?
-  status                EmployeeStatus      @default(ACTIVE)
-  avatar                String?
-  role                  Role
-  dateOfBirth           DateTime?
-  deleted               Boolean             @default(false)
-  address               String?
-  emergencyContact      String?
-  employmentType        EmploymentType      @default(FULL_TIME)
-  salary                Float?
-  lastLogin             DateTime?
-  resetPasswordToken    String?
-  resetPasswordExpires  DateTime?
-  attendances           Attendance[]        @relation("EmployeeAttendance")
-  leaveRequests         LeaveRequest[]
-  payrolls              Payroll[]
-  performanceReviews    PerformanceReview[]
-  notifications         Notification[]
-  qrSecret              String?
-  createdAt             DateTime            @default(now())
-  managedDepartments    Department[]        @relation("DepartmentManager")
-  approvedLeaveRequests LeaveRequest[]      @relation("LeaveApprover")
-  reviewsGiven          PerformanceReview[] @relation("Reviewer")
-  sentInvitations       Invitation[]
-  hrForCompanies        Company[]           @relation("Company_hr")
-}
-
-model Department {
-  id         Int          @id @default(autoincrement())
-  name       String
-  managerId  Int?
-  manager    Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
-  employees  Employee[]
-  createdAt  DateTime     @default(now())
-  companyId  Int
-  company    Company      @relation(fields: [companyId], references: [id]) // <--- And this line
-  Invitation Invitation[]
-}
-
-// ========================================
-// ATTENDANCE SYSTEM MODELS
-// ========================================
-model Attendance {
-  id         Int              @id @default(autoincrement())
-  employeeId Int
-  employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id])
-  companyId  Int
-  company    Company          @relation(fields: [companyId], references: [id])
-  locationId Int?             // Track which office/location employee clocked in from
-  location   CompanyLocation? @relation(fields: [locationId], references: [id])
-  date       DateTime
-  timeIn     DateTime? // Use DateTime for exact check-in time
-  timeOut    DateTime? // Use DateTime for exact check-out time
-  status     AttendanceStatus
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-
-  @@unique([employeeId, date])
-}
-
-// ========================================
-// LEAVE MANAGEMENT MODELS
-// ========================================
-model LeaveRequest {
-  id            Int         @id @default(autoincrement())
-  employeeId    Int
-  employee      Employee    @relation(fields: [employeeId], references: [id])
-  companyId     Int
-  company       Company     @relation(fields: [companyId], references: [id])
-  leaveType     LeaveType  
-  startDate     DateTime
-  endDate       DateTime
-  days          Int
-  status        LeaveStatus @default(PENDING)
-  approverId    Int?
-  approver      Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
-  comments      String?
-  attachmentUrls Json?
-  isApproved    Boolean?
-  rejectReason  String?
-  approvedAt    DateTime?
-
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @default(now())
-}
-
-// ========================================
-// PAYROLL SYSTEM MODELS
-// ========================================
-model Payroll {
-  id            Int           @id @default(autoincrement())
-  employeeId    Int
-  employee      Employee      @relation(fields: [employeeId], references: [id])
-  companyId     Int
-  company       Company       @relation(fields: [companyId], references: [id])
-  periodStart   DateTime
-  periodEnd     DateTime
-  baseSalary    Float
-  bonuses       Float?
-  deductions    Float?
-  taxes         Float?
-  netPay        Float
-  status        PayrollStatus @default(PENDING)
-  processedDate DateTime?
-  paymentMethod String?
-  notes         String?
-  createdAt     DateTime      @default(now())
-}
-
-// ========================================
-// PERFORMANCE MANAGEMENT MODELS
-// ========================================
-model PerformanceReview {
-  id          Int          @id @default(autoincrement())
-  employeeId  Int
-  employee    Employee     @relation(fields: [employeeId], references: [id])
-  companyId   Int
-  company     Company      @relation(fields: [companyId], references: [id])
-  reviewerId  Int
-  reviewer    Employee     @relation("Reviewer", fields: [reviewerId], references: [id])
-  periodStart DateTime
-  periodEnd   DateTime
-  score       Float
-  rating      Float
-  comments    String?
-  status      ReviewStatus @default(IN_PROGRESS)
-  createdAt   DateTime     @default(now())
-}
-
-// ========================================
-// NOTIFICATION & INVITATION MODELS
-// ========================================
-model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      Employee @relation(fields: [userId], references: [id])
-  message   String
-  type      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-}
-
-model Invitation {
-  id           Int              @id @default(autoincrement())
-  email        String
-  role         Role
-  invitedBy    Int
-  employeeId   Int?             // Optional field to link to specific employee
-  position     String
-  inviter      Employee         @relation(fields: [invitedBy], references: [id])
-  companyId    Int
-  company      Company          @relation(fields: [companyId], references: [id])
-  departmentId Int
-  department   Department       @relation(fields: [departmentId], references: [id])
-  status       InvitationStatus @default(PENDING)
-  token        String           @unique
-  expiresAt    DateTime
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-}
-
-// ========================================
-// ACTIVITY TRACKING MODELS
-// ========================================
-model Activity {
-  id          Int      @id @default(autoincrement())
-  companyId   Int
-  company     Company  @relation(fields: [companyId], references: [id])
-  type        String   // PERFORMANCE_REVIEW, ATTENDANCE, LEAVE_REQUEST, etc.
-  title       String   // "Performance Review Due"
-  description String   // "Q4 reviews need completion for 5 employees"
-  priority    String   @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  icon        String   @default("default") // performance, attendance, leave, etc.
-  createdAt   DateTime @default(now())
+enum Shift {
+  MORNING_SHIFT
+  AFTERNOON_SHIFT
 }
