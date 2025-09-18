@@ -1071,8 +1071,8 @@ export const generateAllEmployeesPayroll = async (req, res) => {
     const employees = await prisma.employee.findMany({
       where: { companyId, deleted: false },
       include: {
-        benefits: { where: { isActive: true } },
-        payrollProfile: true,
+        EmployeeBenefit: { where: { isActive: true } },
+        EmployeePayrollProfile: true,
         attendances: {
           where: {
             date: { gte: new Date(periodStart), lte: new Date(periodEnd) },
@@ -1161,8 +1161,8 @@ export const getPayrollPreview = async (req, res) => {
     const employees = await prisma.employee.findMany({
       where: whereClause,
       include: {
-        benefits: { where: { isActive: true } },
-        payrollProfile: true,
+        EmployeeBenefit: { where: { isActive: true } },
+        EmployeePayrollProfile: true,
         attendances: {
           where: {
             date: { gte: new Date(periodStart), lte: new Date(periodEnd) },

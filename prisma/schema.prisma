@@ -88,7 +88,7 @@ model Employee {
   leaveRequests                         LeaveRequest[]
   notifications                         Notification[]
   payrolls                              Payroll[]
-  Payroll_Payroll_finalizedByToEmployee Payroll[]               @relation("Payroll_finalizedByToEmployee")
+  finalizedPayrolls Payroll[]               @relation("Payroll_finalizedByToEmployee")
   performanceReviews                    PerformanceReview[]
   reviewsGiven                          PerformanceReview[]     @relation("Reviewer")
 }
@@ -170,7 +170,7 @@ model Payroll {
   createdAt                              DateTime      @default(now())
   company                                Company       @relation(fields: [companyId], references: [id])
   employee                               Employee      @relation(fields: [employeeId], references: [id])
-  Employee_Payroll_finalizedByToEmployee Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
+  finalizedByUser Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
 }
 
 model PerformanceReview {
