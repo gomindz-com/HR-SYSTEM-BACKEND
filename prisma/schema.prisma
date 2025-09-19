@@ -34,6 +34,7 @@ model Company {
   leaveRequests      LeaveRequest[]
   payrolls           Payroll[]
   performanceReviews PerformanceReview[]
+  documents          Document[]
 }
 
 model CompanyLocation {
@@ -91,6 +92,8 @@ model Employee {
   finalizedPayrolls Payroll[]               @relation("Payroll_finalizedByToEmployee")
   performanceReviews                    PerformanceReview[]
   reviewsGiven                          PerformanceReview[]     @relation("Reviewer")
+  documents                             Document[]
+  uploadedDocuments                     Document[]              @relation("DocumentUploader")
 }
 
 model Department {
@@ -255,6 +258,25 @@ model EmployeePayrollProfile {
   Employee           Employee @relation(fields: [employeeId], references: [id])
 }
 
+model Document {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  companyId   Int
+  fileName    String
+  originalName String
+  fileUrl     String
+  fileSize    Int
+  mimeType    String
+  category    DocumentCategory @default(OTHER)
+  description String?
+  uploadedBy  Int      // Who uploaded the document (admin/HR)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id])
+  uploader    Employee @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+}
+
 enum Role {
   STAFF
   MANAGER
@@ -331,4 +353,21 @@ enum BenefitCategory {
 enum Shift {
   MORNING_SHIFT
   AFTERNOON_SHIFT
+}
+
+enum DocumentCategory {
+  RESUME
+  COVER_LETTER
+  ID_DOCUMENT
+  BIRTH_CERTIFICATE
+  PASSPORT
+  WORK_PERMIT
+  CONTRACT
+  PAYSLIP
+  PERFORMANCE_REVIEW
+  TRAINING_CERTIFICATE
+  MEDICAL_CERTIFICATE
+  REFERENCE_LETTER
+  DEGREE_CERTIFICATE
+  OTHER
 }

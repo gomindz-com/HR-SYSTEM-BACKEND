@@ -11,6 +11,7 @@ import {
   adminAddAttendance,
   adminClockOut,
   viewEmployeeAttendanceStats,
+  adminCreateAttendanceRecord,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -30,5 +31,6 @@ router.get("/employee/:employeeId", listSpecificEmployeeAttendance);
 // Admin routes for manual attendance management
 router.post("/admin/add/:employeeId", adminAddAttendance);
 router.post("/admin/clock-out/:employeeId", adminClockOut);
+router.post("/admin/create-record", adminCreateAttendanceRecord);
 
 export default router;

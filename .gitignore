@@ -70,6 +70,16 @@ web_modules/
 .env.*
 !.env.example
 
+# Firebase service account keys
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tailwind.config.js
+!vite.config.ts
+!postcss.config.js
+!eslint.config.js
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

@@ -13,6 +13,7 @@ import leaveRoutes from "./routes/leave.route.js";
 import reportRoutes from "./routes/report.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import payrollRoutes from "./routes/payroll.route.js";
+import documentRoutes from "./routes/document.route.js";
 // Load environment variables first
 dotenv.config();
 
@@ -103,6 +104,7 @@ app.use("/api/leave", leaveRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/payroll", payrollRoutes);
+app.use("/api/document", documentRoutes);
 // ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status
