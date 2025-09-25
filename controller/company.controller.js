@@ -490,11 +490,6 @@ export const getCompanyLocations = async (req, res) => {
     });
   }
 
-  if (req.user.role !== "ADMIN") {
-    return res.status(401).json({
-      message: "You are not authorized to get company locations",
-    });
-  }
 
   try {
     const locations = await prisma.companyLocation.findMany({
