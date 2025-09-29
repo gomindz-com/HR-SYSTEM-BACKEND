@@ -35,6 +35,8 @@ model Company {
   payrolls           Payroll[]
   performanceReviews PerformanceReview[]
   documents          Document[]
+  subscription       Subscription?
+  payments           Payment[]
 }
 
 model CompanyLocation {
@@ -370,4 +372,58 @@ enum DocumentCategory {
   REFERENCE_LETTER
   DEGREE_CERTIFICATE
   OTHER
+}
+
+// Subscription Models
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String   // "Basic", "Pro", "Enterprise"
+  price       Float    // Monthly price
+  maxEmployees Int?    // null = unlimited
+  features    String[] // ["attendance", "payroll", "reports"]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id            String             @id @default(cuid())
+  companyId     Int                @unique
+  planId        String
+  status        SubscriptionStatus @default(PENDING)
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime           @default(now())
+  
+  company       Company            @relation(fields: [companyId], references: [id])
+  plan          SubscriptionPlan   @relation(fields: [planId], references: [id])
+  payments      Payment[]
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  companyId         Int
+  subscriptionId    String
+  amount            Float
+  status            PaymentStatus @default(PENDING)
+  modemPayReference String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  
+  company           Company       @relation(fields: [companyId], references: [id])
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id])
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
