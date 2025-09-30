@@ -1,5 +1,4 @@
 import prisma from "../config/prisma.config.js";
-import { createPaymentIntent } from "./paymentService.js";
 
 export const checkExpiringSubscriptions = async () => {
   try {
@@ -41,34 +40,19 @@ export const checkExpiringSubscriptions = async () => {
 
     for (const subscription of expiringSubscriptions) {
       try {
-        // Check if there's already a recent payment (avoid duplicate renewals)
+        // Check if there's already a recent payment (avoid duplicate reminders)
         const hasRecentPayment = subscription.payments.length > 0;
 
         if (hasRecentPayment) {
           console.log(
-            `Subscription ${subscription.id} already has recent payment, skipping renewal creation`
+            `Subscription ${subscription.id} already has recent payment, skipping reminder`
           );
-
-          // Still send reminder email even if payment exists
-          results.push({
-            subscriptionId: subscription.id,
-            companyName: subscription.company.companyName,
-            planName: subscription.plan.name,
-            status: "reminder_sent",
-            message: "Reminder sent (payment already exists)",
-          });
           continue;
         }
 
-        // Create renewal payment intent
-        const { paymentLink, intentId } = await createPaymentIntent(
-          subscription.id,
-          subscription.plan.price
-        );
-
-        // Log renewal creation
+        // Send reminder email (no payment intent creation)
         console.log(
-          `✅ Renewal payment created for ${subscription.company.companyName} (${subscription.plan.name})`
+          `📧 Sending renewal reminder to ${subscription.company.companyName} (${subscription.plan.name})`
         );
 
         results.push({
@@ -76,13 +60,12 @@ export const checkExpiringSubscriptions = async () => {
           companyName: subscription.company.companyName,
           planName: subscription.plan.name,
           amount: subscription.plan.price,
-          paymentLink,
-          intentId,
-          status: "success",
+          status: "reminder_sent",
+          message: "Renewal reminder sent - user can create payment when ready",
         });
 
         // TODO: Send renewal email notification
-        // await sendRenewalEmail(subscription.company, paymentLink, subscription.plan);
+        // await sendRenewalEmail(subscription.company, subscription.plan);
       } catch (error) {
         console.error(
           `❌ Failed to create renewal for subscription ${subscription.id}:`,

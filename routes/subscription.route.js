@@ -7,6 +7,7 @@ import {
   switchPlan,
   cancelSubscription,
   getPaymentHistory,
+  createRenewalPayment,
 } from "../controller/subscription.controller.js";
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.get("/status", getSubscriptionStatus);
 router.put("/switch-plan", switchPlan);
 router.post("/cancel", cancelSubscription);
 router.get("/payments", getPaymentHistory);
+router.post("/renewal-payment", createRenewalPayment);
 
 export default router;

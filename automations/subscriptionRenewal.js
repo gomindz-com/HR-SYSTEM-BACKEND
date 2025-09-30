@@ -27,15 +27,15 @@ export const startSubscriptionRenewalCron = () => {
             console.error("❌ Reminder emails failed:", reminderResult.error);
           }
 
-          // Check for expiring subscriptions and create renewal payments (5 days before expiry)
+          // Check for expiring subscriptions and send renewal reminders (5 days before expiry)
           const renewalResult = await checkExpiringSubscriptions();
 
           if (renewalResult.success) {
             console.log(
-              `✅ Renewal check completed: ${renewalResult.successful} successful, ${renewalResult.failed} failed`
+              `✅ Renewal reminders sent: ${renewalResult.successful} successful, ${renewalResult.failed} failed`
             );
           } else {
-            console.error("❌ Renewal check failed:", renewalResult.error);
+            console.error("❌ Renewal reminders failed:", renewalResult.error);
           }
 
           // Check for expired subscriptions (immediate deactivation)

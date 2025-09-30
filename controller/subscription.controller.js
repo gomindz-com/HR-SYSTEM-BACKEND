@@ -245,6 +245,66 @@ export const switchPlan = async (req, res) => {
   }
 };
 
+export const createRenewalPayment = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+
+    // Get current subscription
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        companyId,
+        status: "ACTIVE",
+      },
+      include: { plan: true },
+    });
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        error: "No active subscription found",
+      });
+    }
+
+    // Check if subscription is expiring soon (within 30 days)
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    if (subscription.endDate > thirtyDaysFromNow) {
+      return res.status(400).json({
+        success: false,
+        error: "Subscription is not due for renewal yet",
+        endDate: subscription.endDate,
+      });
+    }
+
+    // Create fresh payment intent for renewal
+    const { paymentLink, intentId } = await createPaymentIntent(
+      subscription.id,
+      subscription.plan.price
+    );
+
+    res.json({
+      success: true,
+      message: "Renewal payment intent created successfully",
+      data: {
+        paymentLink,
+        intentId,
+        amount: subscription.plan.price,
+        currency: CURRENCY_CONFIG,
+        plan: subscription.plan,
+        subscription: {
+          id: subscription.id,
+          endDate: subscription.endDate,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Create renewal payment failed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create renewal payment",
+    });
+  }
+};
+
 export const cancelSubscription = async (req, res) => {
   try {
     const companyId = req.user.companyId;
