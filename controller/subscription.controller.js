@@ -137,10 +137,18 @@ export const getSubscriptionStatus = async (req, res) => {
 
 export const switchPlan = async (req, res) => {
   try {
-    const { newPlanId } = req.body;
+    const { planId } = req.body;
     const companyId = req.user.companyId;
 
-    console.log(`Switching plan for company ${companyId} to ${newPlanId}`);
+    console.log(`Switching plan for company ${companyId} to ${planId}`);
+
+    // Validate planId
+    if (!planId) {
+      return res.status(400).json({
+        success: false,
+        error: "Plan ID is required",
+      });
+    }
 
     // Get current subscription
     const currentSubscription = await prisma.subscription.findFirst({
@@ -160,7 +168,7 @@ export const switchPlan = async (req, res) => {
 
     // Get new plan details
     const newPlan = await prisma.subscriptionPlan.findUnique({
-      where: { id: newPlanId },
+      where: { id: planId },
     });
 
     if (!newPlan) {
@@ -171,7 +179,7 @@ export const switchPlan = async (req, res) => {
     }
 
     // Check if it's the same plan
-    if (currentSubscription.planId === newPlanId) {
+    if (currentSubscription.planId === planId) {
       return res.status(400).json({
         success: false,
         error: "Already subscribed to this plan",
@@ -187,15 +195,15 @@ export const switchPlan = async (req, res) => {
     let amountToCharge = 0;
     if (isUpgrade) {
       // Charge the difference for remaining days
-      const dailyRate = newPlan.price / 30;
-      const currentDailyRate = currentSubscription.plan.price / 30;
-      amountToCharge = (dailyRate - currentDailyRate) * daysRemaining;
+      const priceDifference = newPlan.price - currentSubscription.plan.price;
+      const dailyRate = priceDifference / 30;
+      amountToCharge = Math.round(dailyRate * daysRemaining); // Round to avoid decimals
     }
 
     // Update subscription plan
     await prisma.subscription.update({
       where: { id: currentSubscription.id },
-      data: { planId: newPlanId },
+      data: { planId: planId },
     });
 
     // If upgrade, create payment for difference
