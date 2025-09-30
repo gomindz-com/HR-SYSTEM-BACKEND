@@ -1,21 +1,51 @@
 import express from "express";
+import crypto from "crypto";
 import { handlePaymentWebhook } from "../services/paymentService.js";
 
 const router = express.Router();
 
-// Modem Pay webhook endpoint
 router.post("/modempay", async (req, res) => {
   try {
-    // Verify webhook secret
-    const webhookSecret =
-      req.headers["x-modem-signature"] || req.headers["x-webhook-signature"];
-    const expectedSecret = process.env.MODEM_PAY_WEBHOOK_SECRET;
+    const payload = JSON.stringify(req.body);
+    const signature = req.headers["x-modem-signature"];
 
-    if (expectedSecret && webhookSecret !== expectedSecret) {
-      console.error("❌ Webhook secret verification failed");
-      return res.status(401).json({
+    // Ensure the signature is provided
+    if (!signature) {
+      console.error("❌ Webhook signature missing");
+      return res.status(400).json({
         success: false,
-        error: "Unauthorized webhook request",
+        message: "Signature missing",
+      });
+    }
+
+    const secretHash = process.env.MODEM_PAY_WEBHOOK_SECRET;
+
+    // Generate the HMAC-SHA512 hash for signature comparison
+    const computedSignature = crypto
+      .createHmac("sha512", secretHash)
+      .update(payload)
+      .digest("hex");
+
+    // Ensure the signature length matches to avoid timing attacks
+    if (computedSignature.length !== signature.length) {
+      console.error("❌ Invalid signature length");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid signature length",
+      });
+    }
+
+    // Use timing-safe comparison to protect against timing attacks
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(computedSignature),
+        Buffer.from(signature)
+      )
+    ) {
+      console.error("❌ Invalid signature!");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid signature!",
       });
     }
 

@@ -21,11 +21,14 @@ export const createPaymentIntent = async (
       },
     });
 
-    console.log("Payment intent created successfully:", intent.data.id);
+    console.log(
+      "Payment intent created successfully:",
+      intent.data.payment_intent_id
+    );
 
     return {
       paymentLink: intent.data.payment_link,
-      intentId: intent.data.id,
+      intentId: intent.data.payment_intent_id,
     };
   } catch (error) {
     console.error("Payment intent creation failed:", error);
@@ -35,11 +38,16 @@ export const createPaymentIntent = async (
 
 export const handlePaymentWebhook = async (webhookData) => {
   try {
-    const { event, data } = webhookData;
+    console.log(
+      "Full webhook data received:",
+      JSON.stringify(webhookData, null, 2)
+    );
+
+    const { event, data, payload } = webhookData;
     console.log(`Received webhook event: ${event}`);
 
-    if (event === "payment.completed") {
-      const { metadata, amount, id } = data;
+    if (event === "charge.succeeded") {
+      const { metadata, amount, id } = payload || data;
       const subscriptionId = metadata.subscriptionId;
 
       console.log(
@@ -88,8 +96,8 @@ export const handlePaymentWebhook = async (webhookData) => {
 
       // TODO: Send confirmation email to company
       // await sendSubscriptionConfirmationEmail(subscription.company, subscription.plan);
-    } else if (event === "payment.failed") {
-      const { metadata, id } = data;
+    } else if (event === "charge.failed") {
+      const { metadata, id } = payload || data;
       const subscriptionId = metadata.subscriptionId;
 
       console.log(`Payment failed for subscription ${subscriptionId}`);
