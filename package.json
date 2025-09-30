@@ -40,6 +40,7 @@
     "jade": "~1.11.0",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.2",
+    "modem-pay": "^1.0.6",
     "moment-timezone": "^0.6.0",
     "morgan": "~1.9.1",
     "multer": "^2.0.2",

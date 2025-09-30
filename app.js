@@ -55,7 +55,6 @@ try {
   );
 } catch (error) {
   console.error("❌ Failed to initialize leave reminder cron:", error);
-  // Don't exit the process, just log the error
 }
 
 // Initialize subscription renewal cron job
@@ -79,7 +78,6 @@ try {
   }
 } catch (error) {
   console.error("❌ Failed to initialize subscription renewal cron:", error);
-  // Don't exit the process, just log the error
 }
 
 const app = express();

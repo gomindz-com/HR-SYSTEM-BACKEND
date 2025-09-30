@@ -6,6 +6,19 @@ const router = express.Router();
 // Modem Pay webhook endpoint
 router.post("/modempay", async (req, res) => {
   try {
+    // Verify webhook secret
+    const webhookSecret =
+      req.headers["x-modem-signature"] || req.headers["x-webhook-signature"];
+    const expectedSecret = process.env.MODEM_PAY_WEBHOOK_SECRET;
+
+    if (expectedSecret && webhookSecret !== expectedSecret) {
+      console.error("❌ Webhook secret verification failed");
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized webhook request",
+      });
+    }
+
     console.log(
       "Received Modem Pay webhook:",
       JSON.stringify(req.body, null, 2)
