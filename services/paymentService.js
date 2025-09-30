@@ -49,6 +49,7 @@ export const handlePaymentWebhook = async (webhookData) => {
     if (event === "charge.succeeded") {
       const { metadata, amount, id } = payload || data;
       const subscriptionId = metadata.subscriptionId;
+      const eventId = webhookData.event_id; // Track event ID for idempotency
 
       console.log(
         `Processing payment completion for subscription ${subscriptionId}`
@@ -77,6 +78,21 @@ export const handlePaymentWebhook = async (webhookData) => {
           endDate: newEndDate, // New 30-day period from payment date
         },
       });
+
+      // Check if payment already exists to prevent duplicates
+      const existingPayment = await prisma.payment.findFirst({
+        where: {
+          subscriptionId,
+          modemPayReference: id,
+        },
+      });
+
+      if (existingPayment) {
+        console.log(
+          `⚠️ Payment already processed for subscription ${subscriptionId} - skipping duplicate`
+        );
+        return;
+      }
 
       // Create payment record
       await prisma.payment.create({
@@ -115,6 +131,8 @@ export const handlePaymentWebhook = async (webhookData) => {
 
       // TODO: Send payment failure notification
       // await sendPaymentFailureEmail(subscription.company);
+    } else if (event === "payment_intent.created") {
+      console.log("Payment intent created - no action needed");
     } else {
       console.log(`Unhandled webhook event: ${event}`);
     }
