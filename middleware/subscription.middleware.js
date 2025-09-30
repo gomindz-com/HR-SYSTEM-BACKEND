@@ -19,11 +19,12 @@ export const checkSubscription = async (req, res, next) => {
     }
 
     const now = new Date();
-    const isActive = subscription.status === "ACTIVE";
-    const isCancelledButValid =
+    const isActiveAndValid =
       subscription.status === "ACTIVE" && subscription.endDate > now;
+    const isCancelledButValid =
+      subscription.status === "CANCELLED" && subscription.endDate > now;
 
-    if (!isActive && !isCancelledButValid) {
+    if (!isActiveAndValid && !isCancelledButValid) {
       return res.status(403).json({
         success: false,
         error:
