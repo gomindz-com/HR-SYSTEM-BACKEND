@@ -25,10 +25,15 @@ import {
   markIndividualPayrollAsPaid,
 } from "../controller/payroll.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { checkSubscription } from "../middleware/subscription.middleware.js";
+import { checkFeatureAccess } from "../middleware/feature.middleware.js";
 
 const router = express.Router();
 
+// Payroll requires: authentication + active subscription + 'payroll' feature
 router.use(verifyToken);
+router.use(checkSubscription);
+router.use(checkFeatureAccess('payroll'));
 
 // Generate payroll for all employees
 router.post("/generate", generateAllEmployeesPayroll);

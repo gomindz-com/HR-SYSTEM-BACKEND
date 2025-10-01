@@ -24,6 +24,7 @@ export const SUBSCRIPTION_PLANS = {
       "payroll",
       "reports",
       "performance",
+      "analytics",
       "api_access",
       "custom_integrations",
     ],
