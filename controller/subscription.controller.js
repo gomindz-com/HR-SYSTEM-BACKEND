@@ -73,10 +73,13 @@ export const createSubscription = async (req, res) => {
 
     console.log(`Subscription created: ${subscription.id}`);
 
-    // Create payment intent
+    // Create payment intent with return URL
+    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/hr-choice`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
-      plan.price
+      plan.price,
+      CURRENCY_CONFIG.code,
+      returnUrl
     );
 
     res.json({
@@ -200,23 +203,27 @@ export const switchPlan = async (req, res) => {
       amountToCharge = Math.round(dailyRate * daysRemaining); // Round to avoid decimals
     }
 
-    // Update subscription plan
-    await prisma.subscription.update({
-      where: { id: currentSubscription.id },
-      data: { planId: planId },
-    });
-
-    // If upgrade, create payment for difference
+    // If upgrade, create payment for difference first (don't change plan yet)
     if (isUpgrade && amountToCharge > 0) {
+      const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?upgrade=success`;
+
+      // Create payment intent with upgrade metadata
       const { paymentLink, intentId } = await createPaymentIntent(
-        currentSubscription.id,
-        amountToCharge
+        currentSubscription.id, // Use current subscription ID
+        amountToCharge,
+        CURRENCY_CONFIG.code,
+        returnUrl,
+        {
+          type: "upgrade",
+          newPlanId: planId,
+          currentPlanId: currentSubscription.planId,
+        }
       );
 
       res.json({
         success: true,
         message:
-          "Plan switched successfully. Please complete payment for the upgrade.",
+          "Please complete payment to upgrade your plan. Your current plan remains active until payment is successful.",
         data: {
           paymentLink,
           intentId,
@@ -227,6 +234,12 @@ export const switchPlan = async (req, res) => {
         },
       });
     } else {
+      // For downgrades or same price, change plan immediately
+      await prisma.subscription.update({
+        where: { id: currentSubscription.id },
+        data: { planId: planId },
+      });
+
       res.json({
         success: true,
         message: "Plan switched successfully",

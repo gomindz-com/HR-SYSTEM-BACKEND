@@ -33,7 +33,7 @@ const router = express.Router();
 // Payroll requires: authentication + active subscription + 'payroll' feature
 router.use(verifyToken);
 router.use(checkSubscription);
-router.use(checkFeatureAccess('payroll'));
+router.use(checkFeatureAccess("payroll"));
 
 // Generate payroll for all employees
 router.post("/generate", generateAllEmployeesPayroll);

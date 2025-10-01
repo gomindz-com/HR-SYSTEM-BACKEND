@@ -5,21 +5,31 @@ import { CURRENCY_CONFIG } from "../config/plans.config.js";
 export const createPaymentIntent = async (
   subscriptionId,
   amount,
-  currency = CURRENCY_CONFIG.code
+  currency = CURRENCY_CONFIG.code,
+  returnUrl = null,
+  additionalMetadata = {}
 ) => {
   try {
     console.log(
       `Creating payment intent for subscription ${subscriptionId}, amount: ${amount} ${currency}`
     );
 
-    const intent = await modempay.paymentIntents.create({
+    const paymentIntentData = {
       amount: Math.round(amount), // GMD is already in base units, no conversion needed
       currency: currency,
       metadata: {
         subscriptionId,
         type: "subscription",
+        ...additionalMetadata, // Merge additional metadata
       },
-    });
+    };
+
+    // Add return_url if provided
+    if (returnUrl) {
+      paymentIntentData.return_url = returnUrl;
+    }
+
+    const intent = await modempay.paymentIntents.create(paymentIntentData);
 
     console.log(
       "Payment intent created successfully:",
@@ -66,30 +76,51 @@ export const handlePaymentWebhook = async (webhookData) => {
         return;
       }
 
-      // Calculate new end date - always add 30 days from payment date
-      const newEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+      // Check if this is an upgrade payment using metadata
+      const isUpgradePayment =
+        metadata.type === "upgrade" && metadata.newPlanId;
 
-      // Update subscription status
-      await prisma.subscription.update({
-        where: { id: subscriptionId },
-        data: {
-          status: "ACTIVE",
-          startDate: subscription.startDate || new Date(), // Keep original start date if exists
-          endDate: newEndDate, // New 30-day period from payment date
-        },
-      });
+      if (isUpgradePayment) {
+        // This is an upgrade payment - update the current subscription with new plan
+        await prisma.subscription.update({
+          where: { id: subscriptionId },
+          data: {
+            planId: metadata.newPlanId, // Switch to new plan
+            endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Extend by 30 days
+          },
+        });
+
+        console.log(
+          `Upgraded subscription for company ${subscription.companyId} to plan ${metadata.newPlanId}`
+        );
+      } else {
+        // Regular subscription payment - extend current subscription
+        const newEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+        await prisma.subscription.update({
+          where: { id: subscriptionId },
+          data: {
+            status: "ACTIVE",
+            startDate: subscription.startDate || new Date(),
+            endDate: newEndDate,
+          },
+        });
+      }
+
+      // For upgrades, use the current subscription ID for payment record
+      const paymentSubscriptionId = subscriptionId;
 
       // Check if payment already exists to prevent duplicates
       const existingPayment = await prisma.payment.findFirst({
         where: {
-          subscriptionId,
+          subscriptionId: paymentSubscriptionId,
           modemPayReference: id,
         },
       });
 
       if (existingPayment) {
         console.log(
-          `⚠️ Payment already processed for subscription ${subscriptionId} - skipping duplicate`
+          `⚠️ Payment already processed for subscription ${paymentSubscriptionId} - skipping duplicate`
         );
         return;
       }
@@ -98,7 +129,7 @@ export const handlePaymentWebhook = async (webhookData) => {
       await prisma.payment.create({
         data: {
           companyId: subscription.companyId,
-          subscriptionId,
+          subscriptionId: paymentSubscriptionId,
           amount: amount, // GMD is already in base units, no conversion needed
           status: "COMPLETED",
           modemPayReference: id,

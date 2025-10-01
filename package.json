@@ -19,7 +19,9 @@
     "db:studio:prod": "set NODE_ENV=production && prisma studio",
     "db:reset": "prisma migrate reset",
     "db:resolve:prod": "set NODE_ENV=production && prisma migrate resolve --applied 20250806104631_init_postgresql",
-    "seed:plans": "node scripts/seed-plans.js"
+    "seed:plans": "node scripts/seed-plans.js",
+    "grant:lifetime": "node scripts/grant-lifetime-access.js grant",
+    "revoke:lifetime": "node scripts/grant-lifetime-access.js revoke"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

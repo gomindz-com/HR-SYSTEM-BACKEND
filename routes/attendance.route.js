@@ -14,10 +14,13 @@ import {
   adminCreateAttendanceRecord,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { checkSubscription } from "../middleware/subscription.middleware.js";
 
 const router = express.Router();
 
+// Attendance requires: authentication + active subscription (all plans have 'attendance' feature)
 router.use(verifyToken);
+router.use(checkSubscription);
 
 router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);

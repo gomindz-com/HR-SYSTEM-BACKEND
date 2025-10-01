@@ -34,9 +34,11 @@ export const SUBSCRIPTION_PLANS = {
 export const FEATURE_DEFINITIONS = {
   attendance: "Attendance Tracking",
   leave: "Leave Management",
+  basic_reports: "Basic Reports",
   payroll: "Payroll Processing",
   reports: "Advanced Reports",
   performance: "Performance Reviews",
+  analytics: "Analytics",
   api_access: "API Access",
   custom_integrations: "Custom Integrations",
 };

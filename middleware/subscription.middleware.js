@@ -4,12 +4,43 @@ export const checkSubscription = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
 
-    const subscription = await prisma.subscription.findUnique({
-      where: {
-        companyId,
+    // Get company with subscription
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        subscription: {
+          include: { plan: true },
+        },
       },
-      include: { plan: true },
     });
+
+    // Check if company has lifetime access (bypass subscription check)
+    if (company.hasLifetimeAccess) {
+      console.log(
+        `Company ${company.companyName} has lifetime access - bypassing subscription check`
+      );
+      req.subscription = {
+        status: "ACTIVE",
+        plan: {
+          name: "Lifetime Access",
+          features: [
+            "attendance",
+            "leave",
+            "basic_reports",
+            "payroll",
+            "reports",
+            "performance",
+            "analytics",
+            "api_access",
+            "custom_integrations",
+          ],
+          maxEmployees: null, // unlimited
+        },
+      };
+      return next();
+    }
+
+    const subscription = company.subscription;
 
     if (!subscription) {
       return res.status(403).json({
