@@ -45,7 +45,24 @@ export const checkSubscription = async (req, res, next) => {
     if (!subscription) {
       return res.status(403).json({
         success: false,
-        error: "No active subscription found. Please subscribe to continue.",
+        error: "No subscription found. Please subscribe to continue.",
+        errorCode: "NO_SUBSCRIPTION",
+      });
+    }
+
+    // Handle PENDING subscription - requires payment completion
+    if (subscription.status === "PENDING") {
+      return res.status(402).json({
+        success: false,
+        error:
+          "Payment required. Please complete your subscription payment to continue.",
+        errorCode: "PAYMENT_REQUIRED",
+        subscription: {
+          id: subscription.id,
+          status: subscription.status,
+          plan: subscription.plan,
+          createdAt: subscription.createdAt,
+        },
       });
     }
 
@@ -60,6 +77,7 @@ export const checkSubscription = async (req, res, next) => {
         success: false,
         error:
           "Subscription expired. Please renew to continue using the service.",
+        errorCode: "SUBSCRIPTION_EXPIRED",
         subscription: {
           status: subscription.status,
           endDate: subscription.endDate,

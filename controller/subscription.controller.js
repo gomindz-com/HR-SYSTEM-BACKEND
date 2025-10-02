@@ -153,11 +153,11 @@ export const switchPlan = async (req, res) => {
       });
     }
 
-    // Get current subscription
+    // Get current subscription (allow switching from cancelled subscriptions too)
     const currentSubscription = await prisma.subscription.findFirst({
       where: {
         companyId,
-        status: "ACTIVE",
+        status: { in: ["ACTIVE", "CANCELLED"] },
       },
       include: { plan: true },
     });
@@ -165,7 +165,7 @@ export const switchPlan = async (req, res) => {
     if (!currentSubscription) {
       return res.status(404).json({
         success: false,
-        error: "No active subscription found",
+        error: "No subscription found. Please create a new subscription first.",
       });
     }
 
@@ -187,6 +187,50 @@ export const switchPlan = async (req, res) => {
         success: false,
         error: "Already subscribed to this plan",
       });
+    }
+
+    // If subscription is cancelled, reactivate it with new plan
+    if (currentSubscription.status === "CANCELLED") {
+      const newEndDate = new Date();
+      newEndDate.setMonth(newEndDate.getMonth() + 1); // 1 month from now
+
+      await prisma.subscription.update({
+        where: { id: currentSubscription.id },
+        data: {
+          planId: planId,
+          status: "PENDING", // Will be activated after payment
+          startDate: new Date(),
+          endDate: newEndDate,
+        },
+      });
+
+      // Create payment intent for the new plan
+      const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?reactivate=success`;
+      const { paymentLink, intentId } = await createPaymentIntent(
+        currentSubscription.id,
+        newPlan.price,
+        CURRENCY_CONFIG.code,
+        returnUrl,
+        {
+          type: "reactivate",
+          newPlanId: planId,
+        }
+      );
+
+      res.json({
+        success: true,
+        message:
+          "Subscription reactivated with new plan. Please complete payment to activate.",
+        data: {
+          paymentLink,
+          intentId,
+          amount: newPlan.price,
+          currency: CURRENCY_CONFIG,
+          newPlan: newPlan,
+          isReactivation: true,
+        },
+      });
+      return;
     }
 
     // Calculate prorated amount if upgrading
@@ -360,6 +404,65 @@ export const cancelSubscription = async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to cancel subscription",
+    });
+  }
+};
+
+export const regeneratePaymentLink = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+
+    console.log(`Regenerating payment link for company ${companyId}`);
+
+    // Get current subscription
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        companyId,
+        status: "PENDING",
+      },
+      include: { plan: true },
+    });
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        error: "No pending subscription found",
+      });
+    }
+
+    // Create fresh payment intent
+    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?payment=success`;
+    const { paymentLink, intentId } = await createPaymentIntent(
+      subscription.id,
+      subscription.plan.price,
+      CURRENCY_CONFIG.code,
+      returnUrl,
+      {
+        type: "subscription",
+        planId: subscription.planId,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Payment link regenerated successfully",
+      data: {
+        paymentLink,
+        intentId,
+        amount: subscription.plan.price,
+        currency: CURRENCY_CONFIG,
+        plan: subscription.plan,
+        subscription: {
+          id: subscription.id,
+          createdAt: subscription.createdAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Regenerate payment link failed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to regenerate payment link",
     });
   }
 };
