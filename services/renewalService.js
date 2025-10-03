@@ -1,4 +1,8 @@
 import prisma from "../config/prisma.config.js";
+import {
+  sendRenewalReminderEmail,
+  sendSubscriptionExpiredEmail,
+} from "../emails/subscriptionEmails.js";
 
 export const checkExpiringSubscriptions = async () => {
   try {
@@ -50,22 +54,30 @@ export const checkExpiringSubscriptions = async () => {
           continue;
         }
 
-        // Send reminder email (no payment intent creation)
+        // Send renewal reminder email
         console.log(
           `📧 Sending renewal reminder to ${subscription.company.companyName} (${subscription.plan.name})`
         );
 
-        results.push({
-          subscriptionId: subscription.id,
-          companyName: subscription.company.companyName,
-          planName: subscription.plan.name,
-          amount: subscription.plan.price,
-          status: "reminder_sent",
-          message: "Renewal reminder sent - user can create payment when ready",
-        });
-
-        // TODO: Send renewal email notification
-        // await sendRenewalEmail(subscription.company, subscription.plan);
+        try {
+          await sendRenewalReminderEmail(subscription.company, subscription);
+          results.push({
+            subscriptionId: subscription.id,
+            companyName: subscription.company.companyName,
+            planName: subscription.plan.name,
+            amount: subscription.plan.price,
+            status: "reminder_sent",
+            message: "Renewal reminder email sent successfully",
+          });
+        } catch (emailError) {
+          console.error(`Failed to send renewal reminder email:`, emailError);
+          results.push({
+            subscriptionId: subscription.id,
+            companyName: subscription.company.companyName,
+            status: "failed",
+            error: `Email failed: ${emailError.message}`,
+          });
+        }
       } catch (error) {
         console.error(
           `❌ Failed to create renewal for subscription ${subscription.id}:`,
@@ -130,10 +142,21 @@ export const expireSubscriptions = async () => {
       `✅ Marked ${expiredSubscriptions.length} subscriptions as expired (immediate deactivation)`
     );
 
-    // TODO: Send expiration notifications
-    // for (const subscription of expiredSubscriptions) {
-    //   await sendExpirationEmail(subscription.company);
-    // }
+    // Send expiration notifications
+    for (const subscription of expiredSubscriptions) {
+      try {
+        await sendSubscriptionExpiredEmail(subscription.company, subscription);
+        console.log(
+          `✅ Expiration email sent to ${subscription.company.companyName}`
+        );
+      } catch (emailError) {
+        console.error(
+          `❌ Failed to send expiration email to ${subscription.company.companyName}:`,
+          emailError
+        );
+        // Continue with other emails even if one fails
+      }
+    }
 
     return {
       success: true,
@@ -197,18 +220,29 @@ export const sendReminderEmails = async () => {
           continue;
         }
 
-        // TODO: Send actual reminder email
+        // Send actual reminder email
         console.log(
           `📧 Sending reminder to ${subscription.company.companyName} for ${subscription.plan.name} plan`
         );
 
-        results.push({
-          subscriptionId: subscription.id,
-          companyName: subscription.company.companyName,
-          planName: subscription.plan.name,
-          endDate: subscription.endDate,
-          status: "reminder_sent",
-        });
+        try {
+          await sendRenewalReminderEmail(subscription.company, subscription);
+          results.push({
+            subscriptionId: subscription.id,
+            companyName: subscription.company.companyName,
+            planName: subscription.plan.name,
+            endDate: subscription.endDate,
+            status: "reminder_sent",
+          });
+        } catch (emailError) {
+          console.error(`Failed to send reminder email:`, emailError);
+          results.push({
+            subscriptionId: subscription.id,
+            companyName: subscription.company.companyName,
+            status: "failed",
+            error: `Email failed: ${emailError.message}`,
+          });
+        }
       } catch (error) {
         console.error(
           `❌ Failed to send reminder for subscription ${subscription.id}:`,

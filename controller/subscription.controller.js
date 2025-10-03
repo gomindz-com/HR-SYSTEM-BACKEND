@@ -333,26 +333,40 @@ export const createRenewalPayment = async (req, res) => {
     }
 
     // Create fresh payment intent for renewal
+    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?renewal=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
-      subscription.plan.price
+      subscription.plan.price,
+      CURRENCY_CONFIG.code,
+      returnUrl
     );
 
-    res.json({
-      success: true,
-      message: "Renewal payment intent created successfully",
-      data: {
-        paymentLink,
-        intentId,
-        amount: subscription.plan.price,
-        currency: CURRENCY_CONFIG,
-        plan: subscription.plan,
-        subscription: {
-          id: subscription.id,
-          endDate: subscription.endDate,
+    // Check if this is a direct link request (from email)
+    const userAgent = req.get("User-Agent") || "";
+    const isDirectLink =
+      req.query.direct === "true" || userAgent.includes("Mozilla");
+
+    if (isDirectLink) {
+      // Redirect directly to payment link for email clicks
+      res.redirect(paymentLink);
+    } else {
+      // Return JSON for API calls
+      res.json({
+        success: true,
+        message: "Renewal payment intent created successfully",
+        data: {
+          paymentLink,
+          intentId,
+          amount: subscription.plan.price,
+          currency: CURRENCY_CONFIG,
+          plan: subscription.plan,
+          subscription: {
+            id: subscription.id,
+            endDate: subscription.endDate,
+          },
         },
-      },
-    });
+      });
+    }
   } catch (error) {
     console.error("Create renewal payment failed:", error);
     res.status(500).json({

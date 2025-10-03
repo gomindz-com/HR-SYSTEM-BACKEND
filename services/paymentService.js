@@ -1,6 +1,10 @@
 import modempay from "../config/modem.config.js";
 import prisma from "../config/prisma.config.js";
 import { CURRENCY_CONFIG } from "../config/plans.config.js";
+import {
+  sendPaymentSuccessEmail,
+  sendPaymentFailureEmail,
+} from "../emails/subscriptionEmails.js";
 
 export const createPaymentIntent = async (
   subscriptionId,
@@ -141,13 +145,27 @@ export const handlePaymentWebhook = async (webhookData) => {
         `✅ Payment completed and subscription activated for company ${subscription.company.companyName}`
       );
 
-      // TODO: Send confirmation email to company
-      // await sendSubscriptionConfirmationEmail(subscription.company, subscription.plan);
+      // Send payment success email
+      try {
+        await sendPaymentSuccessEmail(subscription.company, subscription, {
+          amount: amount,
+          paidAt: new Date(),
+        });
+      } catch (emailError) {
+        console.error("Failed to send payment success email:", emailError);
+        // Don't fail the webhook if email fails
+      }
     } else if (event === "charge.failed") {
       const { metadata, id } = payload || data;
       const subscriptionId = metadata.subscriptionId;
 
       console.log(`Payment failed for subscription ${subscriptionId}`);
+
+      // Get subscription details for email
+      const subscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId },
+        include: { company: true, plan: true },
+      });
 
       // Update payment status to failed
       await prisma.payment.updateMany({
@@ -160,8 +178,19 @@ export const handlePaymentWebhook = async (webhookData) => {
         },
       });
 
-      // TODO: Send payment failure notification
-      // await sendPaymentFailureEmail(subscription.company);
+      // Send payment failure email
+      if (subscription) {
+        try {
+          await sendPaymentFailureEmail(
+            subscription.company,
+            subscription,
+            "Payment processing failed"
+          );
+        } catch (emailError) {
+          console.error("Failed to send payment failure email:", emailError);
+          // Don't fail the webhook if email fails
+        }
+      }
     } else if (event === "payment_intent.created") {
       console.log("Payment intent created - no action needed");
     } else {
