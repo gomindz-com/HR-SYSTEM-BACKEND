@@ -22,7 +22,16 @@ export const checkExpiringSubscriptions = async () => {
       },
       include: {
         plan: true,
-        company: true,
+        company: {
+          include: {
+            hr: {
+              select: {
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
         payments: {
           where: {
             status: "COMPLETED",
@@ -122,7 +131,19 @@ export const expireSubscriptions = async () => {
           lt: now,
         },
       },
-      include: { company: true },
+      include: {
+        company: {
+          include: {
+            hr: {
+              select: {
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
+        plan: true,
+      },
     });
 
     if (expiredSubscriptions.length === 0) {
@@ -190,7 +211,16 @@ export const sendReminderEmails = async () => {
       },
       include: {
         plan: true,
-        company: true,
+        company: {
+          include: {
+            hr: {
+              select: {
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
         payments: {
           where: {
             status: "COMPLETED",

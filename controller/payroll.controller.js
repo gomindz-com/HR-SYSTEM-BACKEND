@@ -90,11 +90,13 @@ export const addEmployeeBenefit = async (req, res) => {
     // Create benefit
     const benefit = await prisma.employeeBenefit.create({
       data: {
+        id: `benefit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         employeeId: parseInt(employeeId),
         companyId,
         benefitType,
         amount: parseFloat(amount),
         isActive: true,
+        updatedAt: new Date(),
       },
     });
 
@@ -357,10 +359,12 @@ export const updatePayrollSetting = async (req, res) => {
       },
 
       create: {
+        id: `payroll_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         employeeId: parseInt(employeeId),
         taxBracket: taxBracket || null,
         socialSecurityRate: socialSecurityRate || 0,
         customTaxRate: customTaxRate || null,
+        updatedAt: new Date(),
       },
     });
 
@@ -448,11 +452,13 @@ export const bulkAssignBenefits = async (req, res) => {
         // Create benefit
         const benefit = await prisma.employeeBenefit.create({
           data: {
+            id: `benefit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             employeeId: parseInt(employeeId),
             companyId,
             benefitType,
             amount: parseFloat(amount),
             isActive: true,
+            updatedAt: new Date(),
           },
         });
 
@@ -815,11 +821,13 @@ export const bulkUpdateTaxSettings = async (req, res) => {
           where: { employeeId: parseInt(employeeId) },
           update: updateData,
           create: {
+            id: `payroll_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             employeeId: parseInt(employeeId),
             socialSecurityRate: socialSecurityRate
               ? parseFloat(socialSecurityRate)
               : 0,
             customTaxRate: customTaxRate ? parseFloat(customTaxRate) : 0,
+            updatedAt: new Date(),
           },
         });
 
@@ -907,9 +915,11 @@ export const bulkInitializePayrollProfiles = async (req, res) => {
         // Create default payroll profile
         const payrollProfile = await prisma.employeePayrollProfile.create({
           data: {
+            id: `payroll_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             employeeId: parseInt(employeeId),
             socialSecurityRate: 0, // Default values
             customTaxRate: 0,
+            updatedAt: new Date(),
           },
         });
 

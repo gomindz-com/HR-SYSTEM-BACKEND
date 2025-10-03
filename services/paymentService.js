@@ -72,7 +72,19 @@ export const handlePaymentWebhook = async (webhookData) => {
       // Get subscription details
       const subscription = await prisma.subscription.findUnique({
         where: { id: subscriptionId },
-        include: { company: true, plan: true },
+        include: {
+          company: {
+            include: {
+              hr: {
+                select: {
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          plan: true,
+        },
       });
 
       if (!subscription) {
@@ -164,7 +176,19 @@ export const handlePaymentWebhook = async (webhookData) => {
       // Get subscription details for email
       const subscription = await prisma.subscription.findUnique({
         where: { id: subscriptionId },
-        include: { company: true, plan: true },
+        include: {
+          company: {
+            include: {
+              hr: {
+                select: {
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          plan: true,
+        },
       });
 
       // Update payment status to failed

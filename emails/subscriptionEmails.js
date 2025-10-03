@@ -79,9 +79,19 @@ export const sendPaymentSuccessEmail = async (
     </div>
   `;
 
+    // Determine recipient email with fallback
+    const recipientEmail = company.companyEmail || company.hr?.email;
+
+    if (!recipientEmail) {
+      console.error(
+        `No email address found for company ${company.companyName} (ID: ${company.id})`
+      );
+      return { success: false, error: "No email address found for company" };
+    }
+
     const mailOptions = {
       from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: company.companyEmail || company.hr?.email,
+      to: recipientEmail,
       subject: `Payment Confirmed - ${subscription.plan.name} Plan Activated`,
       html: htmlContent,
     };
@@ -182,9 +192,19 @@ export const sendRenewalReminderEmail = async (company, subscription) => {
     </div>
   `;
 
+    // Determine recipient email with fallback
+    const recipientEmail = company.companyEmail || company.hr?.email;
+
+    if (!recipientEmail) {
+      console.error(
+        `No email address found for company ${company.companyName} (ID: ${company.id})`
+      );
+      return { success: false, error: "No email address found for company" };
+    }
+
     const mailOptions = {
       from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: company.companyEmail || company.hr?.email,
+      to: recipientEmail,
       subject: `Urgent: Subscription Expires in ${daysUntilExpiry} Day${daysUntilExpiry > 1 ? "s" : ""} - Action Required`,
       html: htmlContent,
     };
@@ -284,9 +304,19 @@ export const sendSubscriptionExpiredEmail = async (company, subscription) => {
     </div>
   `;
 
+    // Determine recipient email with fallback
+    const recipientEmail = company.companyEmail || company.hr?.email;
+
+    if (!recipientEmail) {
+      console.error(
+        `No email address found for company ${company.companyName} (ID: ${company.id})`
+      );
+      return { success: false, error: "No email address found for company" };
+    }
+
     const mailOptions = {
       from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: company.companyEmail || company.hr?.email,
+      to: recipientEmail,
       subject: `URGENT: Subscription Expired - Access Suspended`,
       html: htmlContent,
     };
@@ -383,9 +413,19 @@ export const sendPaymentFailureEmail = async (
     </div>
   `;
 
+    // Determine recipient email with fallback
+    const recipientEmail = company.companyEmail || company.hr?.email;
+
+    if (!recipientEmail) {
+      console.error(
+        `No email address found for company ${company.companyName} (ID: ${company.id})`
+      );
+      return { success: false, error: "No email address found for company" };
+    }
+
     const mailOptions = {
       from: `"HR System" <${process.env.GMAIL_USER}>`,
-      to: company.companyEmail || company.hr?.email,
+      to: recipientEmail,
       subject: `Payment Failed - Action Required for ${subscription.plan.name} Plan`,
       html: htmlContent,
     };
