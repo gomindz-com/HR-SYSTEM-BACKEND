@@ -431,7 +431,7 @@ export const regeneratePaymentLink = async (req, res) => {
     }
 
     // Create fresh payment intent
-    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?payment=success`;
+    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/hr-choice?payment=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       subscription.plan.price,

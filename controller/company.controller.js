@@ -78,11 +78,14 @@ export const signUpCompany = async (req, res) => {
       },
     });
 
-    generateToken(newHR.id, res);
+    const token = generateToken(newHR.id, res);
     res.status(201).json({
       success: true,
       message: "Company created and HR registered successfully",
-      data: { newHR },
+      data: {
+        newHR,
+        token: token, // Return token in response body (same as login)
+      },
     });
   } catch (error) {
     console.log("Error in signUpCompany", error);
