@@ -34,7 +34,7 @@ export const sendPaymentSuccessEmail = async (
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Amount</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">GMD ${payment.amount.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${payment.amount.toLocaleString()}</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Date</p>
@@ -140,7 +140,7 @@ export const sendRenewalReminderEmail = async (company, subscription) => {
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Monthly Cost</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">GMD ${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Expires</p>
@@ -262,7 +262,7 @@ export const sendSubscriptionExpiredEmail = async (company, subscription) => {
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Monthly Cost</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">GMD ${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Expired On</p>
@@ -378,7 +378,7 @@ export const sendPaymentFailureEmail = async (
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Amount</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">GMD ${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Status</p>

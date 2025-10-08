@@ -80,6 +80,29 @@ try {
   console.error("❌ Failed to initialize subscription renewal cron:", error);
 }
 
+// Initialize trial expiration cron job
+let trialExpirationCron = null;
+try {
+  const startTrialExpirationCron = await import(
+    "./automations/trialExpiration.js"
+  );
+  const result = startTrialExpirationCron.default();
+  trialExpirationCron = startTrialExpirationCron;
+
+  if (result.success) {
+    console.log(
+      "⏰ Trial expiration cron job initialized - will run daily at midnight (Gambia time)"
+    );
+  } else {
+    console.error(
+      "❌ Failed to initialize trial expiration cron:",
+      result.error
+    );
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize trial expiration cron:", error);
+}
+
 const app = express();
 
 // middleware

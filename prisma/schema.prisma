@@ -392,7 +392,8 @@ model Subscription {
   id            String             @id @default(cuid())
   companyId     Int                @unique
   planId        String
-  status        SubscriptionStatus @default(PENDING)
+  status        SubscriptionStatus @default(TRIAL)
+  trialEndDate  DateTime?          // When free trial expires (14 days from signup)
   startDate     DateTime?
   endDate       DateTime?
   createdAt     DateTime           @default(now())
@@ -417,10 +418,11 @@ model Payment {
 }
 
 enum SubscriptionStatus {
-  PENDING
-  ACTIVE
-  EXPIRED
-  CANCELLED
+  TRIAL      // Free trial period (14 days)
+  PENDING    // Waiting for payment
+  ACTIVE     // Paid and active
+  EXPIRED    // Subscription expired
+  CANCELLED  // User cancelled subscription
 }
 
 enum PaymentStatus {

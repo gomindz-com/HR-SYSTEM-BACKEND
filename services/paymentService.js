@@ -1,6 +1,10 @@
 import modempay from "../config/modem.config.js";
 import prisma from "../config/prisma.config.js";
-import { CURRENCY_CONFIG } from "../config/plans.config.js";
+import {
+  DISPLAY_CURRENCY,
+  PAYMENT_CURRENCY,
+  USD_TO_GMD_RATE,
+} from "../config/plans.config.js";
 import {
   sendPaymentSuccessEmail,
   sendPaymentFailureEmail,
@@ -9,22 +13,27 @@ import {
 export const createPaymentIntent = async (
   subscriptionId,
   amount,
-  currency = CURRENCY_CONFIG.code,
+  currency = DISPLAY_CURRENCY.code,
   returnUrl = null,
   additionalMetadata = {}
 ) => {
   try {
+    // Amount comes in as USD, convert to GMD for Modem Pay
+    const amountInGMD = Math.round(amount * USD_TO_GMD_RATE);
+
     console.log(
-      `Creating payment intent for subscription ${subscriptionId}, amount: ${amount} ${currency}`
+      `Creating payment intent for subscription ${subscriptionId}, amount: $${amount} USD (GMD ${amountInGMD})`
     );
 
     const paymentIntentData = {
-      amount: Math.round(amount), // GMD is already in base units, no conversion needed
-      currency: currency,
+      amount: amountInGMD, // Modem Pay only accepts GMD
+      currency: PAYMENT_CURRENCY.code, // Always GMD for Modem Pay
       metadata: {
         subscriptionId,
         type: "subscription",
-        ...additionalMetadata, // Merge additional metadata
+        usdAmount: amount, // Store original USD amount for reference
+        conversionRate: USD_TO_GMD_RATE,
+        ...additionalMetadata,
       },
     };
 
@@ -142,11 +151,15 @@ export const handlePaymentWebhook = async (webhookData) => {
       }
 
       // Create payment record
+      // Amount from Modem Pay is in GMD, but we store in USD
+      // Use the USD amount from metadata if available, otherwise convert from GMD
+      const amountInUSD = metadata.usdAmount || amount / USD_TO_GMD_RATE;
+
       await prisma.payment.create({
         data: {
           companyId: subscription.companyId,
           subscriptionId: paymentSubscriptionId,
-          amount: amount, // GMD is already in base units, no conversion needed
+          amount: amountInUSD, // Store in USD for consistency
           status: "COMPLETED",
           modemPayReference: id,
           paidAt: new Date(),
@@ -160,7 +173,7 @@ export const handlePaymentWebhook = async (webhookData) => {
       // Send payment success email
       try {
         await sendPaymentSuccessEmail(subscription.company, subscription, {
-          amount: amount,
+          amount: amountInUSD, // Send USD amount for email display
           paidAt: new Date(),
         });
       } catch (emailError) {

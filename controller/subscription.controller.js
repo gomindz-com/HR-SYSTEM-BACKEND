@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.config.js";
 import { createPaymentIntent } from "../services/paymentService.js";
-import { CURRENCY_CONFIG } from "../config/plans.config.js";
+import { DISPLAY_CURRENCY } from "../config/plans.config.js";
 
 export const getPlans = async (req, res) => {
   try {
@@ -15,7 +15,7 @@ export const getPlans = async (req, res) => {
     res.json({
       success: true,
       plans,
-      currency: CURRENCY_CONFIG,
+      currency: DISPLAY_CURRENCY,
     });
   } catch (error) {
     console.error("Get plans failed:", error);
@@ -28,12 +28,9 @@ export const getPlans = async (req, res) => {
 
 export const createSubscription = async (req, res) => {
   try {
-    const { planId } = req.body;
     const companyId = req.user.companyId;
 
-    console.log(
-      `Creating subscription for company ${companyId}, plan: ${planId}`
-    );
+    console.log(`Creating trial subscription for company ${companyId}`);
 
     // Check if company already has subscription
     const existingSubscription = await prisma.subscription.findUnique({
@@ -47,49 +44,47 @@ export const createSubscription = async (req, res) => {
       });
     }
 
-    // Get plan details
-    const plan = await prisma.subscriptionPlan.findUnique({
-      where: { id: planId },
+    // Get Enterprise plan (everyone gets full access during trial)
+    const enterprisePlan = await prisma.subscriptionPlan.findFirst({
+      where: { name: "Enterprise" },
     });
 
-    if (!plan) {
+    if (!enterprisePlan) {
       return res.status(404).json({
         success: false,
-        error: "Subscription plan not found",
+        error: "Enterprise plan not found. Please contact support.",
       });
     }
 
-    // Create subscription
+    // Create subscription with 14-day free trial (Enterprise features)
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 14); // 14 days from now
+
     const subscription = await prisma.subscription.create({
       data: {
         companyId,
-        planId,
-        status: "PENDING",
+        planId: enterprisePlan.id,
+        status: "TRIAL",
+        startDate: new Date(),
+        trialEndDate: trialEndDate,
       },
       include: {
         plan: true,
       },
     });
 
-    console.log(`Subscription created: ${subscription.id}`);
-
-    // Create payment intent with return URL
-    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/hr-choice`;
-    const { paymentLink, intentId } = await createPaymentIntent(
-      subscription.id,
-      plan.price,
-      CURRENCY_CONFIG.code,
-      returnUrl
+    console.log(
+      `Trial subscription created: ${subscription.id}, expires: ${trialEndDate}`
     );
 
     res.json({
       success: true,
       message:
-        "Subscription created successfully. Please complete payment to activate.",
+        "🎉 Welcome! You have 14 days of full access to all Enterprise features.",
       data: {
         subscription,
-        paymentLink,
-        intentId,
+        trialDays: 14,
+        trialEndDate: trialEndDate,
       },
     });
   } catch (error) {
@@ -153,11 +148,11 @@ export const switchPlan = async (req, res) => {
       });
     }
 
-    // Get current subscription (allow switching from cancelled subscriptions too)
+    // Get current subscription (allow switching from any status)
     const currentSubscription = await prisma.subscription.findFirst({
       where: {
         companyId,
-        status: { in: ["ACTIVE", "CANCELLED"] },
+        status: { in: ["TRIAL", "PENDING", "ACTIVE", "CANCELLED"] },
       },
       include: { plan: true },
     });
@@ -189,6 +184,32 @@ export const switchPlan = async (req, res) => {
       });
     }
 
+    // For TRIAL or PENDING status, just update the plan (no payment yet)
+    if (
+      currentSubscription.status === "TRIAL" ||
+      currentSubscription.status === "PENDING"
+    ) {
+      await prisma.subscription.update({
+        where: { id: currentSubscription.id },
+        data: { planId: planId },
+      });
+
+      const updatedSubscription = await prisma.subscription.findUnique({
+        where: { id: currentSubscription.id },
+        include: { plan: true, company: true },
+      });
+
+      res.json({
+        success: true,
+        message: "Plan updated successfully. Complete payment when ready.",
+        data: {
+          subscription: updatedSubscription,
+          newPlan: newPlan,
+        },
+      });
+      return;
+    }
+
     // If subscription is cancelled, reactivate it with new plan
     if (currentSubscription.status === "CANCELLED") {
       const newEndDate = new Date();
@@ -209,7 +230,7 @@ export const switchPlan = async (req, res) => {
       const { paymentLink, intentId } = await createPaymentIntent(
         currentSubscription.id,
         newPlan.price,
-        CURRENCY_CONFIG.code,
+        DISPLAY_CURRENCY.code,
         returnUrl,
         {
           type: "reactivate",
@@ -225,7 +246,7 @@ export const switchPlan = async (req, res) => {
           paymentLink,
           intentId,
           amount: newPlan.price,
-          currency: CURRENCY_CONFIG,
+          currency: DISPLAY_CURRENCY,
           newPlan: newPlan,
           isReactivation: true,
         },
@@ -233,7 +254,7 @@ export const switchPlan = async (req, res) => {
       return;
     }
 
-    // Calculate prorated amount if upgrading
+    // Calculate prorated amount if upgrading (for ACTIVE subscriptions)
     const isUpgrade = newPlan.price > currentSubscription.plan.price;
     const daysRemaining = Math.ceil(
       (currentSubscription.endDate - new Date()) / (1000 * 60 * 60 * 24)
@@ -255,7 +276,7 @@ export const switchPlan = async (req, res) => {
       const { paymentLink, intentId } = await createPaymentIntent(
         currentSubscription.id, // Use current subscription ID
         amountToCharge,
-        CURRENCY_CONFIG.code,
+        DISPLAY_CURRENCY.code,
         returnUrl,
         {
           type: "upgrade",
@@ -272,7 +293,7 @@ export const switchPlan = async (req, res) => {
           paymentLink,
           intentId,
           amount: amountToCharge,
-          currency: CURRENCY_CONFIG,
+          currency: DISPLAY_CURRENCY,
           newPlan: newPlan,
           isUpgrade: true,
         },
@@ -337,7 +358,7 @@ export const createRenewalPayment = async (req, res) => {
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       subscription.plan.price,
-      CURRENCY_CONFIG.code,
+      DISPLAY_CURRENCY.code,
       returnUrl
     );
 
@@ -358,7 +379,7 @@ export const createRenewalPayment = async (req, res) => {
           paymentLink,
           intentId,
           amount: subscription.plan.price,
-          currency: CURRENCY_CONFIG,
+          currency: DISPLAY_CURRENCY,
           plan: subscription.plan,
           subscription: {
             id: subscription.id,
@@ -449,7 +470,7 @@ export const regeneratePaymentLink = async (req, res) => {
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       subscription.plan.price,
-      CURRENCY_CONFIG.code,
+      DISPLAY_CURRENCY.code,
       returnUrl,
       {
         type: "subscription",
@@ -464,7 +485,7 @@ export const regeneratePaymentLink = async (req, res) => {
         paymentLink,
         intentId,
         amount: subscription.plan.price,
-        currency: CURRENCY_CONFIG,
+        currency: DISPLAY_CURRENCY,
         plan: subscription.plan,
         subscription: {
           id: subscription.id,

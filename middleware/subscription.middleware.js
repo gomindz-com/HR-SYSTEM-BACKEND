@@ -50,6 +50,36 @@ export const checkSubscription = async (req, res, next) => {
       });
     }
 
+    const now = new Date();
+
+    // Handle TRIAL subscription - allow access if trial hasn't expired
+    if (subscription.status === "TRIAL") {
+      if (subscription.trialEndDate && subscription.trialEndDate > now) {
+        console.log(
+          `Company ${company.companyName} is in trial period, expires: ${subscription.trialEndDate}`
+        );
+        req.subscription = subscription;
+        return next();
+      } else {
+        // Trial expired, convert to PENDING
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: "PENDING" },
+        });
+
+        return res.status(402).json({
+          success: false,
+          error: "Free trial expired. Please subscribe to continue.",
+          errorCode: "TRIAL_EXPIRED",
+          subscription: {
+            id: subscription.id,
+            status: "PENDING",
+            plan: subscription.plan,
+          },
+        });
+      }
+    }
+
     // Handle PENDING subscription - requires payment completion
     if (subscription.status === "PENDING") {
       return res.status(402).json({
@@ -66,7 +96,6 @@ export const checkSubscription = async (req, res, next) => {
       });
     }
 
-    const now = new Date();
     const isActiveAndValid =
       subscription.status === "ACTIVE" && subscription.endDate > now;
     const isCancelledButValid =
