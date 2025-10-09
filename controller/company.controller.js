@@ -2,6 +2,8 @@ import prisma from "../config/prisma.config.js";
 import { generateToken } from "../emails/utils.js";
 import bcrypt from "bcryptjs";
 import moment from "moment-timezone";
+import crypto from "crypto";
+import { sendVerificationEmail } from "../emails/verificationEmail.js";
 
 export const signUpCompany = async (req, res) => {
   const { companyName, HRName, HREmail, HRPassword, confirmHRPassword } =
@@ -78,14 +80,24 @@ export const signUpCompany = async (req, res) => {
       },
     });
 
-    const token = generateToken(newHR.id, res);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await prisma.employee.update({
+      where: { id: newHR.id },
+      data: {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpires: expiresAt,
+      },
+    });
+
+    // Send verification email
+    await sendVerificationEmail(HREmail, verificationToken, HRName);
+
     res.status(201).json({
       success: true,
-      message: "Company created and HR registered successfully",
-      data: {
-        newHR,
-        token: token, // Return token in response body (same as login)
-      },
+      message:
+        "Signup successful! Please check your email to verify your account.",
     });
   } catch (error) {
     console.log("Error in signUpCompany", error);

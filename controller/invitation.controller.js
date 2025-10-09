@@ -425,6 +425,7 @@ export const acceptInvitation = async (req, res) => {
         position: invitation.position,
         createdAt: new Date(),
         departmentId: invitation.departmentId,
+        emailVerified: true, // Invited users are pre-verified via invitation email
       },
     });
 

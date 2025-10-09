@@ -54,49 +54,53 @@ model CompanyLocation {
 }
 
 model Employee {
-  id                                    Int                     @id @default(autoincrement())
-  employeeId                            String?                 @unique
-  name                                  String
-  email                                 String                  @unique
-  phone                                 String?
-  profilePic                            String?
-  password                              String
-  position                              String?
-  departmentId                          Int?
-  companyId                             Int
-  location                              String?
-  status                                EmployeeStatus          @default(ACTIVE)
-  avatar                                String?
-  role                                  Role
-  shiftType                             Shift?                  @default(MORNING_SHIFT)
-  dateOfBirth                           DateTime?
-  deleted                               Boolean                 @default(false)
-  address                               String?
-  emergencyContact                      String?
-  employmentType                        EmploymentType          @default(FULL_TIME)
-  salary                                Float?
-  lastLogin                             DateTime?
-  resetPasswordToken                    String?
-  resetPasswordExpires                  DateTime?
-  sumBonuses                            Float?                  @default(0)
-  createdAt                             DateTime                @default(now())
-  attendances                           Attendance[]            @relation("EmployeeAttendance")
-  hrForCompanies                        Company[]               @relation("Company_hr")
-  managedDepartments                    Department[]            @relation("DepartmentManager")
-  company                               Company                 @relation(fields: [companyId], references: [id])
-  department                            Department?             @relation(fields: [departmentId], references: [id])
-  EmployeeBenefit                       EmployeeBenefit[]
-  EmployeePayrollProfile                EmployeePayrollProfile?
-  sentInvitations                       Invitation[]
-  approvedLeaveRequests                 LeaveRequest[]          @relation("LeaveApprover")
-  leaveRequests                         LeaveRequest[]
-  notifications                         Notification[]
-  payrolls                              Payroll[]
-  finalizedPayrolls Payroll[]               @relation("Payroll_finalizedByToEmployee")
-  performanceReviews                    PerformanceReview[]
-  reviewsGiven                          PerformanceReview[]     @relation("Reviewer")
-  documents                             Document[]
-  uploadedDocuments                     Document[]              @relation("DocumentUploader")
+  id                   Int            @id @default(autoincrement())
+  employeeId           String?        @unique
+  name                 String
+  email                String         @unique
+  phone                String?
+  profilePic           String?
+  password             String
+  position             String?
+  departmentId         Int?
+  companyId            Int
+  location             String?
+  status               EmployeeStatus @default(ACTIVE)
+  avatar               String?
+  role                 Role
+  shiftType            Shift?         @default(MORNING_SHIFT)
+  dateOfBirth          DateTime?
+  deleted              Boolean        @default(false)
+  address              String?
+  emergencyContact     String?
+  employmentType       EmploymentType @default(FULL_TIME)
+  salary               Float?
+  lastLogin            DateTime?
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+
+  emailVerified            Boolean                 @default(false)
+  emailVerificationToken   String?                 @unique
+  emailVerificationExpires DateTime?
+  sumBonuses               Float?                  @default(0)
+  createdAt                DateTime                @default(now())
+  attendances              Attendance[]            @relation("EmployeeAttendance")
+  hrForCompanies           Company[]               @relation("Company_hr")
+  managedDepartments       Department[]            @relation("DepartmentManager")
+  company                  Company                 @relation(fields: [companyId], references: [id])
+  department               Department?             @relation(fields: [departmentId], references: [id])
+  EmployeeBenefit          EmployeeBenefit[]
+  EmployeePayrollProfile   EmployeePayrollProfile?
+  sentInvitations          Invitation[]
+  approvedLeaveRequests    LeaveRequest[]          @relation("LeaveApprover")
+  leaveRequests            LeaveRequest[]
+  notifications            Notification[]
+  payrolls                 Payroll[]
+  finalizedPayrolls        Payroll[]               @relation("Payroll_finalizedByToEmployee")
+  performanceReviews       PerformanceReview[]
+  reviewsGiven             PerformanceReview[]     @relation("Reviewer")
+  documents                Document[]
+  uploadedDocuments        Document[]              @relation("DocumentUploader")
 }
 
 model Department {
@@ -152,31 +156,31 @@ model LeaveRequest {
 }
 
 model Payroll {
-  id                                     Int           @id @default(autoincrement())
-  employeeId                             Int
-  companyId                              Int
-  periodStart                            DateTime
-  periodEnd                              DateTime
-  baseSalary                             Float
-  bonuses                                Float?        @default(0)
-  benefitsCost                           Float?        @default(0)
-  grossPay                               Float?
-  incomeTax                              Float?        @default(0)
-  socialSecurity                         Float?        @default(0)
-  attendancePenalties                    Float?        @default(0)
-  totalDeductions                        Float?        @default(0)
-  netPay                                 Float
-  status                                 PayrollStatus @default(DRAFT)
-  finalizedAt                            DateTime?
-  finalizedBy                            Int?
-  processedDate                          DateTime?
-  paymentMethod                          String?
-  notes                                  String?
-  hoursWorked                            Float?        @default(0)
-  createdAt                              DateTime      @default(now())
-  company                                Company       @relation(fields: [companyId], references: [id])
-  employee                               Employee      @relation(fields: [employeeId], references: [id])
-  finalizedByUser Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
+  id                  Int           @id @default(autoincrement())
+  employeeId          Int
+  companyId           Int
+  periodStart         DateTime
+  periodEnd           DateTime
+  baseSalary          Float
+  bonuses             Float?        @default(0)
+  benefitsCost        Float?        @default(0)
+  grossPay            Float?
+  incomeTax           Float?        @default(0)
+  socialSecurity      Float?        @default(0)
+  attendancePenalties Float?        @default(0)
+  totalDeductions     Float?        @default(0)
+  netPay              Float
+  status              PayrollStatus @default(DRAFT)
+  finalizedAt         DateTime?
+  finalizedBy         Int?
+  processedDate       DateTime?
+  paymentMethod       String?
+  notes               String?
+  hoursWorked         Float?        @default(0)
+  createdAt           DateTime      @default(now())
+  company             Company       @relation(fields: [companyId], references: [id])
+  employee            Employee      @relation(fields: [employeeId], references: [id])
+  finalizedByUser     Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
 }
 
 model PerformanceReview {
@@ -211,7 +215,7 @@ model Invitation {
   email        String
   role         Role
   invitedBy    Int
-  employeeId   String?          // Optional field to link to specific employee
+  employeeId   String? // Optional field to link to specific employee
   position     String
   companyId    Int
   departmentId Int
@@ -262,22 +266,22 @@ model EmployeePayrollProfile {
 }
 
 model Document {
-  id          Int      @id @default(autoincrement())
-  employeeId  Int
-  companyId   Int
-  fileName    String
+  id           Int              @id @default(autoincrement())
+  employeeId   Int
+  companyId    Int
+  fileName     String
   originalName String
-  fileUrl     String
-  fileSize    Int
-  mimeType    String
-  category    DocumentCategory @default(OTHER)
-  description String?
-  uploadedBy  Int      // Who uploaded the document (admin/HR)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  company     Company  @relation(fields: [companyId], references: [id])
-  uploader    Employee @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  fileUrl      String
+  fileSize     Int
+  mimeType     String
+  category     DocumentCategory @default(OTHER)
+  description  String?
+  uploadedBy   Int // Who uploaded the document (admin/HR)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  employee     Employee         @relation(fields: [employeeId], references: [id])
+  company      Company          @relation(fields: [companyId], references: [id])
+  uploader     Employee         @relation("DocumentUploader", fields: [uploadedBy], references: [id])
 }
 
 enum Role {
@@ -377,30 +381,30 @@ enum DocumentCategory {
 
 // Subscription Models
 model SubscriptionPlan {
-  id          String   @id @default(cuid())
-  name        String   // "Basic", "Pro", "Enterprise"
-  price       Float    // Monthly price
-  maxEmployees Int?    // null = unlimited
-  features    String[] // ["attendance", "payroll", "reports"]
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  
+  id           String   @id @default(cuid())
+  name         String // "Basic", "Pro", "Enterprise"
+  price        Float // Monthly price
+  maxEmployees Int? // null = unlimited
+  features     String[] // ["attendance", "payroll", "reports"]
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
   subscriptions Subscription[]
 }
 
 model Subscription {
-  id            String             @id @default(cuid())
-  companyId     Int                @unique
-  planId        String
-  status        SubscriptionStatus @default(TRIAL)
-  trialEndDate  DateTime?          // When free trial expires (14 days from signup)
-  startDate     DateTime?
-  endDate       DateTime?
-  createdAt     DateTime           @default(now())
-  
-  company       Company            @relation(fields: [companyId], references: [id])
-  plan          SubscriptionPlan   @relation(fields: [planId], references: [id])
-  payments      Payment[]
+  id           String             @id @default(cuid())
+  companyId    Int                @unique
+  planId       String
+  status       SubscriptionStatus @default(TRIAL)
+  trialEndDate DateTime? // When free trial expires (14 days from signup)
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime           @default(now())
+
+  company  Company          @relation(fields: [companyId], references: [id])
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
 }
 
 model Payment {
@@ -412,17 +416,17 @@ model Payment {
   modemPayReference String?
   paidAt            DateTime?
   createdAt         DateTime      @default(now())
-  
-  company           Company       @relation(fields: [companyId], references: [id])
-  subscription      Subscription  @relation(fields: [subscriptionId], references: [id])
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
 }
 
 enum SubscriptionStatus {
-  TRIAL      // Free trial period (14 days)
-  PENDING    // Waiting for payment
-  ACTIVE     // Paid and active
-  EXPIRED    // Subscription expired
-  CANCELLED  // User cancelled subscription
+  TRIAL // Free trial period (14 days)
+  PENDING // Waiting for payment
+  ACTIVE // Paid and active
+  EXPIRED // Subscription expired
+  CANCELLED // User cancelled subscription
 }
 
 enum PaymentStatus {
