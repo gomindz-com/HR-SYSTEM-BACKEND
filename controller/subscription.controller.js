@@ -4,14 +4,11 @@ import { DISPLAY_CURRENCY } from "../config/plans.config.js";
 
 export const getPlans = async (req, res) => {
   try {
-    console.log("Fetching subscription plans...");
-
     const plans = await prisma.subscriptionPlan.findMany({
       where: { isActive: true },
       orderBy: { price: "asc" },
     });
 
-    console.log(`Found ${plans.length} active plans`);
     res.json({
       success: true,
       plans,
@@ -99,8 +96,6 @@ export const createSubscription = async (req, res) => {
 export const getSubscriptionStatus = async (req, res) => {
   try {
     const companyId = req.user.companyId;
-
-    console.log(`Getting subscription status for company ${companyId}`);
 
     const subscription = await prisma.subscription.findUnique({
       where: { companyId },
@@ -508,10 +503,6 @@ export const getPaymentHistory = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-
-    console.log(
-      `Getting payment history for company ${companyId}, page: ${page}, limit: ${limit}`
-    );
 
     // Get total count for pagination
     const totalCount = await prisma.payment.count({

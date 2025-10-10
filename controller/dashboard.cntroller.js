@@ -22,12 +22,6 @@ export const getDashboardMetrics = async (req, res) => {
     today.getDate() + 1
   );
 
-  console.log("🔍 Dashboard metrics request:", {
-    companyId,
-    startOfDay,
-    endOfDay,
-  });
-
   try {
     const [totalEmployees, totalAttendance, pendingLeaves] = await Promise.all([
       prisma.employee.count({ where: { companyId } }),
@@ -79,12 +73,6 @@ export const getWeeklyAttendanceOverview = async (req, res) => {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
-
-    console.log("📊 Weekly attendance request:", {
-      companyId,
-      startOfWeek,
-      endOfWeek,
-    });
 
     // Get attendance data for each day of the week
     const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -164,8 +152,6 @@ export const getDepartmentDistribution = async (req, res) => {
   }
 
   try {
-    console.log("🏢 Department distribution request:", { companyId });
-
     // Get employee count by department using proper Prisma aggregation
     const departmentData = await prisma.department.findMany({
       where: { companyId },
@@ -183,8 +169,6 @@ export const getDepartmentDistribution = async (req, res) => {
         },
       },
     });
-
-    console.log("📊 Raw department data:", departmentData);
 
     // Transform data to match frontend expectations
     const transformedData = departmentData
@@ -209,8 +193,6 @@ export const getDepartmentDistribution = async (req, res) => {
           color: colors[index % colors.length],
         };
       });
-
-    console.log("📊 Final transformed data:", transformedData);
 
     res.status(200).json({ success: true, data: transformedData });
   } catch (error) {

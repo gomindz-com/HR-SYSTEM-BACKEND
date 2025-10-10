@@ -55,9 +55,6 @@ export const checkSubscription = async (req, res, next) => {
     // Handle TRIAL subscription - allow access if trial hasn't expired
     if (subscription.status === "TRIAL") {
       if (subscription.trialEndDate && subscription.trialEndDate > now) {
-        console.log(
-          `Company ${company.companyName} is in trial period, expires: ${subscription.trialEndDate}`
-        );
         req.subscription = subscription;
         return next();
       } else {
