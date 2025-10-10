@@ -21,7 +21,10 @@
     "db:resolve:prod": "set NODE_ENV=production && prisma migrate resolve --applied 20250806104631_init_postgresql",
     "seed:plans": "node scripts/seed-plans.js",
     "grant:lifetime": "node scripts/grant-lifetime-access.js grant",
-    "revoke:lifetime": "node scripts/grant-lifetime-access.js revoke"
+    "revoke:lifetime": "node scripts/grant-lifetime-access.js revoke",
+    "auto-verify": "node scripts/auto-verify-existing-users.js",
+    "create:trials": "node scripts/create-trial-subscriptions.js",
+    "test:migration": "node scripts/test-migration.js"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
