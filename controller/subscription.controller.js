@@ -221,7 +221,7 @@ export const switchPlan = async (req, res) => {
       });
 
       // Create payment intent for the new plan
-      const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?reactivate=success`;
+      const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/subscription?reactivate=success`;
       const { paymentLink, intentId } = await createPaymentIntent(
         currentSubscription.id,
         newPlan.price,
@@ -265,7 +265,7 @@ export const switchPlan = async (req, res) => {
 
     // If upgrade, create payment for difference first (don't change plan yet)
     if (isUpgrade && amountToCharge > 0) {
-      const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?upgrade=success`;
+      const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/subscription?upgrade=success`;
 
       // Create payment intent with upgrade metadata
       const { paymentLink, intentId } = await createPaymentIntent(
@@ -349,7 +349,7 @@ export const createRenewalPayment = async (req, res) => {
     }
 
     // Create fresh payment intent for renewal
-    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription?renewal=success`;
+    const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/subscription?renewal=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       subscription.plan.price,
@@ -461,7 +461,7 @@ export const regeneratePaymentLink = async (req, res) => {
     }
 
     // Create fresh payment intent
-    const returnUrl = `${process.env.FRONTEND_URL || "http://localhost:8080"}/hr-choice?payment=success`;
+    const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/hr-choice?payment=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       subscription.plan.price,

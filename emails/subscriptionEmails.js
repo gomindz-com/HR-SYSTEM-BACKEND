@@ -58,7 +58,7 @@ export const sendPaymentSuccessEmail = async (
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.FRONTEND_URL || "http://localhost:8080"}/hr-choice" 
+        <a href="${process.env.CLIENT_URL || "http://localhost:8080"}/hr-choice" 
            style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
           Access Your Dashboard
         </a>
@@ -171,7 +171,7 @@ export const sendRenewalReminderEmail = async (company, subscription) => {
            style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px; margin-right: 10px;">
           Renew Now (Direct Payment)
         </a>
-        <a href="${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription" 
+        <a href="${process.env.CLIENT_URL || "http://localhost:8080"}/subscription" 
            style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
           View Subscription Dashboard
         </a>
@@ -283,7 +283,7 @@ export const sendSubscriptionExpiredEmail = async (company, subscription) => {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription" 
+        <a href="${process.env.CLIENT_URL || "http://localhost:8080"}/subscription" 
            style="background: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
           Reactivate Subscription
         </a>
@@ -392,7 +392,7 @@ export const sendPaymentFailureEmail = async (
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.FRONTEND_URL || "http://localhost:8080"}/subscription" 
+        <a href="${process.env.CLIENT_URL || "http://localhost:8080"}/subscription" 
            style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
           Update Payment Method
         </a>

@@ -90,8 +90,7 @@ export const sendInvitation = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL ||
-          "https://hr-system-frontend-tester.vercel.app";
+        : process.env.CLIENT_URL;
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
@@ -294,8 +293,7 @@ export const sendBulkInvitations = async (req, res) => {
         const baseUrl =
           process.env.NODE_ENV === "development"
             ? "http://localhost:8080"
-            : process.env.CLIENT_URL ||
-              "https://hr-system-frontend-tester.vercel.app";
+            : process.env.CLIENT_URL;
 
         const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
