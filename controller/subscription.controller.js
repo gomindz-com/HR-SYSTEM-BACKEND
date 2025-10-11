@@ -29,6 +29,19 @@ export const createSubscription = async (req, res) => {
 
     console.log(`Creating trial subscription for company ${companyId}`);
 
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        error: "Company has lifetime access. No subscription needed.",
+      });
+    }
+
     // Check if company already has subscription
     const existingSubscription = await prisma.subscription.findUnique({
       where: { companyId },
@@ -97,6 +110,45 @@ export const getSubscriptionStatus = async (req, res) => {
   try {
     const companyId = req.user.companyId;
 
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      // Return mock subscription for lifetime access
+      return res.json({
+        success: true,
+        data: {
+          subscription: {
+            id: "lifetime",
+            companyId: companyId,
+            status: "ACTIVE",
+            plan: {
+              id: "lifetime",
+              name: "Lifetime Access",
+              price: 0,
+              maxEmployees: null, // unlimited
+              features: [
+                "attendance",
+                "leave",
+                "basic_reports",
+                "payroll",
+                "reports",
+                "performance",
+                "analytics",
+                "api_access",
+                "custom_integrations",
+              ],
+              isActive: true,
+            },
+            payments: [],
+          },
+        },
+      });
+    }
+
     const subscription = await prisma.subscription.findUnique({
       where: { companyId },
       include: {
@@ -134,6 +186,19 @@ export const switchPlan = async (req, res) => {
     const companyId = req.user.companyId;
 
     console.log(`Switching plan for company ${companyId} to ${planId}`);
+
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        error: "Company has lifetime access. Plan switching not available.",
+      });
+    }
 
     // Validate planId
     if (!planId) {
@@ -322,6 +387,19 @@ export const createRenewalPayment = async (req, res) => {
   try {
     const companyId = req.user.companyId;
 
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        error: "Company has lifetime access. No renewal needed.",
+      });
+    }
+
     // Get current subscription
     const subscription = await prisma.subscription.findFirst({
       where: {
@@ -398,6 +476,20 @@ export const cancelSubscription = async (req, res) => {
 
     console.log(`Cancelling subscription for company ${companyId}`);
 
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Company has lifetime access. Cannot cancel lifetime subscription.",
+      });
+    }
+
     const subscription = await prisma.subscription.findFirst({
       where: {
         companyId,
@@ -443,6 +535,19 @@ export const regeneratePaymentLink = async (req, res) => {
     const companyId = req.user.companyId;
 
     console.log(`Regenerating payment link for company ${companyId}`);
+
+    // Check if company has lifetime access
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { hasLifetimeAccess: true },
+    });
+
+    if (company?.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        error: "Company has lifetime access. No payment needed.",
+      });
+    }
 
     // Get current subscription
     const subscription = await prisma.subscription.findFirst({
