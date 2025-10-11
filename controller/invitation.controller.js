@@ -10,7 +10,7 @@ import {
 } from "../lib/activity-utils.js";
 
 export const sendInvitation = async (req, res) => {
-  const { email, role, position, departmentId } = req.body;
+  const { email, role, position, departmentId, employeeId } = req.body;
   const id = req.user.id;
   const companyId = req.user.companyId;
 
@@ -78,6 +78,7 @@ export const sendInvitation = async (req, res) => {
         role: role || "STAFF",
         companyId,
         invitedBy: id,
+        employeeId: employeeId || null,
         token,
         expiresAt,
         status: "PENDING",
@@ -89,8 +90,7 @@ export const sendInvitation = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL ||
-          "https://hr-system-frontend-tester.vercel.app";
+        : process.env.CLIENT_URL;
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
@@ -188,7 +188,7 @@ export const sendBulkInvitations = async (req, res) => {
     }
 
     for (const invitation of invitations) {
-      const { email, role, position, departmentName } = invitation;
+      const { email, role, position, departmentName, employeeId } = invitation;
 
       try {
         // Normalize email
@@ -280,6 +280,7 @@ export const sendBulkInvitations = async (req, res) => {
             role: role || "STAFF",
             companyId,
             invitedBy: id,
+            employeeId: employeeId || null,
             token,
             expiresAt,
             status: "PENDING",
@@ -292,8 +293,7 @@ export const sendBulkInvitations = async (req, res) => {
         const baseUrl =
           process.env.NODE_ENV === "development"
             ? "http://localhost:8080"
-            : process.env.CLIENT_URL ||
-              "https://hr-system-frontend-tester.vercel.app";
+            : process.env.CLIENT_URL;
 
         const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
@@ -418,10 +418,12 @@ export const acceptInvitation = async (req, res) => {
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,
+        employeeId: invitation.employeeId || null,
         profilePic: randomAvatar,
         position: invitation.position,
         createdAt: new Date(),
         departmentId: invitation.departmentId,
+        emailVerified: true, // Invited users are pre-verified via invitation email
       },
     });
 

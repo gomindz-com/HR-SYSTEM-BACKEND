@@ -276,8 +276,15 @@ export const checkOut = async (req, res) => {
 
 export const adminAddAttendance = async (req, res) => {
   const { employeeId } = req.params;
-  const { companyId } = req.user;
+  const { companyId, role } = req.user;
   const { timeIn } = req.body;
+
+  // Check if user is admin
+  if (role !== "ADMIN") {
+    return res
+      .status(403)
+      .json({ message: "Only admins can add attendance records" });
+  }
 
   if (!employeeId)
     return res.status(400).json({ message: "Employee ID is required" });
@@ -369,6 +376,16 @@ export const adminAddAttendance = async (req, res) => {
         timeIn,
         status,
       },
+    });
+
+    // Create activity for admin adding attendance
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.ATTENDANCE,
+      title: "Admin Added Attendance",
+      description: `Admin manually added check-in for ${employee.name} at ${parsedTimeIn.toLocaleTimeString()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.ATTENDANCE,
     });
 
     return res
@@ -520,7 +537,7 @@ export const listAttendance = async (req, res) => {
     const [attendanceRecords, total] = await Promise.all([
       prisma.attendance.findMany({
         where,
-        orderBy: { date: "desc" },
+        orderBy: { createdAt: "desc" },
         skip,
         take: pageSize,
         include: {
@@ -578,9 +595,7 @@ export const myAttendance = async (req, res) => {
         employeeId,
         companyId,
       },
-      orderBy: {
-        date: "desc",
-      },
+      orderBy: { createdAt: "desc" },
       include: {
         employee: {
           select: {
@@ -786,9 +801,7 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
 
     const attendance = await prisma.attendance.findMany({
       where,
-      orderBy: {
-        date: "desc",
-      },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
       include: {
@@ -903,6 +916,151 @@ export const viewEmployeeAttendanceStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getAttendanceStats controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const adminCreateAttendanceRecord = async (req, res) => {
+  const { companyId, role } = req.user;
+  const { employeeId, timeIn, timeOut, date } = req.body;
+
+  // Check if user is admin
+  if (role !== "ADMIN") {
+    return res
+      .status(403)
+      .json({ message: "Only admins can create attendance records" });
+  }
+
+  if (!employeeId || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  if (!timeIn) {
+    return res.status(400).json({ message: "Time In is required" });
+  }
+
+  try {
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(employeeId),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    // Parse and validate dates
+    const attendanceDate = date ? new Date(date) : new Date();
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    // Validate that the date is not in the future
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    if (attendanceDate > today) {
+      return res.status(400).json({
+        message: "Cannot create attendance records for future dates",
+      });
+    }
+
+    let parsedTimeIn = null;
+    let parsedTimeOut = null;
+
+    if (timeIn) {
+      parsedTimeIn = new Date(timeIn);
+      if (isNaN(parsedTimeIn.getTime())) {
+        return res.status(400).json({
+          message: "Invalid timeIn format. Please provide a valid date/time.",
+        });
+      }
+    }
+
+    if (timeOut) {
+      parsedTimeOut = new Date(timeOut);
+      if (isNaN(parsedTimeOut.getTime())) {
+        return res.status(400).json({
+          message: "Invalid timeOut format. Please provide a valid date/time.",
+        });
+      }
+    }
+
+    // Validate that timeOut is after timeIn if both are provided
+    if (parsedTimeIn && parsedTimeOut && parsedTimeOut <= parsedTimeIn) {
+      return res.status(400).json({
+        message: "Time out must be after time in",
+      });
+    }
+
+    // Check for existing attendance record
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId: parseInt(employeeId),
+        companyId,
+        date: attendanceDate,
+      },
+    });
+
+    if (existingAttendance) {
+      return res.status(400).json({
+        message:
+          "Attendance record already exists for this employee on this date",
+      });
+    }
+
+    // Determine attendance status automatically based on timeIn and company settings
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workStartTime: true,
+        lateThreshold: true,
+      },
+    });
+    const attendanceStatus = determineAttendanceStatus(parsedTimeIn, company);
+
+    // Create attendance record
+    const attendance = await prisma.attendance.create({
+      data: {
+        employeeId: parseInt(employeeId),
+        companyId,
+        date: attendanceDate,
+        timeIn: parsedTimeIn,
+        timeOut: parsedTimeOut,
+        status: attendanceStatus,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Create activity for admin creating attendance
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.ATTENDANCE,
+      title: "Admin Created Attendance Record",
+      description: `Admin manually created attendance record for ${employee.name} on ${attendanceDate.toLocaleDateString()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.ATTENDANCE,
+    });
+
+    return res.status(201).json({
+      message: "Attendance record created successfully",
+      data: { attendance },
+    });
+  } catch (error) {
+    console.error("Error in adminCreateAttendanceRecord controller", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };

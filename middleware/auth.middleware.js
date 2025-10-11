@@ -32,11 +32,6 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log("Token verified successfully:", {
-      userId: decoded.id,
-      tokenSource,
-      userAgent: req.headers["user-agent"],
-    });
 
     const user = await prisma.employee.findUnique({
       where: { id: decoded.id },
@@ -57,11 +52,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.error("JWT verification error:", {
-      error: error.message,
-      tokenSource,
-      userAgent: req.headers["user-agent"],
-    });
+    console.error("JWT verification error:", error);
     return res.status(403).json({ message: "Invalid/Expired token" });
   }
 };

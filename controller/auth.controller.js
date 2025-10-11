@@ -34,6 +34,7 @@ export const login = async (req, res) => {
         departmentId: true,
         companyId: true,
         password: true, // We need this for password comparison
+        emailVerified: true, // Need this to check verification
         createdAt: true,
         deleted: true,
         department: {
@@ -47,6 +48,7 @@ export const login = async (req, res) => {
             companyAddress: true,
             companyDescription: true,
             companyTin: true,
+            hasLifetimeAccess: true,
           },
         },
       },
@@ -66,6 +68,14 @@ export const login = async (req, res) => {
 
     if (!isPasswordCorrect) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        message: "Please verify your email before logging in",
+        needsVerification: true,
+      });
     }
 
     // Generate token and return it in response body
@@ -242,6 +252,7 @@ export const checkAuth = async (req, res) => {
             companyAddress: true,
             companyDescription: true,
             companyTin: true,
+            hasLifetimeAccess: true,
           },
         },
       },
@@ -260,6 +271,45 @@ export const checkAuth = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in checkAuth", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const verifyEmail = async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const employee = await prisma.employee.findFirst({
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!employee) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    });
+
+    const authToken = generateToken(employee.id, res);
+
+    return res.json({
+      success: true,
+      message: "Email verified successfully",
+      token: authToken,
+    });
+  } catch (error) {
+    console.log("Error in verifyEmail", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

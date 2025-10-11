@@ -18,18 +18,28 @@ export const listEmployees = async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   // Filtering params
-  const { name, email, departmentId, status, role, position, search } =
-    req.query;
+  const {
+    name,
+    email,
+    departmentId,
+    status,
+    role,
+    position,
+    search,
+    minSalary,
+    maxSalary,
+  } = req.query;
 
   // Build where clause
   const where = { companyId, deleted: false };
 
-  // Handle search across multiple fields (name, email, position)
+  // Handle search across multiple fields (name, email, position, employeeId)
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
       { position: { contains: search, mode: "insensitive" } },
+      { employeeId: { contains: search, mode: "insensitive" } },
     ];
   } else {
     // Individual field filters
@@ -41,6 +51,17 @@ export const listEmployees = async (req, res) => {
   if (departmentId) where.departmentId = parseInt(departmentId);
   if (status) where.status = status;
   if (role) where.role = role;
+
+  // Salary range filtering
+  if (minSalary !== undefined || maxSalary !== undefined) {
+    where.salary = {};
+    if (minSalary !== undefined) {
+      where.salary.gte = parseFloat(minSalary);
+    }
+    if (maxSalary !== undefined) {
+      where.salary.lte = parseFloat(maxSalary);
+    }
+  }
 
   try {
     const [employees, total] = await Promise.all([
@@ -344,6 +365,155 @@ export const reinstateEmployee = async (req, res) => {
       .json({ message: "Employee reinstated successfully" });
   } catch (error) {
     console.error("Error reinstating employee", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateEmployeeProfile = async (req, res) => {
+  const companyId = req.user.companyId;
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Employee ID is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Check if the employee exists and belongs to the company
+  const employee = await prisma.employee.findFirst({
+    where: {
+      id: parseInt(id),
+      companyId,
+    },
+  });
+
+  if (!employee) {
+    return res.status(404).json({ message: "Employee not found" });
+  }
+
+  const allowedUpdates = [
+    "employeeId",
+    "name",
+    "email",
+    "phone",
+    "position",
+    "departmentId",
+    "address",
+    "salary",
+    "sumBonuses",
+    "role",
+    "status",
+  ];
+
+  const updateData = {};
+
+  allowedUpdates.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  });
+
+  // Convert departmentId to integer if provided
+  if (updateData.departmentId) {
+    updateData.departmentId = parseInt(updateData.departmentId);
+  }
+
+  try {
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+      include: {
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create activity for employee profile update
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Profile Updated",
+      description: `${employee.name}'s profile was updated by admin`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    return res.status(200).json({
+      message: "Employee profile updated successfully",
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error("Error updating employee profile", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const toggleEmployeeStatus = async (req, res) => {
+  const companyId = req.user.companyId;
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Employee ID is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    // Get the current employee
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    // Toggle status: ACTIVE <-> INACTIVE
+    const newStatus = employee.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    // Update the employee status
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: { status: newStatus },
+      include: {
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create activity for status change
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Status Toggled",
+      description: `${employee.name} was marked as ${newStatus.toLowerCase()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    return res.status(200).json({
+      message: `Employee marked as ${newStatus.toLowerCase()}`,
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error("Error toggling employee status", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

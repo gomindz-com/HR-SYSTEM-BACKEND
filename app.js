@@ -12,6 +12,10 @@ import companyRoutes from "./routes/company.route.js";
 import leaveRoutes from "./routes/leave.route.js";
 import reportRoutes from "./routes/report.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
+import payrollRoutes from "./routes/payroll.route.js";
+import documentRoutes from "./routes/document.route.js";
+import subscriptionRoutes from "./routes/subscription.route.js";
+import webhookRoutes from "./routes/webhook.route.js";
 // Load environment variables first
 dotenv.config();
  // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -52,7 +56,52 @@ try {
   );
 } catch (error) {
   console.error("❌ Failed to initialize leave reminder cron:", error);
-  // Don't exit the process, just log the error
+}
+
+// Initialize subscription renewal cron job
+let subscriptionRenewalCron = null;
+try {
+  const startSubscriptionRenewalCron = await import(
+    "./automations/subscriptionRenewal.js"
+  );
+  const result = startSubscriptionRenewalCron.default();
+  subscriptionRenewalCron = startSubscriptionRenewalCron;
+
+  if (result.success) {
+    console.log(
+      "💳 Subscription renewal cron job initialized - will run daily at 9:00 AM (Gambia time)"
+    );
+  } else {
+    console.error(
+      "❌ Failed to initialize subscription renewal cron:",
+      result.error
+    );
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize subscription renewal cron:", error);
+}
+
+// Initialize trial expiration cron job
+let trialExpirationCron = null;
+try {
+  const startTrialExpirationCron = await import(
+    "./automations/trialExpiration.js"
+  );
+  const result = startTrialExpirationCron.default();
+  trialExpirationCron = startTrialExpirationCron;
+
+  if (result.success) {
+    console.log(
+      "⏰ Trial expiration cron job initialized - will run daily at midnight (Gambia time)"
+    );
+  } else {
+    console.error(
+      "❌ Failed to initialize trial expiration cron:",
+      result.error
+    );
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize trial expiration cron:", error);
 }
 
 const app = express();
@@ -102,6 +151,10 @@ app.use("/api/company", companyRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/payroll", payrollRoutes);
+app.use("/api/document", documentRoutes);
+app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/webhook", webhookRoutes);
 // ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status

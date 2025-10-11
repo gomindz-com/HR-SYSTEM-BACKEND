@@ -9,11 +9,14 @@ import {
   getEmployeeLeaveBalance,
 } from "../controller/leave.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { checkSubscription } from "../middleware/subscription.middleware.js";
 import { upload } from "../config/multer.cloudinary.config.js";
 
 const router = express.Router();
 
+// Leave management requires: authentication + active subscription (all plans have 'leave' feature)
 router.use(verifyToken);
+router.use(checkSubscription);
 
 router.post("/request-leave", upload.array("attachmentUrls"), requestLeave);
 router.get("/get-leave-requests", getLeaveRequests);
