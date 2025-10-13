@@ -576,14 +576,14 @@ export const attendanceReport = async (req, res) => {
       dateFrom, // Filter by attendance date
       dateTo, // Filter by attendance date
       timePeriod, // Predefined time periods: day, week, month, quarter, year
-      // page = 1, // Pagination - COMMENTED OUT
-      // limit = 10, // Items per page - COMMENTED OUT
+      page = 1, // Pagination
+      limit = 10, // Items per page 
     } = req.query;
 
     // Convert to proper types with validation
-    // const pageNum = parseInt(page) || 1; - COMMENTED OUT
-    // const limitNum = parseInt(limit) || 10; - COMMENTED OUT
-    // const skip = (pageNum - 1) * limitNum; - COMMENTED OUT
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
 
     // Validate pagination values
     if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
@@ -726,19 +726,19 @@ export const attendanceReport = async (req, res) => {
       orderBy: {
         date: "desc", // Most recent first
       },
-      // skip: skip, - COMMENTED OUT
-      // take: limitNum, - COMMENTED OUT
+      skip: skip,
+      take: limitNum,
     });
 
-    // Get total count for pagination - COMMENTED OUT
-    // const totalCount = await prisma.attendance.count({
-    //   where: whereClause,
-    // });
+    // Get total count for pagination 
+    const totalCount = await prisma.attendance.count({
+      where: whereClause,
+    });
 
-    // Calculate pagination info - COMMENTED OUT
-    // const totalPages = Math.ceil(totalCount / limitNum);
-    // const hasNextPage = pageNum < totalPages;
-    // const hasPrevPage = pageNum > 1;
+    // Calculate pagination info 
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
 
     // Format response to match frontend expectations
     const formattedAttendances = attendances.map((att) => ({
@@ -768,14 +768,14 @@ export const attendanceReport = async (req, res) => {
     res.status(200).json({
       success: true,
       data: formattedAttendances,
-      // pagination: { - COMMENTED OUT
-      //   currentPage: pageNum,
-      //   totalPages,
-      //   totalCount,
-      //   hasNextPage,
-      //   hasPrevPage,
-      //   limit: limitNum,
-      // },
+      pagination: { 
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      },
     });
   } catch (error) {
     console.error("Error in attendanceReport controller:", error);
