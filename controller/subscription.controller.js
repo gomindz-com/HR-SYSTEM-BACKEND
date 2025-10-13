@@ -285,16 +285,26 @@ export const switchPlan = async (req, res) => {
         },
       });
 
+      // Get active employee count for per-user pricing
+      const employeeCount = await prisma.employee.count({
+        where: { companyId, deleted: false },
+      });
+
+      // Calculate total amount (price per user × number of users)
+      const totalAmount = newPlan.price * employeeCount;
+
       // Create payment intent for the new plan
       const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/subscription?reactivate=success`;
       const { paymentLink, intentId } = await createPaymentIntent(
         currentSubscription.id,
-        newPlan.price,
+        totalAmount,
         DISPLAY_CURRENCY.code,
         returnUrl,
         {
           type: "reactivate",
           newPlanId: planId,
+          employeeCount,
+          pricePerUser: newPlan.price,
         }
       );
 
@@ -305,7 +315,9 @@ export const switchPlan = async (req, res) => {
         data: {
           paymentLink,
           intentId,
-          amount: newPlan.price,
+          amount: totalAmount,
+          employeeCount,
+          pricePerUser: newPlan.price,
           currency: DISPLAY_CURRENCY,
           newPlan: newPlan,
           isReactivation: true,
@@ -313,6 +325,11 @@ export const switchPlan = async (req, res) => {
       });
       return;
     }
+
+    // Get active employee count for per-user pricing
+    const employeeCount = await prisma.employee.count({
+      where: { companyId, deleted: false },
+    });
 
     // Calculate prorated amount if upgrading (for ACTIVE subscriptions)
     const isUpgrade = newPlan.price > currentSubscription.plan.price;
@@ -322,8 +339,9 @@ export const switchPlan = async (req, res) => {
 
     let amountToCharge = 0;
     if (isUpgrade) {
-      // Charge the difference for remaining days
-      const priceDifference = newPlan.price - currentSubscription.plan.price;
+      // Charge the difference for remaining days (per user × number of users)
+      const priceDifference =
+        (newPlan.price - currentSubscription.plan.price) * employeeCount;
       const dailyRate = priceDifference / 30;
       amountToCharge = Math.round(dailyRate * daysRemaining); // Round to avoid decimals
     }
@@ -342,6 +360,8 @@ export const switchPlan = async (req, res) => {
           type: "upgrade",
           newPlanId: planId,
           currentPlanId: currentSubscription.planId,
+          employeeCount,
+          pricePerUser: newPlan.price,
         }
       );
 
@@ -353,6 +373,8 @@ export const switchPlan = async (req, res) => {
           paymentLink,
           intentId,
           amount: amountToCharge,
+          employeeCount,
+          pricePerUser: newPlan.price,
           currency: DISPLAY_CURRENCY,
           newPlan: newPlan,
           isUpgrade: true,
@@ -426,13 +448,25 @@ export const createRenewalPayment = async (req, res) => {
       });
     }
 
+    // Get active employee count for per-user pricing
+    const employeeCount = await prisma.employee.count({
+      where: { companyId, deleted: false },
+    });
+
+    // Calculate total amount (price per user × number of users)
+    const totalAmount = subscription.plan.price * employeeCount;
+
     // Create fresh payment intent for renewal
     const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/subscription?renewal=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
-      subscription.plan.price,
+      totalAmount,
       DISPLAY_CURRENCY.code,
-      returnUrl
+      returnUrl,
+      {
+        employeeCount,
+        pricePerUser: subscription.plan.price,
+      }
     );
 
     // Check if this is a direct link request (from email)
@@ -451,7 +485,9 @@ export const createRenewalPayment = async (req, res) => {
         data: {
           paymentLink,
           intentId,
-          amount: subscription.plan.price,
+          amount: totalAmount,
+          pricePerUser: subscription.plan.price,
+          employeeCount,
           currency: DISPLAY_CURRENCY,
           plan: subscription.plan,
           subscription: {

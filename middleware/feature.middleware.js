@@ -22,25 +22,6 @@ export const checkFeatureAccess = (requiredFeature) => {
         });
       }
 
-      // Check employee count limits
-      if (subscription.plan.maxEmployees) {
-        const employeeCount = await prisma.employee.count({
-          where: {
-            companyId: req.user.companyId,
-            deleted: false,
-          },
-        });
-
-        if (employeeCount >= subscription.plan.maxEmployees) {
-          return res.status(403).json({
-            success: false,
-            error: `Employee limit reached (${subscription.plan.maxEmployees}). Please upgrade your plan.`,
-            currentCount: employeeCount,
-            maxEmployees: subscription.plan.maxEmployees,
-          });
-        }
-      }
-
       next();
     } catch (error) {
       console.error("Feature access check failed:", error);

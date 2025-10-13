@@ -11,6 +11,10 @@ export const checkExpiringSubscriptions = async () => {
     const fiveDaysFromNow = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
     const now = new Date();
 
+    console.log(
+      `⏰ Time range: ${now.toISOString()} to ${fiveDaysFromNow.toISOString()}`
+    );
+
     // Find subscriptions expiring in the next 5 days (exclude cancelled)
     const expiringSubscriptions = await prisma.subscription.findMany({
       where: {
@@ -49,6 +53,24 @@ export const checkExpiringSubscriptions = async () => {
       `Found ${expiringSubscriptions.length} subscriptions expiring soon`
     );
 
+    // Debug: Log all ACTIVE subscriptions to see what's being found
+    const allActiveSubscriptions = await prisma.subscription.findMany({
+      where: { status: "ACTIVE" },
+      include: { plan: true, company: true },
+    });
+    console.log(
+      `📊 Total ACTIVE subscriptions in database: ${allActiveSubscriptions.length}`
+    );
+    for (const sub of allActiveSubscriptions) {
+      const company = await prisma.company.findUnique({
+        where: { id: sub.companyId },
+        include: { hr: { select: { email: true, name: true } } },
+      });
+      console.log(
+        `  - ID: ${sub.id}, EndDate: ${sub.endDate}, Company: ${sub.company?.companyName}, HR Email: ${company?.hr?.email || "MISSING"}`
+      );
+    }
+
     const results = [];
 
     for (const subscription of expiringSubscriptions) {
@@ -63,18 +85,35 @@ export const checkExpiringSubscriptions = async () => {
           continue;
         }
 
+        // Get active employee count for per-user pricing
+        const employeeCount = await prisma.employee.count({
+          where: {
+            companyId: subscription.companyId,
+            deleted: false,
+          },
+        });
+
+        // Calculate total amount (price per user × number of users)
+        const totalAmount = subscription.plan.price * employeeCount;
+
         // Send renewal reminder email
         console.log(
           `📧 Sending renewal reminder to ${subscription.company.companyName} (${subscription.plan.name})`
         );
 
         try {
-          await sendRenewalReminderEmail(subscription.company, subscription);
+          await sendRenewalReminderEmail(subscription.company, subscription, {
+            employeeCount,
+            pricePerUser: subscription.plan.price,
+            totalAmount,
+          });
           results.push({
             subscriptionId: subscription.id,
             companyName: subscription.company.companyName,
             planName: subscription.plan.name,
-            amount: subscription.plan.price,
+            amount: totalAmount,
+            employeeCount,
+            pricePerUser: subscription.plan.price,
             status: "reminder_sent",
             message: "Renewal reminder email sent successfully",
           });
@@ -250,18 +289,35 @@ export const sendReminderEmails = async () => {
           continue;
         }
 
+        // Get active employee count for per-user pricing
+        const employeeCount = await prisma.employee.count({
+          where: {
+            companyId: subscription.companyId,
+            deleted: false,
+          },
+        });
+
+        // Calculate total amount (price per user × number of users)
+        const totalAmount = subscription.plan.price * employeeCount;
+
         // Send actual reminder email
         console.log(
           `📧 Sending reminder to ${subscription.company.companyName} for ${subscription.plan.name} plan`
         );
 
         try {
-          await sendRenewalReminderEmail(subscription.company, subscription);
+          await sendRenewalReminderEmail(subscription.company, subscription, {
+            employeeCount,
+            pricePerUser: subscription.plan.price,
+            totalAmount,
+          });
           results.push({
             subscriptionId: subscription.id,
             companyName: subscription.company.companyName,
             planName: subscription.plan.name,
             endDate: subscription.endDate,
+            employeeCount,
+            totalAmount,
             status: "reminder_sent",
           });
         } catch (emailError) {

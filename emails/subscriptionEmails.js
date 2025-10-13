@@ -34,7 +34,7 @@ export const sendPaymentSuccessEmail = async (
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Amount</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${payment.amount.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${payment.amount.toLocaleString()} GMD</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Date</p>
@@ -106,11 +106,21 @@ export const sendPaymentSuccessEmail = async (
 };
 
 // Email template for subscription renewal reminders
-export const sendRenewalReminderEmail = async (company, subscription) => {
+export const sendRenewalReminderEmail = async (
+  company,
+  subscription,
+  pricingData = {}
+) => {
   try {
     const daysUntilExpiry = Math.ceil(
       (new Date(subscription.endDate) - new Date()) / (1000 * 60 * 60 * 24)
     );
+
+    const {
+      employeeCount = 0,
+      pricePerUser = subscription.plan.price,
+      totalAmount = subscription.plan.price,
+    } = pricingData;
 
     const htmlContent = `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -139,18 +149,33 @@ export const sendRenewalReminderEmail = async (company, subscription) => {
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${subscription.plan.name}</p>
           </div>
           <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Monthly Cost</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Price Per User</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${pricePerUser.toLocaleString()} GMD/month</p>
           </div>
           <div>
+            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Active Employees</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${employeeCount}</p>
+          </div>
+          <div>
+            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Total Monthly Cost</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${totalAmount.toLocaleString()} GMD</p>
+          </div>
+          <div style="grid-column: span 2;">
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Expires</p>
             <p style="margin: 0; font-weight: bold; color: #dc3545;">${new Date(subscription.endDate).toLocaleDateString()}</p>
           </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Max Employees</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${subscription.plan.maxEmployees || "Unlimited"}</p>
-          </div>
         </div>
+        ${
+          employeeCount > 0
+            ? `
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-top: 15px;">
+          <p style="margin: 0; color: #0056b3; font-size: 14px; text-align: center;">
+            <strong>Calculation:</strong> ${pricePerUser} GMD × ${employeeCount} employees = ${totalAmount.toLocaleString()} GMD/month
+          </p>
+        </div>
+        `
+            : ""
+        }
       </div>
 
       <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
@@ -167,7 +192,7 @@ export const sendRenewalReminderEmail = async (company, subscription) => {
       </div>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.BACKEND_URL || "http://localhost:3000"}/api/subscription/renewal-payment?direct=true" 
+        <a href="${process.env.BACKEND_URL || "http://localhost:5000"}/api/subscription/renewal-payment?direct=true" 
            style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px; margin-right: 10px;">
           Renew Now (Direct Payment)
         </a>
@@ -262,7 +287,7 @@ export const sendSubscriptionExpiredEmail = async (company, subscription) => {
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Monthly Cost</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${subscription.plan.price.toLocaleString()} GMD</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Expired On</p>
@@ -378,7 +403,7 @@ export const sendPaymentFailureEmail = async (
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Amount</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">$${subscription.plan.price.toLocaleString()}</p>
+            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${subscription.plan.price.toLocaleString()} GMD</p>
           </div>
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Status</p>

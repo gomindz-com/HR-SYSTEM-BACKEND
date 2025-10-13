@@ -1,23 +1,24 @@
+
 export const SUBSCRIPTION_PLANS = {
   basic: {
     id: "basic",
     name: "Basic",
-    price: 9.0, // $9 per month
-    maxEmployees: 10,
+    price: 75, // 75 GMD per user per month
+    maxEmployees: null,
     features: ["attendance", "leave", "basic_reports"],
   },
   pro: {
     id: "pro",
     name: "Professional",
-    price: 29.0, // $29 per month
-    maxEmployees: 50,
+    price: 150, // 150 GMD per user per month
+    maxEmployees: null,
     features: ["attendance", "leave", "payroll", "reports", "performance"],
   },
   enterprise: {
     id: "enterprise",
     name: "Enterprise",
-    price: 79.0, // $79 per month
-    maxEmployees: null, // unlimited
+    price: 200, // 200 GMD per user per month
+    maxEmployees: null, 
     features: [
       "attendance",
       "leave",

@@ -1,10 +1,6 @@
 import modempay from "../config/modem.config.js";
 import prisma from "../config/prisma.config.js";
-import {
-  DISPLAY_CURRENCY,
-  PAYMENT_CURRENCY,
-  USD_TO_GMD_RATE,
-} from "../config/plans.config.js";
+import { DISPLAY_CURRENCY, PAYMENT_CURRENCY } from "../config/plans.config.js";
 import {
   sendPaymentSuccessEmail,
   sendPaymentFailureEmail,
@@ -18,11 +14,15 @@ export const createPaymentIntent = async (
   additionalMetadata = {}
 ) => {
   try {
-    // Amount comes in as USD, convert to GMD for Modem Pay
-    const amountInGMD = Math.round(amount * USD_TO_GMD_RATE);
+    // Amount is already in GMD (plans are priced in GMD)
+    const amountInGMD = Math.round(amount);
+
+    const employeeInfo = additionalMetadata.employeeCount
+      ? ` (${additionalMetadata.pricePerUser} GMD × ${additionalMetadata.employeeCount} users)`
+      : "";
 
     console.log(
-      `Creating payment intent for subscription ${subscriptionId}, amount: $${amount} USD (GMD ${amountInGMD})`
+      `Creating payment intent for subscription ${subscriptionId}, amount: ${amountInGMD} GMD${employeeInfo}`
     );
 
     const paymentIntentData = {
@@ -31,8 +31,7 @@ export const createPaymentIntent = async (
       metadata: {
         subscriptionId,
         type: "subscription",
-        usdAmount: amount, // Store original USD amount for reference
-        conversionRate: USD_TO_GMD_RATE,
+        gmdAmount: amount, // Store GMD amount
         ...additionalMetadata,
       },
     };
@@ -151,15 +150,15 @@ export const handlePaymentWebhook = async (webhookData) => {
       }
 
       // Create payment record
-      // Amount from Modem Pay is in GMD, but we store in USD
-      // Use the USD amount from metadata if available, otherwise convert from GMD
-      const amountInUSD = metadata.usdAmount || amount / USD_TO_GMD_RATE;
+      // Amount from Modem Pay is in GMD
+      // Use the GMD amount from metadata if available, otherwise use the amount from payload
+      const amountInGMD = metadata.gmdAmount || amount;
 
       await prisma.payment.create({
         data: {
           companyId: subscription.companyId,
           subscriptionId: paymentSubscriptionId,
-          amount: amountInUSD, // Store in USD for consistency
+          amount: amountInGMD, // Store in GMD
           status: "COMPLETED",
           modemPayReference: id,
           paidAt: new Date(),
@@ -173,7 +172,7 @@ export const handlePaymentWebhook = async (webhookData) => {
       // Send payment success email
       try {
         await sendPaymentSuccessEmail(subscription.company, subscription, {
-          amount: amountInUSD, // Send USD amount for email display
+          amount: amountInGMD, // Send GMD amount for email display
           paidAt: new Date(),
         });
       } catch (emailError) {

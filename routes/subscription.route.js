@@ -25,6 +25,7 @@ router.put("/switch-plan", switchPlan);
 router.post("/cancel", cancelSubscription);
 router.get("/payments", getPaymentHistory);
 router.post("/renewal-payment", createRenewalPayment);
+router.get("/renewal-payment", createRenewalPayment); // Support GET for email links
 router.post("/regenerate-payment-link", regeneratePaymentLink);
 
 export default router;
