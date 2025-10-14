@@ -1,4 +1,3 @@
-
 export const SUBSCRIPTION_PLANS = {
   basic: {
     id: "basic",
@@ -12,22 +11,31 @@ export const SUBSCRIPTION_PLANS = {
     name: "Professional",
     price: 150, // 150 GMD per user per month
     maxEmployees: null,
-    features: ["attendance", "leave", "payroll", "reports", "performance"],
+    features: [
+      "attendance",
+      "leave",
+      "basic_reports",
+      "payroll_and_payslip_automation",
+      "benefits_and_tax_configuration",
+      "reports",
+    ],
   },
   enterprise: {
     id: "enterprise",
     name: "Enterprise",
     price: 200, // 200 GMD per user per month
-    maxEmployees: null, 
+    maxEmployees: null,
     features: [
       "attendance",
       "leave",
-      "payroll",
+      "basic_reports",
+      "payroll_and_payslip_automation",
+      "benefits_and_tax_configuration",
       "reports",
       "performance",
-      "analytics",
-      "api_access",
-      "custom_integrations",
+      "recruitment_and_onboarding",
+      "advanced_analytics_dashboard",
+      "staff_document_upload",
     ],
   },
 };
@@ -36,12 +44,13 @@ export const FEATURE_DEFINITIONS = {
   attendance: "Attendance Tracking",
   leave: "Leave Management",
   basic_reports: "Basic Reports",
-  payroll: "Payroll Processing",
+  payroll_and_payslip_automation: "Payroll & Payslip Automation",
+  benefits_and_tax_configuration: "Benefits & Tax Configuration",
   reports: "Advanced Reports",
   performance: "Performance Reviews",
-  analytics: "Analytics",
-  api_access: "API Access",
-  custom_integrations: "Custom Integrations",
+  recruitment_and_onboarding: "Recruitment & Onboarding",
+  advanced_analytics_dashboard: "Advanced Analytics Dashboard",
+  staff_document_upload: "Staff Document Upload",
 };
 
 // Currency configuration for display (what users see)
