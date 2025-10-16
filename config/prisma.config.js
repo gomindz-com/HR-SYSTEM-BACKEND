@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === "production") {
     log: ["error"], // Only log errors in production
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: "postgresql://doadmin:AVNS_aL223KGkv-zgxaFSz6r@hr-db-do-user-10093413-0.m.db.ondigitalocean.com:25060/defaultdb?sslmode=require",
       },
     },
     // Optimize connection pool for production automation workloads
@@ -28,7 +28,7 @@ if (process.env.NODE_ENV === "production") {
       log: ["error"], // Only log errors in development
       datasources: {
         db: {
-          url: process.env.DATABASE_URL,
+          url: "postgresql://doadmin:AVNS_aL223KGkv-zgxaFSz6r@hr-db-do-user-10093413-0.m.db.ondigitalocean.com:25060/defaultdb?sslmode=require",
         },
       },
       // Optimize connection pool for development
@@ -86,7 +86,8 @@ prisma
     console.log("✅ Database connection established successfully");
     console.log(" Using database: PostgreSQL");
     // Don't log the full database URL for security
-    const dbUrl = process.env.DATABASE_URL;
+    const dbUrl =
+      "postgresql://doadmin:AVNS_aL223KGkv-zgxaFSz6r@hr-db-do-user-10093413-0.m.db.ondigitalocean.com:25060/defaultdb?sslmode=require";
     if (dbUrl) {
       const urlParts = dbUrl.split("@");
       if (urlParts.length > 1) {

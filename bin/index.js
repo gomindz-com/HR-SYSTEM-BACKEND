@@ -23,5 +23,4 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`💪💪Server is running on:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIp}:${PORT}`);
-  console.log(process.env.DATABASE_URL)
 });
