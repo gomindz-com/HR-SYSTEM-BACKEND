@@ -54,7 +54,7 @@ export const checkIn = async (req, res) => {
 
     if (!locationValidation.valid) {
       return res.status(400).json({
-        message: "You must be at the company location to clock in",
+        message: locationValidation.message,
       });
     }
 
@@ -153,7 +153,7 @@ export const checkIn = async (req, res) => {
       .json({ message: "Check-in successful", data: { attendance } });
   } catch (error) {
     console.error("Error in Checkin Controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -196,7 +196,7 @@ export const checkOut = async (req, res) => {
 
     if (!locationValidation.valid) {
       return res.status(400).json({
-        message: "You must be at the company location to clock out",
+        message: locationValidation.message,
       });
     }
 
