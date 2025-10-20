@@ -1,5 +1,5 @@
 // Fixed radius for all company locations (in meters)
-const FIXED_RADIUS = 60;
+const FIXED_RADIUS = 200;
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -68,7 +68,7 @@ function validateLocation(userLat, userLng, companyLocations, userAgent = "") {
   }
 
   // Dynamic radius: Android gets more lenient radius due to GPS accuracy issues
-  const radius = userAgent.includes("Android") ? 110 : FIXED_RADIUS;
+  const radius = FIXED_RADIUS;
 
   // Check against all active locations
   for (const location of companyLocations) {
@@ -87,7 +87,7 @@ function validateLocation(userLat, userLng, companyLocations, userAgent = "") {
         message: `Check-in allowed at ${location.name}`,
         location: location,
         distance: Math.round(distance),
-        radius: radius, // Include which radius was used
+        radius: radius, 
         deviceType: userAgent.includes("Android") ? "Android" : "iOS/Other",
       };
     }
