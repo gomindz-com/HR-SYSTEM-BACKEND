@@ -270,7 +270,7 @@ export const checkOut = async (req, res) => {
       .json({ message: "Check-out successful", data: { attendance } });
   } catch (error) {
     console.log("Error in Checkout Controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -393,7 +393,7 @@ export const adminAddAttendance = async (req, res) => {
       .json({ message: "Attendance added successfully", data: { attendance } });
   } catch (error) {
     console.log("Error in adminAddAttendance controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -482,7 +482,7 @@ export const adminClockOut = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in adminClockOut controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -571,7 +571,7 @@ export const listAttendance = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching attendance records", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -634,7 +634,7 @@ export const myAttendance = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in myAttendance controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -693,7 +693,7 @@ export const getAttendanceStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getAttendanceStats controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -749,7 +749,7 @@ export const getCompanyAttendanceStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getCompanyAttendanceStats controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -849,7 +849,7 @@ export const listSpecificEmployeeAttendance = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in listSpecificEmployeeAttendance controller", error);
-    return res.status(500).json("Internal Server Error");
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -915,8 +915,8 @@ export const viewEmployeeAttendanceStats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in getAttendanceStats controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error in viewEmployeeAttendanceStats controller", error);
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
 
@@ -1061,6 +1061,6 @@ export const adminCreateAttendanceRecord = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in adminCreateAttendanceRecord controller", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: `${error.message}` });
   }
 };
