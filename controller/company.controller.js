@@ -620,3 +620,25 @@ export const deleteCompanyLocation = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+
+export const getWorkdayConfig = async (req, res) => {
+  const {companyId} = req.user;
+
+  if(!companyId) {
+    return res.status(403).json({success: false, message: "unauthorized, make sure you are logged in"})
+  }
+
+  const workdays = await prisma.getWorkdayConfig.findFirst({
+    where: {company}
+  })
+
+
+  if(!workdays) {
+    return res.status(404).json({message: "no default  workday config for your company"})
+  }
+
+  
+
+}
