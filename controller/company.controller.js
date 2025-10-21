@@ -648,7 +648,9 @@ export const getWorkdayConfig = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getWorkdayConfig controller: ", error);
-    return res.status(500).json({ success: false, message: `${error.message}` });
+    return res
+      .status(500)
+      .json({ success: false, message: `${error.message}` });
   }
 };
 
@@ -684,10 +686,23 @@ export const updateWorkdayConfiguration = async (req, res) => {
       });
     }
 
-    // Update or create workday configuration
-    const workdayConfig = await prisma.workdayDaysConfig.upsert({
+    // Find and update existing workday configuration
+    const existingConfig = await prisma.workdayDaysConfig.findFirst({
       where: { companyId },
-      update: {
+    });
+
+    if (!existingConfig) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Workday configuration not found. Please run the initialization script first.",
+      });
+    }
+
+    // Update existing configuration
+    const workdayConfig = await prisma.workdayDaysConfig.update({
+      where: { id: existingConfig.id },
+      data: {
         monday,
         tuesday,
         wednesday,
@@ -695,10 +710,6 @@ export const updateWorkdayConfiguration = async (req, res) => {
         friday,
         saturday,
         sunday,
-      },
-      create: {
-        companyId,
-        // Defaults will be applied from schema
       },
     });
 
