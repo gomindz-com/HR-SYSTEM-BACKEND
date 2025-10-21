@@ -112,6 +112,7 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
           id: { in: employeesWithoutAttendance.map((emp) => emp.id) },
           status: "ACTIVE",
           companyId,
+          deleted: false,
           attendances: {
             none: {
               date: {
