@@ -12,6 +12,8 @@ import {
   getCompanyLocations,
   updateCompanyLocation,
   deleteCompanyLocation,
+  getWorkdayConfig,
+  updateWorkdayConfiguration,
 } from "../controller/company.controller.js";
 
 const router = express.Router();
@@ -60,4 +62,7 @@ router.delete(
   checkSubscription,
   deleteCompanyLocation
 );
+
+router.get("/workday-config", verifyToken, checkSubscription, getWorkdayConfig);
+router.put("/workday-config", verifyToken, checkSubscription, updateWorkdayConfiguration);
 export default router;
