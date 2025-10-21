@@ -631,7 +631,7 @@ export const getWorkdayConfig = async (req, res) => {
       });
     }
 
-    const workdays = await prisma.getWorkdayConfig.findFirst({
+    const workdays = await prisma.workdayDaysConfig.findFirst({
       where: { companyId },
     });
 
@@ -648,7 +648,7 @@ export const getWorkdayConfig = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getWorkdayConfig controller: ", error);
-    res.status(500).json({ message: `error.message` });
+    return res.status(500).json({ success: false, message: `${error.message}` });
   }
 };
 
