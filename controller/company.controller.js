@@ -711,7 +711,7 @@ export const updateWorkdayConfiguration = async (req, res) => {
     console.error("Error updating workday configuration:", error);
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: `${error.message}`,
     });
   }
 };
