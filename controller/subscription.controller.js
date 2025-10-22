@@ -602,16 +602,26 @@ export const regeneratePaymentLink = async (req, res) => {
       });
     }
 
+    // Get active employee count for per-user pricing
+    const employeeCount = await prisma.employee.count({
+      where: { companyId, deleted: false },
+    });
+
+    // Calculate total amount (price per user × number of users)
+    const totalAmount = subscription.plan.price * employeeCount;
+
     // Create fresh payment intent
     const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/hr-choice?payment=success`;
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
-      subscription.plan.price,
+      totalAmount,
       DISPLAY_CURRENCY.code,
       returnUrl,
       {
         type: "subscription",
         planId: subscription.planId,
+        employeeCount,
+        pricePerUser: subscription.plan.price,
       }
     );
 
@@ -621,7 +631,7 @@ export const regeneratePaymentLink = async (req, res) => {
       data: {
         paymentLink,
         intentId,
-        amount: subscription.plan.price,
+        amount: totalAmount,
         currency: DISPLAY_CURRENCY,
         plan: subscription.plan,
         subscription: {
