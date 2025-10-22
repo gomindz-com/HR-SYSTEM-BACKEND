@@ -55,6 +55,7 @@ const initializeEmployeeData = async () => {
             taxBracket: null,
             socialSecurityRate: 0,
             customTaxRate: null,
+            updatedAt: new Date(),
           },
         });
         console.log(`   ✅ Created payroll profile (ID: ${profile.id})`);
@@ -74,6 +75,7 @@ const initializeEmployeeData = async () => {
             benefitType: "OTHER",
             amount: 0,
             isActive: false, // Inactive by default
+            updatedAt: new Date(),
           },
         });
         console.log(`   ✅ Created default benefit (ID: ${benefit.id})`);
