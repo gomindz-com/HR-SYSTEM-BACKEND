@@ -99,6 +99,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       where: {
         status: "ACTIVE",
         companyId,
+        emailVerified: true,
         attendances: {
           none: {
             date: {
@@ -132,6 +133,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
             status: "ACTIVE",
             companyId,
             deleted: false,
+            emailVerified: true,
             attendances: {
               none: {
                 date: {
