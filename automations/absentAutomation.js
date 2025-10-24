@@ -47,13 +47,15 @@ function getCronScheduleFor7PM(timezone) {
   }
 }
 
-async function markEmployeesAbsent(companyId, companyTimezone) {
+async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
   try {
     const now = new Date();
     const companyLocalDateString = now.toLocaleDateString("en-CA", {
       timeZone: companyTimezone,
     });
-    const companyDateMidnight = new Date(`${companyLocalDateString}T00:00:00.000Z`);
+    const companyDateMidnight = new Date(
+      `${companyLocalDateString}T00:00:00.000Z`
+    );
 
     // Check workday configuration
     const workdayConfig = await prisma.workdayDaysConfig.findFirst({
@@ -102,44 +104,56 @@ async function markEmployeesAbsent(companyId, companyTimezone) {
     });
 
     if (employeesWithoutAttendance.length === 0) {
-      return { success: true, message: "No employees to mark absent", count: 0 };
+      return {
+        success: true,
+        message: "No employees to mark absent",
+        count: 0,
+      };
     }
 
     // Create absent records
-    const result = await prisma.$transaction(async (tx) => {
-      const employeesToMarkAbsent = await tx.employee.findMany({
-        where: {
-          id: { in: employeesWithoutAttendance.map((emp) => emp.id) },
-          status: "ACTIVE",
-          companyId,
-          deleted: false,
-          attendances: {
-            none: {
-              date: {
-                gte: companyDateMidnight,
-                lt: new Date(companyDateMidnight.getTime() + 24 * 60 * 60 * 1000),
+    let result;
+    if (dryRun) {
+      // Dry run - just return the count without creating records
+      result = { count: employeesWithoutAttendance.length };
+    } else {
+      result = await prisma.$transaction(async (tx) => {
+        const employeesToMarkAbsent = await tx.employee.findMany({
+          where: {
+            id: { in: employeesWithoutAttendance.map((emp) => emp.id) },
+            status: "ACTIVE",
+            companyId,
+            deleted: false,
+            attendances: {
+              none: {
+                date: {
+                  gte: companyDateMidnight,
+                  lt: new Date(
+                    companyDateMidnight.getTime() + 24 * 60 * 60 * 1000
+                  ),
+                },
               },
             },
           },
-        },
-        select: { id: true, name: true, companyId: true },
-      });
+          select: { id: true, name: true, companyId: true },
+        });
 
-      if (employeesToMarkAbsent.length === 0) {
-        return { count: 0 };
-      }
+        if (employeesToMarkAbsent.length === 0) {
+          return { count: 0 };
+        }
 
-      return await tx.attendance.createMany({
-        data: employeesToMarkAbsent.map((employee) => ({
-          employeeId: employee.id,
-          companyId: employee.companyId,
-          date: companyDateMidnight,
-          status: "ABSENT",
-          timeIn: null,
-          timeOut: null,
-        })),
+        return await tx.attendance.createMany({
+          data: employeesToMarkAbsent.map((employee) => ({
+            employeeId: employee.id,
+            companyId: employee.companyId,
+            date: companyDateMidnight,
+            status: "ABSENT",
+            timeIn: null,
+            timeOut: null,
+          })),
+        });
       });
-    });
+    }
 
     return {
       success: true,
@@ -201,9 +215,15 @@ function stopCompanyAutomation(companyId) {
   if (cronJobs.has(companyId)) {
     cronJobs.get(companyId).stop();
     cronJobs.delete(companyId);
-    return { success: true, message: `Stopped automation for company ${companyId}` };
+    return {
+      success: true,
+      message: `Stopped automation for company ${companyId}`,
+    };
   }
-  return { success: false, message: `No active automation for company ${companyId}` };
+  return {
+    success: false,
+    message: `No active automation for company ${companyId}`,
+  };
 }
 
 function stopAllAutomations() {
@@ -226,11 +246,38 @@ async function manuallyTriggerForCompany(companyId, companyTimezone = "UTC") {
   return await markEmployeesAbsent(companyId, companyTimezone);
 }
 
+async function manuallyTriggerForAllCompanies(dryRun = false) {
+  try {
+    const companies = await prisma.company.findMany({
+      select: { id: true, companyName: true, timezone: true },
+    });
+
+    const results = [];
+    for (const company of companies) {
+      const result = await markEmployeesAbsent(
+        company.id,
+        company.timezone,
+        dryRun
+      );
+      results.push({
+        companyId: company.id,
+        companyName: company.companyName,
+        ...result,
+      });
+    }
+
+    return { success: true, results };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 export {
   initializeCompanyAutomation,
   stopCompanyAutomation,
   stopAllAutomations,
   getAutomationStatus,
   manuallyTriggerForCompany,
+  manuallyTriggerForAllCompanies,
   markEmployeesAbsent,
 };
