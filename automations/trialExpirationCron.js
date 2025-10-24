@@ -1,5 +1,9 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
+import {
+  sendTrialExpiringEmail,
+  sendTrialExpiredEmail,
+} from "../emails/trialEmails.js";
 
 let trialExpirationCronJob = null;
 
@@ -61,8 +65,18 @@ const checkExpiredTrials = async () => {
         );
         successCount++;
 
-        // TODO: Send trial expired email notification
-        // await sendTrialExpiredEmail(subscription.company, subscription);
+        // Send trial expired email notification
+        const emailResult = await sendTrialExpiredEmail(
+          subscription.company,
+          subscription
+        );
+
+        if (!emailResult.success) {
+          console.error(
+            `Failed to send trial expired email to ${subscription.company.companyName}:`,
+            emailResult.error
+          );
+        }
       } catch (error) {
         console.error(
           `❌ Failed to expire trial for company ${subscription.company.companyName}:`,
@@ -88,22 +102,22 @@ const checkExpiredTrials = async () => {
 };
 
 /**
- * Send trial expiring soon reminders (2 days before expiry)
+ * Send trial expiring soon reminders (3, 2, 1 days before expiry)
  */
 const sendTrialExpiringReminders = async () => {
   try {
     console.log("📧 Checking for expiring trials...");
 
     const now = new Date();
-    const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
-    // Find trials expiring in 2 days
+    // Find trials expiring in 1-3 days
     const expiringTrials = await prisma.subscription.findMany({
       where: {
         status: "TRIAL",
         trialEndDate: {
           gte: now,
-          lte: twoDaysFromNow,
+          lte: threeDaysFromNow,
         },
       },
       include: {
@@ -125,7 +139,9 @@ const sendTrialExpiringReminders = async () => {
       },
     });
 
-    console.log(`Found ${expiringTrials.length} trial(s) expiring in 2 days`);
+    console.log(
+      `Found ${expiringTrials.length} trial(s) expiring in the next 3 days`
+    );
 
     let successCount = 0;
     let failedCount = 0;
@@ -141,14 +157,29 @@ const sendTrialExpiringReminders = async () => {
           (subscription.trialEndDate - now) / (1000 * 60 * 60 * 24)
         );
 
-        console.log(
-          `📧 Trial expiring soon for ${subscription.company.companyName} - ${daysLeft} day(s) left`
-        );
-        
-        // TODO: Send trial expiring soon email
-        // await sendTrialExpiringEmail(subscription.company, subscription, daysLeft);
-        
-        successCount++;
+        // Only send email for exactly 3, 2, or 1 days left
+        if (daysLeft === 3 || daysLeft === 2 || daysLeft === 1) {
+          console.log(
+            `📧 Trial expiring soon for ${subscription.company.companyName} - ${daysLeft} day(s) left`
+          );
+
+          // Send trial expiring soon email
+          const emailResult = await sendTrialExpiringEmail(
+            subscription.company,
+            subscription,
+            daysLeft
+          );
+
+          if (emailResult.success) {
+            successCount++;
+          } else {
+            failedCount++;
+            console.error(
+              `Failed to send email to ${subscription.company.companyName}:`,
+              emailResult.error
+            );
+          }
+        }
       } catch (error) {
         console.error(
           `❌ Failed to send reminder to ${subscription.company.companyName}:`,
@@ -182,7 +213,7 @@ export const startTrialExpirationCron = () => {
         console.log("🔄 Running daily trial expiration check...");
 
         try {
-          // Send reminders for trials expiring in 2 days
+          // Send reminders for trials expiring in 3, 2, or 1 days
           const reminderResult = await sendTrialExpiringReminders();
 
           if (reminderResult.success) {
@@ -223,7 +254,7 @@ export const startTrialExpirationCron = () => {
     trialExpirationCronJob.start();
 
     console.log(
-      "✅ Trial expiration cron job started - will run daily at 8:00 AM (Gambia time)"
+      "✅ Trial expiration cron job started - will run daily at 8:00 AM (Gambia time) - sends reminders at 3, 2, 1 days before expiry and notification when expired"
     );
 
     return {
@@ -284,4 +315,3 @@ export const manuallyTriggerTrialCheck = async () => {
 };
 
 export default startTrialExpirationCron;
-
