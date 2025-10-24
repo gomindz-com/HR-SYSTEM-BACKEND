@@ -505,7 +505,6 @@ export const getCompanyLocations = async (req, res) => {
     });
   }
 
-
   try {
     const locations = await prisma.companyLocation.findMany({
       where: { companyId },
@@ -618,5 +617,112 @@ export const deleteCompanyLocation = async (req, res) => {
   } catch (error) {
     console.error("Error in deleteCompanyLocation controller:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getWorkdayConfig = async (req, res) => {
+  const { companyId } = req.user;
+
+  try {
+    if (!companyId) {
+      return res.status(403).json({
+        success: false,
+        message: "unauthorized, make sure you are logged in",
+      });
+    }
+
+    const workdays = await prisma.workdayDaysConfig.findFirst({
+      where: { companyId },
+    });
+
+    if (!workdays) {
+      return res
+        .status(404)
+        .json({ message: "no default  workday config for your company" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "workday config retrieved successfully",
+      data: workdays,
+    });
+  } catch (error) {
+    console.error("Error in getWorkdayConfig controller: ", error);
+    return res
+      .status(500)
+      .json({ success: false, message: `${error.message}` });
+  }
+};
+
+export const updateWorkdayConfiguration = async (req, res) => {
+  const companyId = req.user.companyId;
+  const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } =
+    req.body;
+
+  try {
+    if (!companyId) {
+      return res.status(403).json({
+        success: false,
+        message: "unauthorized, make sure you are logged in",
+      });
+    }
+
+    // Validate that at least one day is selected
+    const workdays = [
+      monday,
+      tuesday,
+      wednesday,
+      thursday,
+      friday,
+      saturday,
+      sunday,
+    ];
+    const hasWorkday = workdays.some((day) => day === true);
+
+    if (!hasWorkday) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one workday must be selected",
+      });
+    }
+
+    // Find and update existing workday configuration
+    const existingConfig = await prisma.workdayDaysConfig.findFirst({
+      where: { companyId },
+    });
+
+    if (!existingConfig) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Workday configuration not found. Please run the initialization script first.",
+      });
+    }
+
+    // Update existing configuration
+    const workdayConfig = await prisma.workdayDaysConfig.update({
+      where: { id: existingConfig.id },
+      data: {
+        monday,
+        tuesday,
+        wednesday,
+        thursday,
+        friday,
+        saturday,
+        sunday,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Workday configuration updated successfully",
+      data: workdayConfig,
+    });
+  } catch (error) {
+    console.error("Error updating workday configuration:", error);
+    return res.status(500).json({
+      success: false,
+      message: `${error.message}`,
+    });
   }
 };

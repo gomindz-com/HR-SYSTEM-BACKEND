@@ -38,6 +38,7 @@ model Company {
   documents          Document[]
   subscription       Subscription?
   payments           Payment[]
+  WorkdayDaysConfig  WorkdayDaysConfig[]
 }
 
 model CompanyLocation {
@@ -433,4 +434,17 @@ enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+model WorkdayDaysConfig {
+  id        String  @id @default(cuid())
+  companyId Int
+  monday    Boolean @default(true)
+  tuesday   Boolean @default(true)
+  wednesday Boolean @default(true)
+  thursday  Boolean @default(true)
+  friday    Boolean @default(true)
+  saturday  Boolean @default(false)
+  sunday    Boolean @default(false)
+  company   Company @relation(fields: [companyId], references: [id])
 }

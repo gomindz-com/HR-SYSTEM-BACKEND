@@ -24,7 +24,8 @@
     "revoke:lifetime": "node scripts/grant-lifetime-access.js revoke",
     "auto-verify": "node scripts/auto-verify-existing-users.js",
     "create:trials": "node scripts/create-trial-subscriptions.js",
-    "test:migration": "node scripts/test-migration.js"
+    "test:migration": "node scripts/test-migration.js",
+    "init:workdays": "node scripts/init-workdays.js"
   },
   "dependencies": {
     "@prisma/client": "^6.17.1",
