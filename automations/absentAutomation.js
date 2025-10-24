@@ -58,7 +58,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
     );
 
     // Check workday configuration
-    const workdayConfig = await prisma.workdayDaysConfig.findFirst({
+    let workdayConfig = await prisma.workdayDaysConfig.findFirst({
       where: { companyId },
     });
 
@@ -70,7 +70,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
         thursday: true,
         friday: true,
         saturday: false,
-        sunday: false
+        sunday: false,
       };
     }
 
