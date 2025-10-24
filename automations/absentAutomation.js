@@ -63,7 +63,15 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
     });
 
     if (!workdayConfig) {
-      return { success: true, message: "No workday configuration", count: 0 };
+      workdayConfig = {
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false
+      };
     }
 
     if (!isWorkday(now, workdayConfig)) {

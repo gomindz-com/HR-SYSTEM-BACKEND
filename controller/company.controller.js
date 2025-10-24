@@ -631,14 +631,21 @@ export const getWorkdayConfig = async (req, res) => {
       });
     }
 
-    const workdays = await prisma.workdayDaysConfig.findFirst({
+    let workdays = await prisma.workdayDaysConfig.findFirst({
       where: { companyId },
     });
 
+    // If no config exists, use schema defaults
     if (!workdays) {
-      return res
-        .status(404)
-        .json({ message: "no default  workday config for your company" });
+      workdays = {
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+      };
     }
 
     return res.status(200).json({
@@ -686,32 +693,42 @@ export const updateWorkdayConfiguration = async (req, res) => {
       });
     }
 
-    // Find and update existing workday configuration
-    const existingConfig = await prisma.workdayDaysConfig.findFirst({
+    // Find existing workday configuration
+    let existingConfig = await prisma.workdayDaysConfig.findFirst({
       where: { companyId },
     });
 
+    let workdayConfig;
+
+    // If no config exists, create one with the provided values
     if (!existingConfig) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Workday configuration not found. Please run the initialization script first.",
+      workdayConfig = await prisma.workdayDaysConfig.create({
+        data: {
+          companyId,
+          monday,
+          tuesday,
+          wednesday,
+          thursday,
+          friday,
+          saturday,
+          sunday,
+        },
+      });
+    } else {
+      // Update existing configuration
+      workdayConfig = await prisma.workdayDaysConfig.update({
+        where: { id: existingConfig.id },
+        data: {
+          monday,
+          tuesday,
+          wednesday,
+          thursday,
+          friday,
+          saturday,
+          sunday,
+        },
       });
     }
-
-    // Update existing configuration
-    const workdayConfig = await prisma.workdayDaysConfig.update({
-      where: { id: existingConfig.id },
-      data: {
-        monday,
-        tuesday,
-        wednesday,
-        thursday,
-        friday,
-        saturday,
-        sunday,
-      },
-    });
 
     return res.status(200).json({
       success: true,
