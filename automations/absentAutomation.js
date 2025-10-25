@@ -193,9 +193,17 @@ async function initializeCompanyAutomation(company) {
     const job = cron.schedule(
       cronPattern,
       async () => {
-        await markEmployeesAbsent(company.id, company.timezone);
+        console.log(
+          `🔥 CRON FIRED at ${new Date().toISOString()} for company ${company.id}`
+        );
+        const result = await markEmployeesAbsent(company.id, company.timezone);
+        console.log(`✅ Result for company ${company.id}:`, result);
       },
       { scheduled: true, timezone: "UTC" }
+    );
+
+    console.log(
+      `✅ Cron job created for company ${company.id} with pattern: ${cronPattern}`
     );
 
     cronJobs.set(company.id, job);
