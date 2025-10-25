@@ -74,7 +74,9 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
-    if (!isWorkday(now, workdayConfig)) {
+    // Get company's local date for workday check
+    const companyLocalDate = new Date(companyLocalDateString + "T00:00:00");
+    if (!isWorkday(companyLocalDate, workdayConfig)) {
       return { success: true, message: "Not a workday", count: 0 };
     }
 
@@ -282,7 +284,31 @@ async function manuallyTriggerForAllCompanies(dryRun = false) {
   }
 }
 
+async function initialize() {
+  try {
+    const result = await initializeAllCompanyAutomations();
+    const successful = result.results.filter((r) => r.success).length;
+    const failed = result.results.filter((r) => !r.success).length;
+
+    return {
+      success: result.success,
+      total: result.results.length,
+      successful,
+      failed,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      total: 0,
+      successful: 0,
+      failed: 0,
+    };
+  }
+}
+
 export {
+  initialize,
   initializeCompanyAutomation,
   stopCompanyAutomation,
   stopAllAutomations,
