@@ -33,7 +33,7 @@ export const updateUserProfile = async (req, res) => {
       }
     });
 
-    // Handle file upload
+    // Handle file upload using multer cloudinary config.
     if (req.file) {
       updateData.profilePic = req.file.path;
     }
@@ -63,4 +63,3 @@ export const updateUserProfile = async (req, res) => {
 
 
 
-// some other functions
