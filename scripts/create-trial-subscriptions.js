@@ -8,12 +8,18 @@ import prisma from "../config/prisma.config.js";
  * - Don't have lifetime access (hasLifetimeAccess = false)
  * - Don't already have a subscription
  *
- * Usage: node scripts/create-trial-subscriptions.js
+ * Usage:
+ *   node scripts/create-trial-subscriptions.js           # Creates trials for all eligible companies
+ *   node scripts/create-trial-subscriptions.js 2         # Creates trial for company ID 2
  */
 
-const createTrialSubscriptions = async () => {
+const createTrialSubscriptions = async (companyId = null) => {
   try {
-    console.log("🔍 Finding companies that need trial subscriptions...");
+    if (companyId) {
+      console.log(`🔍 Creating trial for company ID ${companyId}...`);
+    } else {
+      console.log("🔍 Finding companies that need trial subscriptions...");
+    }
 
     // Get Enterprise plan (everyone gets full access during trial)
     const enterprisePlan = await prisma.subscriptionPlan.findFirst({
@@ -26,12 +32,19 @@ const createTrialSubscriptions = async () => {
       );
     }
 
+    // Build where clause - filter by companyId if provided
+    const whereClause = {
+      hasLifetimeAccess: false,
+      subscription: null,
+    };
+
+    if (companyId) {
+      whereClause.id = parseInt(companyId);
+    }
+
     // Find companies without lifetime access and without existing subscription
     const companies = await prisma.company.findMany({
-      where: {
-        hasLifetimeAccess: false,
-        subscription: null,
-      },
+      where: whereClause,
       select: {
         id: true,
         companyName: true,
@@ -40,9 +53,38 @@ const createTrialSubscriptions = async () => {
     });
 
     if (companies.length === 0) {
-      console.log(
-        "✅ No companies need trial subscriptions. All companies either have lifetime access or existing subscriptions."
-      );
+      if (companyId) {
+        // If a specific company ID was requested, check why it wasn't found
+        const company = await prisma.company.findUnique({
+          where: { id: parseInt(companyId) },
+          select: {
+            id: true,
+            companyName: true,
+            hasLifetimeAccess: true,
+            subscription: { select: { id: true, status: true } },
+          },
+        });
+
+        if (!company) {
+          throw new Error(`Company with ID ${companyId} not found`);
+        }
+
+        if (company.hasLifetimeAccess) {
+          throw new Error(
+            `Company ${company.companyName} (ID: ${companyId}) has lifetime access. No subscription needed.`
+          );
+        }
+
+        if (company.subscription) {
+          throw new Error(
+            `Company ${company.companyName} (ID: ${companyId}) already has a subscription with status: ${company.subscription.status}`
+          );
+        }
+      } else {
+        console.log(
+          "✅ No companies need trial subscriptions. All companies either have lifetime access or existing subscriptions."
+        );
+      }
       return;
     }
 
@@ -95,7 +137,10 @@ const createTrialSubscriptions = async () => {
 };
 
 // Run the script
-createTrialSubscriptions().catch((error) => {
+const args = process.argv.slice(2);
+const companyId = args[0] || null;
+
+createTrialSubscriptions(companyId).catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
