@@ -42,7 +42,6 @@ const createTrialSubscriptions = async (companyId = null) => {
       whereClause.id = parseInt(companyId);
     }
 
-    // Find companies without lifetime access and without existing subscription
     const companies = await prisma.company.findMany({
       where: whereClause,
       select: {
