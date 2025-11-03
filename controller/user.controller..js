@@ -56,7 +56,11 @@ export const updateUserProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating user profile:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("Update data that caused error:", updateData);
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined
+    });
   }
 };
 
