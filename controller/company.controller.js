@@ -91,13 +91,31 @@ export const signUpCompany = async (req, res) => {
       },
     });
 
-    // Send verification email
-    await sendVerificationEmail(HREmail, verificationToken, HRName);
+    // Send verification email with better error handling
+    try {
+      console.log(`📧 Attempting to send verification email to: ${HREmail}`);
+      await sendVerificationEmail(HREmail, verificationToken, HRName);
+      console.log(`✅ Verification email sent successfully to: ${HREmail}`);
+    } catch (emailError) {
+      console.error("❌ CRITICAL: Failed to send verification email:", {
+        email: HREmail,
+        error: emailError.message,
+        stack: emailError.stack,
+        timestamp: new Date().toISOString(),
+      });
+      // Still return success but inform the user there was an issue
+      return res.status(201).json({
+        success: true,
+        message:
+          "Account created! However, there was an issue sending the verification email. Please use the 'Resend Verification Email' option on the login page.",
+        emailSendFailed: true,
+      });
+    }
 
     res.status(201).json({
       success: true,
       message:
-        "Signup successful! Please check your email to verify your account.",
+        "Signup successful! Please check your email (including spam folder) to verify your account.",
     });
   } catch (error) {
     console.log("Error in signUpCompany", error);

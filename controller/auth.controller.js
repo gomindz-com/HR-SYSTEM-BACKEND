@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { generateToken } from "../emails/utils.js";
 import crypto from "crypto";
 import { forgotPasswordEmail } from "../emails/forgotPasswordEmail.js";
+import { sendVerificationEmail } from "../emails/verificationEmail.js";
 import {
   createActivity,
   ACTIVITY_TYPES,
@@ -310,6 +311,76 @@ export const verifyEmail = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in verifyEmail", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const resendVerificationEmail = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const employee = await prisma.employee.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        emailVerified: true,
+        emailVerificationToken: true,
+        emailVerificationExpires: true,
+      },
+    });
+
+    // Don't reveal if user exists or not (security best practice)
+    if (!employee) {
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+      return res.status(200).json({
+        message:
+          "If an account with that email exists and is unverified, a verification email has been sent.",
+      });
+    }
+
+    // Check if already verified
+    if (employee.emailVerified) {
+      return res.status(400).json({
+        message: "This email is already verified. You can log in now.",
+      });
+    }
+
+    // Generate new token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpires: expiresAt,
+      },
+    });
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(employee.email, verificationToken, employee.name);
+      console.log(`✅ Resent verification email to: ${employee.email}`);
+    } catch (emailError) {
+      console.error("❌ Failed to resend verification email:", emailError);
+      return res.status(500).json({
+        message: "Failed to send verification email. Please try again later.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Verification email sent! Please check your inbox and spam folder.",
+    });
+  } catch (error) {
+    console.error("Error in resendVerificationEmail:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
