@@ -411,14 +411,28 @@ export const updateEmployeeProfile = async (req, res) => {
   const updateData = {};
 
   allowedUpdates.forEach((field) => {
-    if (req.body[field] !== undefined) {
-      updateData[field] = req.body[field];
-    }
+    const value = req.body[field];
+
+    // Skip undefined values
+    if (value === undefined) return;
+
+    // Skip empty strings
+    if (value === "" || value === null) return;
+
+    updateData[field] = value;
   });
 
-  // Convert departmentId to integer if provided
+  // Convert numeric fields properly
   if (updateData.departmentId) {
     updateData.departmentId = parseInt(updateData.departmentId);
+  }
+
+  if (updateData.salary !== undefined) {
+    updateData.salary = parseFloat(updateData.salary);
+  }
+
+  if (updateData.sumBonuses !== undefined) {
+    updateData.sumBonuses = parseFloat(updateData.sumBonuses);
   }
 
   try {
@@ -450,8 +464,12 @@ export const updateEmployeeProfile = async (req, res) => {
       data: updatedEmployee,
     });
   } catch (error) {
-    console.error("Error updating employee profile", error);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("Error updating employee profile:", error);
+    console.error("Update data that caused error:", updateData);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 

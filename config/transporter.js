@@ -1,26 +1,62 @@
-import nodemailer from "nodemailer";
+import { sendEmail } from "./brevo.service.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-export const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASSWORD,
-  },
-  pool: true, // Use connection pooling for better performance
-  maxConnections: 5, // Limit concurrent connections
-  maxMessages: 100, // Limit messages per connection
-  rateDelta: 1000, // 1 second rate limiting window
-  rateLimit: 5, // Max 5 emails per second
-});
+// Drop-in replacement for nodemailer using Brevo
+export const transporter = {
+  async sendMail(mailOptions, callback) {
+    try {
+      const toEmail =
+        typeof mailOptions.to === "string"
+          ? mailOptions.to
+          : mailOptions.to?.email || mailOptions.to;
 
-// Verify connection configuration on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("❌ Email transporter verification failed:", error);
-  } else {
-    console.log("✅ Email server is ready to send messages");
-  }
-});
+      const result = await sendEmail(
+        toEmail,
+        mailOptions.subject,
+        mailOptions.html,
+        mailOptions.text
+      );
+
+      const response = {
+        messageId: result.messageId,
+        response: `Email sent via Brevo: ${result.messageId}`,
+        accepted: [toEmail],
+        rejected: [],
+        envelope: {
+          from: process.env.SENDER_EMAIL || "support@hrsystem.com",
+          to: [toEmail],
+        },
+      };
+
+      if (callback) {
+        callback(null, response);
+      }
+      return response;
+    } catch (error) {
+      console.error("❌ Transporter sendMail error:", error);
+      if (callback) {
+        callback(error, null);
+        return;
+      }
+      throw error;
+    }
+  },
+
+  verify(callback) {
+    if (!process.env.BREVO_API_KEY) {
+      const error = new Error("BREVO_API_KEY is not configured");
+      console.error("❌ Email transporter verification failed:", error.message);
+      if (callback) callback(error, null);
+      return Promise.reject(error);
+    }
+
+    const success = { message: "Brevo API ready" };
+    console.log("✅ Email server is ready to send messages (via Brevo)");
+    if (callback) callback(null, success);
+    return Promise.resolve(success);
+  },
+};
+
+transporter.verify();
