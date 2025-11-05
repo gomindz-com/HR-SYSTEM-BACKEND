@@ -1,29 +1,36 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
 import { isWorkday } from "../utils/automation.utils.js";
+import { hasShiftDeadlinePassed } from "../lib/attendance-utils.js";
 
 const cronJobs = new Map();
 
-function getCronScheduleFor7PM(timezone) {
+/**
+ * Calculate cron schedule for 00:15 local time in company timezone
+ * Runs daily to check yesterday's attendance and mark absent employees
+ * @param {string} timezone - Company timezone
+ * @returns {string} Cron pattern (minute hour * * *)
+ */
+function getCronScheduleForDaily(timezone) {
   const timezoneMap = {
-    UTC: 19,
-    "America/New_York": 0,
-    "America/Chicago": 1,
-    "America/Denver": 2,
-    "America/Los_Angeles": 3,
-    "Europe/London": 19,
-    "Europe/Paris": 18,
-    "Asia/Tokyo": 10,
-    "Africa/Abidjan": 19,
-    "Africa/Banjul": 19,
+    UTC: 0,
+    "America/New_York": 5, // 00:15 EST = 05:15 UTC
+    "America/Chicago": 6, // 00:15 CST = 06:15 UTC
+    "America/Denver": 7, // 00:15 MST = 07:15 UTC
+    "America/Los_Angeles": 8, // 00:15 PST = 08:15 UTC
+    "Europe/London": 0, // 00:15 GMT = 00:15 UTC
+    "Europe/Paris": 23, // 00:15 CET = 23:15 UTC (previous day)
+    "Asia/Tokyo": 15, // 00:15 JST = 15:15 UTC (previous day)
+    "Africa/Abidjan": 0,
+    "Africa/Banjul": 0,
   };
 
   if (!timezone || typeof timezone !== "string") {
-    return "0 19 * * 1-5";
+    return "15 0 * * *"; // Default: 00:15 UTC daily
   }
 
   if (timezoneMap[timezone]) {
-    return `0 ${timezoneMap[timezone]} * * 1-5`;
+    return `15 ${timezoneMap[timezone]} * * *`;
   }
 
   try {
@@ -36,26 +43,62 @@ function getCronScheduleFor7PM(timezone) {
 
     const localHour = parseInt(localTime);
     const offsetHours = localHour - 12;
-    let targetUTCHour = 19 - offsetHours;
+    let targetUTCHour = 0 - offsetHours; // Changed from 19 to 0
 
     if (targetUTCHour < 0) targetUTCHour += 24;
     if (targetUTCHour >= 24) targetUTCHour -= 24;
 
-    return `0 ${targetUTCHour} * * 1-5`;
+    return `15 ${targetUTCHour} * * *`; // Changed: minute 15, every day
   } catch (error) {
-    return "0 19 * * 1-5";
+    return "15 0 * * *"; // Changed: minute 15, hour 0, every day
   }
 }
 
 async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
   try {
     const now = new Date();
-    const companyLocalDateString = now.toLocaleDateString("en-CA", {
+
+    // Get TODAY's date in company timezone
+    const todayLocalDateString = now.toLocaleDateString("en-CA", {
       timeZone: companyTimezone,
     });
+
+    // Subtract 1 day to get YESTERDAY (since we run at 00:15, we check yesterday's records)
+    const todayLocalDate = new Date(`${todayLocalDateString}T00:00:00`);
+    const yesterdayLocalDate = new Date(todayLocalDate);
+    yesterdayLocalDate.setDate(yesterdayLocalDate.getDate() - 1);
+
+    // Get yesterday's date string
+    const companyLocalDateString = yesterdayLocalDate.toLocaleDateString(
+      "en-CA",
+      {
+        timeZone: companyTimezone,
+      }
+    );
+
     const companyDateMidnight = new Date(
       `${companyLocalDateString}T00:00:00.000Z`
     );
+
+    const companySettings = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workStartTime: true,
+        workEndTime: true,
+        workStartTime2: true,
+        workEndTime2: true,
+        checkInDeadline: true,
+        checkInDeadline2: true,
+      },
+    });
+
+    if (!companySettings) {
+      return {
+        success: false,
+        message: "Company settings not found",
+        count: 0,
+      };
+    }
 
     // Check workday configuration
     let workdayConfig = await prisma.workdayDaysConfig.findFirst({
@@ -74,10 +117,14 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
-    // Get company's local date for workday check
+    // Check if yesterday was a workday (using the date we're checking)
     const companyLocalDate = new Date(companyLocalDateString + "T00:00:00");
     if (!isWorkday(companyLocalDate, workdayConfig)) {
-      return { success: true, message: "Not a workday", count: 0 };
+      return {
+        success: true,
+        message: "Yesterday was not a workday",
+        count: 0,
+      };
     }
 
     // Check for existing absent records
@@ -102,6 +149,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
         status: "ACTIVE",
         companyId,
         emailVerified: true,
+        deleted: false,
         attendances: {
           none: {
             date: {
@@ -111,7 +159,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
           },
         },
       },
-      select: { id: true, name: true, companyId: true },
+      select: { id: true, name: true, companyId: true, shiftType: true },
     });
 
     if (employeesWithoutAttendance.length === 0) {
@@ -122,20 +170,36 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
+    // Filter employees by shift deadline - only mark absent if their deadline has passed
+    const employeesToMarkAbsent = employeesWithoutAttendance.filter(
+      (employee) => {
+        const shiftType = employee.shiftType || "MORNING_SHIFT";
+        return hasShiftDeadlinePassed(companySettings, shiftType, now);
+      }
+    );
+
+    if (employeesToMarkAbsent.length === 0) {
+      return {
+        success: true,
+        message: "No employees with passed deadlines to mark absent",
+        count: 0,
+      };
+    }
+
     // Create absent records
     let result;
     if (dryRun) {
       // Dry run - just return the count without creating records
-      result = { count: employeesWithoutAttendance.length };
+      result = { count: employeesToMarkAbsent.length };
     } else {
       result = await prisma.$transaction(async (tx) => {
-        const employeesToMarkAbsent = await tx.employee.findMany({
+        const employeesToMarkAbsentInTx = await tx.employee.findMany({
           where: {
-            id: { in: employeesWithoutAttendance.map((emp) => emp.id) },
-            status: "ACTIVE",
+            id: { in: employeesToMarkAbsent.map((emp) => emp.id) },
             companyId,
             deleted: false,
             emailVerified: true,
+            status: "ACTIVE",
             attendances: {
               none: {
                 date: {
@@ -147,15 +211,23 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
               },
             },
           },
-          select: { id: true, name: true, companyId: true },
+          select: { id: true, name: true, companyId: true, shiftType: true },
         });
 
-        if (employeesToMarkAbsent.length === 0) {
+        // Filter again in transaction to ensure deadlines still passed
+        const finalEmployeesToMarkAbsent = employeesToMarkAbsentInTx.filter(
+          (employee) => {
+            const shiftType = employee.shiftType || "MORNING_SHIFT";
+            return hasShiftDeadlinePassed(companySettings, shiftType, now);
+          }
+        );
+
+        if (finalEmployeesToMarkAbsent.length === 0) {
           return { count: 0 };
         }
 
         return await tx.attendance.createMany({
-          data: employeesToMarkAbsent.map((employee) => ({
+          data: finalEmployeesToMarkAbsent.map((employee) => ({
             employeeId: employee.id,
             companyId: employee.companyId,
             date: companyDateMidnight,
@@ -184,7 +256,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
 
 async function initializeCompanyAutomation(company) {
   try {
-    const cronPattern = getCronScheduleFor7PM(company.timezone);
+    const cronPattern = getCronScheduleForDaily(company.timezone);
 
     if (cronJobs.has(company.id)) {
       cronJobs.get(company.id).stop();

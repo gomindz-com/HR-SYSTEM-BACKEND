@@ -360,7 +360,7 @@ enum BenefitCategory {
 
 enum Shift {
   MORNING_SHIFT
-  AFTERNOON_SHIFT
+  EVENING_SHIFT
 }
 
 enum DocumentCategory {
