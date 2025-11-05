@@ -396,4 +396,5 @@ export {
   manuallyTriggerForCompany,
   manuallyTriggerForAllCompanies,
   markEmployeesAbsent,
+  getCronScheduleForDaily,
 };

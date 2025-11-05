@@ -22,6 +22,8 @@ model Company {
   workEndTime2       String              @default("23:59")
   lateThreshold      Int                 @default(15)
   checkInDeadline    Int                 @default(15)
+  lateThreshold2     Int                 @default(15)
+  checkInDeadline2   Int                 @default(15)
   hasLifetimeAccess  Boolean             @default(false)
   createdAt          DateTime            @default(now())
   activities         Activity[]

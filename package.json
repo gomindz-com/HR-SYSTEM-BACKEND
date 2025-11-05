@@ -9,6 +9,7 @@
     "build": "npm run db:generate && npm run db:push:prod",
     "deploy-setup": "node deploy-setup.js",
     "test-absent": "node test-absent-automation.js",
+    "test:absent": "node tests/absentAutomation.test.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",

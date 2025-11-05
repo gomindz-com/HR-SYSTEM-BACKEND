@@ -134,6 +134,10 @@ export const updateAttendanceSettings = async (req, res) => {
     workEndTime,
     lateThreshold,
     checkInDeadline,
+    workStartTime2,
+    workEndTime2,
+    lateThreshold2,
+    checkInDeadline2,
   } = req.body;
 
   try {
@@ -150,29 +154,56 @@ export const updateAttendanceSettings = async (req, res) => {
         message: "Invalid work end time format. Use HH:MM format (e.g., 17:00)",
       });
     }
+    if (workStartTime2 && !timeRegex.test(workStartTime2)) {
+      return res.status(400).json({
+        message:
+          "Invalid evening shift start time format. Use HH:MM format (e.g., 17:00)",
+      });
+    }
+    if (workEndTime2 && !timeRegex.test(workEndTime2)) {
+      return res.status(400).json({
+        message: "Invalid evening shift end time format. Use HH:MM format (e.g., 23:59)",
+      });
+    }
 
     // Validate numeric fields
-    if (lateThreshold && (lateThreshold < 0 || lateThreshold > 120)) {
+    if (lateThreshold !== undefined && (lateThreshold < 0 || lateThreshold > 120)) {
       return res.status(400).json({
         message: "Late threshold must be between 0 and 120 minutes",
       });
     }
-    if (checkInDeadline && (checkInDeadline < 0 || checkInDeadline > 120)) {
+    if (checkInDeadline !== undefined && (checkInDeadline < 0 || checkInDeadline > 120)) {
       return res.status(400).json({
         message: "Check-in deadline must be between 0 and 120 minutes",
       });
     }
+    if (lateThreshold2 !== undefined && (lateThreshold2 < 0 || lateThreshold2 > 120)) {
+      return res.status(400).json({
+        message: "Evening shift late threshold must be between 0 and 120 minutes",
+      });
+    }
+    if (checkInDeadline2 !== undefined && (checkInDeadline2 < 0 || checkInDeadline2 > 120)) {
+      return res.status(400).json({
+        message: "Evening shift check-in deadline must be between 0 and 120 minutes",
+      });
+    }
+
+    // Build update data object
+    const updateData = {};
+    if (timezone !== undefined) updateData.timezone = timezone;
+    if (workStartTime !== undefined) updateData.workStartTime = workStartTime;
+    if (workEndTime !== undefined) updateData.workEndTime = workEndTime;
+    if (lateThreshold !== undefined) updateData.lateThreshold = lateThreshold;
+    if (checkInDeadline !== undefined) updateData.checkInDeadline = checkInDeadline;
+    if (workStartTime2 !== undefined) updateData.workStartTime2 = workStartTime2;
+    if (workEndTime2 !== undefined) updateData.workEndTime2 = workEndTime2;
+    if (lateThreshold2 !== undefined) updateData.lateThreshold2 = lateThreshold2;
+    if (checkInDeadline2 !== undefined) updateData.checkInDeadline2 = checkInDeadline2;
 
     // Update company settings
     const updatedCompany = await prisma.company.update({
       where: { id: companyId },
-      data: {
-        timezone: timezone || undefined,
-        workStartTime: workStartTime || undefined,
-        workEndTime: workEndTime || undefined,
-        lateThreshold: lateThreshold || undefined,
-        checkInDeadline: checkInDeadline || undefined,
-      },
+      data: updateData,
       select: {
         id: true,
         companyName: true,
@@ -181,6 +212,10 @@ export const updateAttendanceSettings = async (req, res) => {
         workEndTime: true,
         lateThreshold: true,
         checkInDeadline: true,
+        workStartTime2: true,
+        workEndTime2: true,
+        lateThreshold2: true,
+        checkInDeadline2: true,
       },
     });
 
@@ -212,6 +247,10 @@ export const getAttendanceSettings = async (req, res) => {
         workEndTime: true,
         lateThreshold: true,
         checkInDeadline: true,
+        workStartTime2: true,
+        workEndTime2: true,
+        lateThreshold2: true,
+        checkInDeadline2: true,
       },
     });
 
