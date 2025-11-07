@@ -222,6 +222,7 @@ model Invitation {
   position     String
   companyId    Int
   departmentId Int
+  shiftType    Shift?           @default(MORNING_SHIFT)
   status       InvitationStatus @default(PENDING)
   token        String           @unique
   expiresAt    DateTime
