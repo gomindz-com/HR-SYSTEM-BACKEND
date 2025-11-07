@@ -171,10 +171,11 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
     }
 
     // Filter employees by shift deadline - only mark absent if their deadline has passed
+    // Pass companyLocalDateString (yesterday's date) so morning shift checks yesterday's deadline
     const employeesToMarkAbsent = employeesWithoutAttendance.filter(
       (employee) => {
         const shiftType = employee.shiftType || "MORNING_SHIFT";
-        return hasShiftDeadlinePassed(companySettings, shiftType, now);
+        return hasShiftDeadlinePassed(companySettings, shiftType, now, companyLocalDateString);
       }
     );
 
@@ -215,10 +216,11 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
         });
 
         // Filter again in transaction to ensure deadlines still passed
+        // Pass companyLocalDateString (yesterday's date) so morning shift checks yesterday's deadline
         const finalEmployeesToMarkAbsent = employeesToMarkAbsentInTx.filter(
           (employee) => {
             const shiftType = employee.shiftType || "MORNING_SHIFT";
-            return hasShiftDeadlinePassed(companySettings, shiftType, now);
+            return hasShiftDeadlinePassed(companySettings, shiftType, now, companyLocalDateString);
           }
         );
 
