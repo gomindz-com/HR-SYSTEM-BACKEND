@@ -185,7 +185,15 @@ export const updateEmployee = async (req, res) => {
     "status",
     "position",
     "departmentId",
+    "shiftType",
   ];
+
+  // RBAC: Only ADMIN can update shiftType
+  if (req.body.shiftType && req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can update employee shift type",
+    });
+  }
 
   const updateData = {};
 
@@ -406,6 +414,7 @@ export const updateEmployeeProfile = async (req, res) => {
     "sumBonuses",
     "role",
     "status",
+    "shiftType",
   ];
 
   const updateData = {};
@@ -421,6 +430,13 @@ export const updateEmployeeProfile = async (req, res) => {
 
     updateData[field] = value;
   });
+
+  // RBAC: Only ADMIN can update shiftType
+  if (updateData.shiftType && req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can update employee shift type",
+    });
+  }
 
   // Convert numeric fields properly
   if (updateData.departmentId) {

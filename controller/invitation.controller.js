@@ -10,7 +10,8 @@ import {
 } from "../lib/activity-utils.js";
 
 export const sendInvitation = async (req, res) => {
-  const { email, role, position, departmentId, employeeId } = req.body;
+  const { email, role, position, departmentId, employeeId, shiftType } =
+    req.body;
   const id = req.user.id;
   const companyId = req.user.companyId;
 
@@ -79,6 +80,7 @@ export const sendInvitation = async (req, res) => {
         companyId,
         invitedBy: id,
         employeeId: employeeId || null,
+        shiftType: shiftType || "MORNING_SHIFT",
         token,
         expiresAt,
         status: "PENDING",
@@ -188,7 +190,8 @@ export const sendBulkInvitations = async (req, res) => {
     }
 
     for (const invitation of invitations) {
-      const { email, role, position, departmentName, employeeId } = invitation;
+      const { email, role, position, departmentName, employeeId, shiftType } =
+        invitation;
 
       try {
         // Normalize email
@@ -281,6 +284,7 @@ export const sendBulkInvitations = async (req, res) => {
             companyId,
             invitedBy: id,
             employeeId: employeeId || null,
+            shiftType: shiftType || "MORNING_SHIFT",
             token,
             expiresAt,
             status: "PENDING",
@@ -421,6 +425,7 @@ export const acceptInvitation = async (req, res) => {
         employeeId: invitation.employeeId || null,
         profilePic: randomAvatar,
         position: invitation.position,
+        shiftType: invitation.shiftType || "MORNING_SHIFT",
         createdAt: new Date(),
         departmentId: invitation.departmentId,
         emailVerified: true, // Invited users are pre-verified via invitation email

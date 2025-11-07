@@ -22,6 +22,8 @@ model Company {
   workEndTime2       String              @default("23:59")
   lateThreshold      Int                 @default(15)
   checkInDeadline    Int                 @default(15)
+  lateThreshold2     Int                 @default(15)
+  checkInDeadline2   Int                 @default(15)
   hasLifetimeAccess  Boolean             @default(false)
   createdAt          DateTime            @default(now())
   activities         Activity[]
@@ -220,6 +222,7 @@ model Invitation {
   position     String
   companyId    Int
   departmentId Int
+  shiftType    Shift?           @default(MORNING_SHIFT)
   status       InvitationStatus @default(PENDING)
   token        String           @unique
   expiresAt    DateTime
@@ -360,7 +363,7 @@ enum BenefitCategory {
 
 enum Shift {
   MORNING_SHIFT
-  AFTERNOON_SHIFT
+  EVENING_SHIFT
 }
 
 enum DocumentCategory {

@@ -61,14 +61,29 @@ export const checkIn = async (req, res) => {
     // Get the validated location for storage
     const validatedLocation = locationValidation.location;
 
+    const employee = await prisma.employee.findUnique({
+      where: {
+        id: employeeId,
+      },
+      select: { shiftType: true },
+    });
+
+    if (!employee) {
+      return res.status(400).json({ message: "Employee not found" });
+    }
+
     // Get company settings for attendance rules
     const company = await prisma.company.findUnique({
       where: { id: companyId },
       select: {
         workStartTime: true,
         workEndTime: true,
+        workStartTime2: true,
+        workEndTime2: true,
         lateThreshold: true,
         checkInDeadline: true,
+        lateThreshold2: true,
+        checkInDeadline2: true,
       },
     });
 
@@ -101,7 +116,7 @@ export const checkIn = async (req, res) => {
     }
 
     // Check if check-in is allowed based on company settings
-    const checkInResult = checkCheckInWindow(company);
+    const checkInResult = checkCheckInWindow(company, employee?.shiftType);
 
     if (!checkInResult.isAllowed) {
       return res.status(400).json({
@@ -116,7 +131,7 @@ export const checkIn = async (req, res) => {
     }
 
     const now = new Date();
-    const status = determineAttendanceStatus(now, company);
+    const status = determineAttendanceStatus(now, company, employee?.shiftType);
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -307,7 +322,7 @@ export const adminAddAttendance = async (req, res) => {
         id: parseInt(employeeId),
         companyId,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, shiftType: true },
     });
 
     if (!employee) {
@@ -324,6 +339,10 @@ export const adminAddAttendance = async (req, res) => {
         workEndTime: true,
         lateThreshold: true,
         checkInDeadline: true,
+        workStartTime2: true,
+        workEndTime2: true,
+        lateThreshold2: true,
+        checkInDeadline2: true,
       },
     });
 
@@ -346,7 +365,7 @@ export const adminAddAttendance = async (req, res) => {
       });
     }
 
-    const checkInResult = checkCheckInWindow(company);
+    const checkInResult = checkCheckInWindow(company, employee.shiftType);
 
     if (!checkInResult.isAllowed) {
       return res.status(400).json({
@@ -361,7 +380,11 @@ export const adminAddAttendance = async (req, res) => {
     }
 
     // Determine status based on the inputted check-in time, not current time
-    const status = determineAttendanceStatus(parsedTimeIn, company);
+    const status = determineAttendanceStatus(
+      parsedTimeIn,
+      company,
+      employee.shiftType
+    );
 
     // Use upsert to avoid unique constraint issues
     const attendance = await prisma.attendance.upsert({
@@ -402,6 +425,14 @@ export const adminClockOut = async (req, res) => {
   const { companyId } = req.user;
   const { timeOut } = req.body;
 
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { shiftType: true },
+  });
+
+  if (!employee) {
+    return res.status(400).json({ message: "Employee not found" });
+  }
   if (!employeeId)
     return res.status(400).json({ message: "Employee ID is required" });
   if (!companyId)
@@ -418,19 +449,8 @@ export const adminClockOut = async (req, res) => {
       });
     }
 
-    // Verify employee belongs to company
-    const employee = await prisma.employee.findFirst({
-      where: {
-        id: parseInt(employeeId),
-        companyId,
-      },
-      select: { id: true, name: true },
-    });
-
     if (!employee) {
-      return res.status(404).json({
-        message: "Employee not found or doesn't belong to this company",
-      });
+      return res.status(400).json({ message: "Employee not found" });
     }
 
     const today = new Date();
@@ -948,7 +968,7 @@ export const adminCreateAttendanceRecord = async (req, res) => {
         id: parseInt(employeeId),
         companyId,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, shiftType: true },
     });
 
     if (!employee) {
@@ -1020,9 +1040,16 @@ export const adminCreateAttendanceRecord = async (req, res) => {
       select: {
         workStartTime: true,
         lateThreshold: true,
+        workStartTime2: true,
+        workEndTime2: true,
+        lateThreshold2: true,
       },
     });
-    const attendanceStatus = determineAttendanceStatus(parsedTimeIn, company);
+    const attendanceStatus = determineAttendanceStatus(
+      parsedTimeIn,
+      company,
+      employee.shiftType
+    );
 
     // Create attendance record
     const attendance = await prisma.attendance.create({
@@ -1064,5 +1091,3 @@ export const adminCreateAttendanceRecord = async (req, res) => {
     return res.status(500).json({ message: `${error.message}` });
   }
 };
-
-

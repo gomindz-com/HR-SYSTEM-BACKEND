@@ -9,6 +9,7 @@
     "build": "npm run db:generate && npm run db:push:prod",
     "deploy-setup": "node deploy-setup.js",
     "test-absent": "node test-absent-automation.js",
+    "test:absent": "node tests/absentAutomation.test.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
@@ -29,7 +30,7 @@
   },
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",
-    "@prisma/client": "^6.18.0",
+    "@prisma/client": "^6.19.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^1.41.3",
@@ -59,6 +60,6 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "prisma": "^6.18.0"
+    "prisma": "^6.19.0"
   }
 }
