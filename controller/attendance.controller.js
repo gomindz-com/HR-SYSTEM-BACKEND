@@ -951,6 +951,7 @@ export const adminCreateAttendanceRecord = async (req, res) => {
       .json({ message: "Only admins can create attendance records" });
   }
 
+
   if (!employeeId || !companyId) {
     return res
       .status(400)
@@ -977,6 +978,8 @@ export const adminCreateAttendanceRecord = async (req, res) => {
       });
     }
 
+
+  
     // Parse and validate dates
     const attendanceDate = date ? new Date(date) : new Date();
     attendanceDate.setHours(0, 0, 0, 0);
@@ -1028,9 +1031,8 @@ export const adminCreateAttendanceRecord = async (req, res) => {
     });
 
     if (existingAttendance) {
-      return res.status(400).json({
-        message:
-          "Attendance record already exists for this employee on this date",
+      await prisma.attendance.delete({
+        where: { id: existingAttendance.id },
       });
     }
 
