@@ -56,6 +56,40 @@ function getCronScheduleForDaily(timezone) {
 
 async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
   try {
+    // Add subscription check here
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        subscription: {
+          include: { plan: true },
+        },
+      },
+    });
+
+    // Check if subscription is valid
+    if (!company.hasLifetimeAccess) {
+      const subscription = company.subscription;
+      if (!subscription) {
+        return { success: false, message: "No subscription found", count: 0 };
+      }
+
+      const now = new Date();
+      const isActive =
+        subscription.status === "ACTIVE" && subscription.endDate > now;
+      const isTrial =
+        subscription.status === "TRIAL" && subscription.trialEndDate > now;
+      const isCancelledButValid =
+        subscription.status === "CANCELLED" && subscription.endDate > now;
+
+      if (!isActive && !isTrial && !isCancelledButValid) {
+        return {
+          success: false,
+          message: "Subscription expired - skipping absent marking",
+          count: 0,
+        };
+      }
+    }
+
     const now = new Date();
 
     // Get TODAY's date in company timezone
@@ -175,7 +209,12 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
     const employeesToMarkAbsent = employeesWithoutAttendance.filter(
       (employee) => {
         const shiftType = employee.shiftType || "MORNING_SHIFT";
-        return hasShiftDeadlinePassed(companySettings, shiftType, now, companyLocalDateString);
+        return hasShiftDeadlinePassed(
+          companySettings,
+          shiftType,
+          now,
+          companyLocalDateString
+        );
       }
     );
 
@@ -220,7 +259,12 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
         const finalEmployeesToMarkAbsent = employeesToMarkAbsentInTx.filter(
           (employee) => {
             const shiftType = employee.shiftType || "MORNING_SHIFT";
-            return hasShiftDeadlinePassed(companySettings, shiftType, now, companyLocalDateString);
+            return hasShiftDeadlinePassed(
+              companySettings,
+              shiftType,
+              now,
+              companyLocalDateString
+            );
           }
         );
 
