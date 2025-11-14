@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import moment from "moment-timezone";
 import crypto from "crypto";
 import { sendVerificationEmail } from "../emails/verificationEmail.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 export const signUpCompany = async (req, res) => {
   const { companyName, HRName, HREmail, HRPassword, confirmHRPassword } =
@@ -79,6 +80,22 @@ export const signUpCompany = async (req, res) => {
         isActive: true,
       },
     });
+
+    // Create welcome notification for the new admin
+    try {
+      await createNotification({
+        companyId: company.id,
+        userId: newHR.id,
+        message: `Welcome to ${companyName}! Complete your company profile and settings to get started.`,
+        type: "INFO",
+        category: "SYSTEM",
+        priority: "NORMAL",
+        redirectUrl: "/settings",
+      });
+    } catch (notifError) {
+      console.error("Error creating welcome notification:", notifError);
+      // Don't fail signup if notification fails
+    }
 
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -162,29 +179,44 @@ export const updateAttendanceSettings = async (req, res) => {
     }
     if (workEndTime2 && !timeRegex.test(workEndTime2)) {
       return res.status(400).json({
-        message: "Invalid evening shift end time format. Use HH:MM format (e.g., 23:59)",
+        message:
+          "Invalid evening shift end time format. Use HH:MM format (e.g., 23:59)",
       });
     }
 
     // Validate numeric fields
-    if (lateThreshold !== undefined && (lateThreshold < 0 || lateThreshold > 120)) {
+    if (
+      lateThreshold !== undefined &&
+      (lateThreshold < 0 || lateThreshold > 120)
+    ) {
       return res.status(400).json({
         message: "Late threshold must be between 0 and 120 minutes",
       });
     }
-    if (checkInDeadline !== undefined && (checkInDeadline < 0 || checkInDeadline > 120)) {
+    if (
+      checkInDeadline !== undefined &&
+      (checkInDeadline < 0 || checkInDeadline > 120)
+    ) {
       return res.status(400).json({
         message: "Check-in deadline must be between 0 and 120 minutes",
       });
     }
-    if (lateThreshold2 !== undefined && (lateThreshold2 < 0 || lateThreshold2 > 120)) {
+    if (
+      lateThreshold2 !== undefined &&
+      (lateThreshold2 < 0 || lateThreshold2 > 120)
+    ) {
       return res.status(400).json({
-        message: "Evening shift late threshold must be between 0 and 120 minutes",
+        message:
+          "Evening shift late threshold must be between 0 and 120 minutes",
       });
     }
-    if (checkInDeadline2 !== undefined && (checkInDeadline2 < 0 || checkInDeadline2 > 120)) {
+    if (
+      checkInDeadline2 !== undefined &&
+      (checkInDeadline2 < 0 || checkInDeadline2 > 120)
+    ) {
       return res.status(400).json({
-        message: "Evening shift check-in deadline must be between 0 and 120 minutes",
+        message:
+          "Evening shift check-in deadline must be between 0 and 120 minutes",
       });
     }
 
@@ -194,11 +226,15 @@ export const updateAttendanceSettings = async (req, res) => {
     if (workStartTime !== undefined) updateData.workStartTime = workStartTime;
     if (workEndTime !== undefined) updateData.workEndTime = workEndTime;
     if (lateThreshold !== undefined) updateData.lateThreshold = lateThreshold;
-    if (checkInDeadline !== undefined) updateData.checkInDeadline = checkInDeadline;
-    if (workStartTime2 !== undefined) updateData.workStartTime2 = workStartTime2;
+    if (checkInDeadline !== undefined)
+      updateData.checkInDeadline = checkInDeadline;
+    if (workStartTime2 !== undefined)
+      updateData.workStartTime2 = workStartTime2;
     if (workEndTime2 !== undefined) updateData.workEndTime2 = workEndTime2;
-    if (lateThreshold2 !== undefined) updateData.lateThreshold2 = lateThreshold2;
-    if (checkInDeadline2 !== undefined) updateData.checkInDeadline2 = checkInDeadline2;
+    if (lateThreshold2 !== undefined)
+      updateData.lateThreshold2 = lateThreshold2;
+    if (checkInDeadline2 !== undefined)
+      updateData.checkInDeadline2 = checkInDeadline2;
 
     // Update company settings
     const updatedCompany = await prisma.company.update({

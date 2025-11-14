@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 // Function to send reminder email
 const sendLeaveReminderEmail = async (leaveRequest, daysLeft) => {
@@ -102,6 +103,25 @@ const checkAndSendReminders = async () => {
       // Only send reminder if it's exactly 3 or 1 days before
       if (daysLeft === 3 || daysLeft === 1) {
         await sendLeaveReminderEmail(leaveRequest, daysLeft);
+
+        // Send in-app notification
+        try {
+          await createNotification({
+            companyId: leaveRequest.companyId,
+            userId: leaveRequest.employee.id,
+            message: `Reminder: Your ${leaveRequest.leaveType} leave ends in ${daysLeft} day${daysLeft > 1 ? "s" : ""}`,
+            type: "REMINDER",
+            category: "LEAVE",
+            priority: daysLeft === 1 ? "HIGH" : "NORMAL",
+            redirectUrl: `/my-portal`,
+          });
+        } catch (notifError) {
+          console.error(
+            "Error creating leave reminder notification:",
+            notifError
+          );
+          // Continue with next reminder even if notification fails
+        }
       }
     }
 

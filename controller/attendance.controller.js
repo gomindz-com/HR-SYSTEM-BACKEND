@@ -12,6 +12,7 @@ import {
   PRIORITY_LEVELS,
   ICON_TYPES,
 } from "../lib/activity-utils.js";
+import { createNotification } from "../utils/notification.utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
@@ -162,6 +163,35 @@ export const checkIn = async (req, res) => {
       priority: PRIORITY_LEVELS.NORMAL,
       icon: ICON_TYPES.ATTENDANCE,
     });
+
+    // Notify admin if employee checked in late
+    if (status === "LATE") {
+      try {
+        const adminUser = await prisma.employee.findFirst({
+          where: {
+            companyId,
+            role: "ADMIN",
+            deleted: false,
+          },
+          select: { id: true },
+        });
+
+        if (adminUser) {
+          await createNotification({
+            companyId,
+            userId: adminUser.id,
+            message: `${req.user.name} checked in late today at ${now.toLocaleTimeString()}`,
+            type: "STATUS_CHANGE",
+            category: "ATTENDANCE",
+            priority: "HIGH",
+            redirectUrl: "/attendance",
+          });
+        }
+      } catch (notifError) {
+        console.error("Error creating late check-in notification:", notifError);
+        // Don't fail the request if notification fails
+      }
+    }
 
     return res
       .status(201)
@@ -410,6 +440,24 @@ export const adminAddAttendance = async (req, res) => {
       priority: PRIORITY_LEVELS.NORMAL,
       icon: ICON_TYPES.ATTENDANCE,
     });
+
+    // Notify employee if marked as absent
+    if (status === "ABSENT") {
+      try {
+        await createNotification({
+          companyId,
+          userId: parseInt(employeeId),
+          message: `You were marked absent for today`,
+          type: "STATUS_CHANGE",
+          category: "ATTENDANCE",
+          priority: "URGENT",
+          redirectUrl: "/my-portal",
+        });
+      } catch (notifError) {
+        console.error("Error creating absent notification:", notifError);
+        // Don't fail the request if notification fails
+      }
+    }
 
     return res
       .status(200)
@@ -951,7 +999,6 @@ export const adminCreateAttendanceRecord = async (req, res) => {
       .json({ message: "Only admins can create attendance records" });
   }
 
-
   if (!employeeId || !companyId) {
     return res
       .status(400)
@@ -978,8 +1025,6 @@ export const adminCreateAttendanceRecord = async (req, res) => {
       });
     }
 
-
-  
     // Parse and validate dates
     const attendanceDate = date ? new Date(date) : new Date();
     attendanceDate.setHours(0, 0, 0, 0);

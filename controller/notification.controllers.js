@@ -6,7 +6,7 @@ export const createAnnouncement = async (req, res) => {
   try {
     const companyId = req.user.companyId;
     const role = req.user.role;
-    const { message, type, category, priority, redirectUrl } = req.body;
+    const { message, type, category, priority } = req.body;
 
     if (role !== "ADMIN") {
       return res.status(403).json({ message: "Access denied. Admin only." });
@@ -23,7 +23,7 @@ export const createAnnouncement = async (req, res) => {
       type,
       category,
       priority,
-      redirectUrl,
+      redirectUrl: null, // Company-wide announcements don't have redirect URLs
     });
 
     return res.status(201).json({ notification });

@@ -4,6 +4,7 @@ import {
   sendTrialExpiringEmail,
   sendTrialExpiredEmail,
 } from "../emails/trialEmails.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 let trialExpirationCronJob = null;
 
@@ -75,6 +76,35 @@ const checkExpiredTrials = async () => {
           console.error(
             `Failed to send trial expired email to ${subscription.company.companyName}:`,
             emailResult.error
+          );
+        }
+
+        // Send in-app notification to admin
+        try {
+          const adminUser = await prisma.employee.findFirst({
+            where: {
+              companyId: subscription.company.id,
+              role: "ADMIN",
+              deleted: false,
+            },
+            select: { id: true },
+          });
+
+          if (adminUser) {
+            await createNotification({
+              companyId: subscription.company.id,
+              userId: adminUser.id,
+              message: `Your trial has expired. Upgrade to a paid plan to restore access to all features.`,
+              type: "STATUS_CHANGE",
+              category: "SYSTEM",
+              priority: "URGENT",
+              redirectUrl: "/subscription",
+            });
+          }
+        } catch (notifError) {
+          console.error(
+            "Error creating trial expired notification:",
+            notifError
           );
         }
       } catch (error) {
@@ -177,6 +207,35 @@ const sendTrialExpiringReminders = async () => {
             console.error(
               `Failed to send email to ${subscription.company.companyName}:`,
               emailResult.error
+            );
+          }
+
+          // Send in-app notification to admin
+          try {
+            const adminUser = await prisma.employee.findFirst({
+              where: {
+                companyId: subscription.company.id,
+                role: "ADMIN",
+                deleted: false,
+              },
+              select: { id: true },
+            });
+
+            if (adminUser) {
+              await createNotification({
+                companyId: subscription.company.id,
+                userId: adminUser.id,
+                message: `Your trial expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}. Upgrade now to continue using all features.`,
+                type: "REMINDER",
+                category: "SYSTEM",
+                priority: daysLeft === 1 ? "URGENT" : "HIGH",
+                redirectUrl: "/subscription",
+              });
+            }
+          } catch (notifError) {
+            console.error(
+              "Error creating trial expiring notification:",
+              notifError
             );
           }
         }

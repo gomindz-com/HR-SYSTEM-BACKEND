@@ -6,6 +6,7 @@ import {
   PRIORITY_LEVELS,
   ICON_TYPES,
 } from "../lib/activity-utils.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 // REQUEST LEAVE
 export const requestLeave = async (req, res) => {
@@ -152,6 +153,33 @@ export const requestLeave = async (req, res) => {
       priority: PRIORITY_LEVELS.NORMAL,
       icon: ICON_TYPES.LEAVE,
     });
+
+    // Notify HR/Admin about new leave request
+    try {
+      const adminUser = await prisma.employee.findFirst({
+        where: {
+          companyId,
+          role: "ADMIN",
+          deleted: false,
+        },
+        select: { id: true },
+      });
+
+      if (adminUser) {
+        await createNotification({
+          companyId,
+          userId: adminUser.id,
+          message: `${req.user.name} requested ${leaveType} leave (${days} days)`,
+          type: "LEAVE_REQUESTED",
+          category: "LEAVE",
+          priority: "HIGH",
+          redirectUrl: `/leave`,
+        });
+      }
+    } catch (notifError) {
+      console.error("Error creating leave request notification:", notifError);
+      // Don't fail the request if notification fails
+    }
 
     return res.status(201).json({
       message: "leave request created successfully",
@@ -412,6 +440,22 @@ export const approveLeave = async (req, res) => {
       icon: ICON_TYPES.LEAVE,
     });
 
+    // Notify employee about approval
+    try {
+      await createNotification({
+        companyId,
+        userId: leaveRequest.employee.id,
+        message: `Your ${leaveRequest.leaveType} leave was approved`,
+        type: "LEAVE_APPROVED",
+        category: "LEAVE",
+        priority: "NORMAL",
+        redirectUrl: `/my-portal`,
+      });
+    } catch (notifError) {
+      console.error("Error creating leave approval notification:", notifError);
+      // Don't fail the request if notification fails
+    }
+
     return res
       .status(200)
       .json({ message: "leave request approved successfully" });
@@ -509,6 +553,22 @@ export const rejectLeave = async (req, res) => {
       priority: PRIORITY_LEVELS.NORMAL,
       icon: ICON_TYPES.LEAVE,
     });
+
+    // Notify employee about rejection
+    try {
+      await createNotification({
+        companyId,
+        userId: leaveRequest.employee.id,
+        message: `Your ${leaveRequest.leaveType} leave was rejected: ${rejectReason}`,
+        type: "LEAVE_REJECTED",
+        category: "LEAVE",
+        priority: "HIGH",
+        redirectUrl: `/my-portal`,
+      });
+    } catch (notifError) {
+      console.error("Error creating leave rejection notification:", notifError);
+      // Don't fail the request if notification fails
+    }
 
     return res
       .status(200)

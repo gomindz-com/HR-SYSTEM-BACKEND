@@ -6,6 +6,10 @@ import {
   sendPayrollSettingsEmail,
   sendBonusUpdateEmail,
 } from "../utils/emailUtils.js";
+import {
+  createNotification,
+  createBulkNotifications,
+} from "../utils/notification.utils.js";
 
 // ================================
 // BENEFITS AND PAYROLL SETTING
@@ -1461,6 +1465,24 @@ export const finalizePayroll = async (req, res) => {
       },
     });
 
+    // Notify employee about finalized payroll
+    try {
+      await createNotification({
+        companyId,
+        userId: finalizedPayroll.employee.id,
+        message: `Your payroll of ${finalizedPayroll.netSalary} GMD has been processed`,
+        type: "STATUS_CHANGE",
+        category: "PAYROLL",
+        priority: "HIGH",
+        redirectUrl: `/payroll/${finalizedPayroll.id}`,
+      });
+    } catch (notifError) {
+      console.error(
+        "Error creating payroll finalization notification:",
+        notifError
+      );
+    }
+
     res.status(200).json({
       success: true,
       message: "Payroll finalized successfully",
@@ -1523,6 +1545,34 @@ export const finalizeAllPayrolls = async (req, res) => {
 
       return finalizedPayrolls;
     });
+
+    // Notify all employees about finalized payrolls (bulk)
+    try {
+      const payrollsWithEmployees = await prisma.payroll.findMany({
+        where: {
+          id: { in: result.map((p) => p.id) },
+        },
+        include: {
+          employee: {
+            select: { id: true },
+          },
+        },
+      });
+
+      const notifications = payrollsWithEmployees.map((payroll) => ({
+        companyId,
+        userId: payroll.employee.id,
+        message: `Your payroll of ${payroll.netSalary} GMD has been processed`,
+        type: "STATUS_CHANGE",
+        category: "PAYROLL",
+        priority: "HIGH",
+        redirectUrl: `/payroll/${payroll.id}`,
+      }));
+
+      await createBulkNotifications(notifications);
+    } catch (notifError) {
+      console.error("Error creating bulk payroll notifications:", notifError);
+    }
 
     res.json({
       success: true,
@@ -1910,6 +1960,21 @@ export const markIndividualPayrollAsPaid = async (req, res) => {
       },
     });
 
+    // Notify employee that payroll was paid
+    try {
+      await createNotification({
+        companyId,
+        userId: updatedPayroll.employee.id,
+        message: `Your payroll payment of ${updatedPayroll.netSalary} GMD has been released`,
+        type: "STATUS_CHANGE",
+        category: "PAYROLL",
+        priority: "NORMAL",
+        redirectUrl: `/payroll/${updatedPayroll.id}`,
+      });
+    } catch (notifError) {
+      console.error("Error creating payroll paid notification:", notifError);
+    }
+
     res.status(200).json({
       success: true,
       message: `Payroll for ${payroll.employee.name} marked as paid successfully`,
@@ -2032,6 +2097,42 @@ export const markPeriodAsPaid = async (req, res) => {
           foundRecords: existingPayrolls.length,
         },
       });
+    }
+
+    // Notify all employees in the period (bulk)
+    try {
+      const paidPayrolls = await prisma.payroll.findMany({
+        where: {
+          companyId,
+          status: "PAID",
+          createdAt: {
+            gte: startDate,
+            lte: endOfDay,
+          },
+        },
+        include: {
+          employee: {
+            select: { id: true },
+          },
+        },
+      });
+
+      const notifications = paidPayrolls.map((payroll) => ({
+        companyId,
+        userId: payroll.employee.id,
+        message: `Your payroll payment of ${payroll.netSalary} GMD has been released`,
+        type: "STATUS_CHANGE",
+        category: "PAYROLL",
+        priority: "NORMAL",
+        redirectUrl: `/payroll/${payroll.id}`,
+      }));
+
+      await createBulkNotifications(notifications);
+    } catch (notifError) {
+      console.error(
+        "Error creating bulk payroll paid notifications:",
+        notifError
+      );
     }
 
     res.status(200).json({

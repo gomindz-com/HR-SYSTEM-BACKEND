@@ -8,6 +8,7 @@ import {
   PRIORITY_LEVELS,
   ICON_TYPES,
 } from "../lib/activity-utils.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 export const sendInvitation = async (req, res) => {
   const { email, role, position, departmentId, employeeId, shiftType } =
@@ -415,7 +416,7 @@ export const acceptInvitation = async (req, res) => {
     const idx = Math.floor(Math.random() * 100) + 1;
     const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
 
-    await prisma.employee.create({
+    const newEmployee = await prisma.employee.create({
       data: {
         name,
         email: invitation.email.toLowerCase().trim(),
@@ -446,6 +447,32 @@ export const acceptInvitation = async (req, res) => {
       priority: PRIORITY_LEVELS.NORMAL,
       icon: ICON_TYPES.EMPLOYEE,
     });
+
+    // Notify admin about new employee joining
+    try {
+      const adminUser = await prisma.employee.findFirst({
+        where: {
+          companyId: invitation.companyId,
+          role: "ADMIN",
+          deleted: false,
+        },
+        select: { id: true },
+      });
+
+      if (adminUser) {
+        await createNotification({
+          companyId: invitation.companyId,
+          userId: adminUser.id,
+          message: `${name} has accepted the invitation and joined as ${invitation.position}`,
+          type: "STATUS_CHANGE",
+          category: "SYSTEM",
+          priority: "NORMAL",
+          redirectUrl: `/employees/${newEmployee.id}`,
+        });
+      }
+    } catch (notifError) {
+      console.error("Error creating employee joined notification:", notifError);
+    }
 
     res.status(200).json({
       message: "Account created successfully, please login to continue",

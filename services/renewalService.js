@@ -3,6 +3,7 @@ import {
   sendRenewalReminderEmail,
   sendSubscriptionExpiredEmail,
 } from "../emails/subscriptionEmails.js";
+import { createNotification } from "../utils/notification.utils.js";
 
 export const checkExpiringSubscriptions = async () => {
   try {
@@ -107,6 +108,40 @@ export const checkExpiringSubscriptions = async () => {
             pricePerUser: subscription.plan.price,
             totalAmount,
           });
+
+          // Send in-app notification to admin
+          try {
+            const daysLeft = Math.ceil(
+              (subscription.endDate - now) / (1000 * 60 * 60 * 24)
+            );
+
+            const adminUser = await prisma.employee.findFirst({
+              where: {
+                companyId: subscription.company.id,
+                role: "ADMIN",
+                deleted: false,
+              },
+              select: { id: true },
+            });
+
+            if (adminUser) {
+              await createNotification({
+                companyId: subscription.company.id,
+                userId: adminUser.id,
+                message: `Your ${subscription.plan.name} subscription expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}. Renew now to avoid service interruption.`,
+                type: "REMINDER",
+                category: "SYSTEM",
+                priority: daysLeft <= 3 ? "HIGH" : "NORMAL",
+                redirectUrl: "/subscription",
+              });
+            }
+          } catch (notifError) {
+            console.error(
+              "Error creating subscription expiring notification:",
+              notifError
+            );
+          }
+
           results.push({
             subscriptionId: subscription.id,
             companyName: subscription.company.companyName,
@@ -209,6 +244,35 @@ export const expireSubscriptions = async () => {
         console.log(
           `✅ Expiration email sent to ${subscription.company.companyName}`
         );
+
+        // Send in-app notification to admin
+        try {
+          const adminUser = await prisma.employee.findFirst({
+            where: {
+              companyId: subscription.company.id,
+              role: "ADMIN",
+              deleted: false,
+            },
+            select: { id: true },
+          });
+
+          if (adminUser) {
+            await createNotification({
+              companyId: subscription.company.id,
+              userId: adminUser.id,
+              message: `Your ${subscription.plan.name} subscription has expired. Renew now to restore access to all features.`,
+              type: "STATUS_CHANGE",
+              category: "SYSTEM",
+              priority: "URGENT",
+              redirectUrl: "/subscription",
+            });
+          }
+        } catch (notifError) {
+          console.error(
+            "Error creating subscription expired notification:",
+            notifError
+          );
+        }
       } catch (emailError) {
         console.error(
           `❌ Failed to send expiration email to ${subscription.company.companyName}:`,
