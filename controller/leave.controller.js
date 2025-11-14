@@ -449,7 +449,7 @@ export const approveLeave = async (req, res) => {
         type: "LEAVE_APPROVED",
         category: "LEAVE",
         priority: "NORMAL",
-        redirectUrl: `/my-portal`,
+        redirectUrl: `/leave`,
       });
     } catch (notifError) {
       console.error("Error creating leave approval notification:", notifError);
@@ -563,7 +563,7 @@ export const rejectLeave = async (req, res) => {
         type: "LEAVE_REJECTED",
         category: "LEAVE",
         priority: "HIGH",
-        redirectUrl: `/my-portal`,
+        redirectUrl: `/leave`,
       });
     } catch (notifError) {
       console.error("Error creating leave rejection notification:", notifError);

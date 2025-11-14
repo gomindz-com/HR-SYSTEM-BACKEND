@@ -204,18 +204,22 @@ model PerformanceReview {
 }
 
 model Notification {
-  id        Int      @id @default(cuid())
-  userId    Int?
-  companyId  Int
-  message   String
-  type      String
-  category  String?
-  priority  String
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  companyId   Int
+  message     String
+  type        String
+  category    String?
+  priority    String    @default("NORMAL")
   redirectUrl String?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      Employee @relation(fields: [userId], references: [id])
-  company   Company  @relation(fields: [companyId], references: [id])
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  company Company   @relation(fields: [companyId], references: [id])
+  user    Employee? @relation(fields: [userId], references: [id])
+
+  @@index([companyId, userId])
+  @@index([userId, read])
 }
 
 model Invitation {

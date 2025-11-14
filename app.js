@@ -19,7 +19,7 @@ import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
 // Load environment variables first
 dotenv.config();
- // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
+// COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
 // Initialize the new automation system
 let automationInitialized = false;
 try {
@@ -41,8 +41,6 @@ try {
   console.error("❌ Fatal error initializing absent automation:", error);
   automationInitialized = false;
 }
-
-
 
 // Initialize leave reminder cron job
 let leaveReminderCron = null;
@@ -134,12 +132,12 @@ app.use(
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
 
-app.use(cookieParser());     
+app.use(cookieParser());
 
 // ROUTES
 app.use("/api/auth", authRoutes);

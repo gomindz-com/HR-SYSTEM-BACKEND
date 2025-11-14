@@ -451,7 +451,7 @@ export const adminAddAttendance = async (req, res) => {
           type: "STATUS_CHANGE",
           category: "ATTENDANCE",
           priority: "URGENT",
-          redirectUrl: "/my-portal",
+          redirectUrl: "/attendance",
         });
       } catch (notifError) {
         console.error("Error creating absent notification:", notifError);

@@ -159,25 +159,37 @@ export const markAsRead = async (req, res) => {
       return res.status(400).json({ message: "Notification ID is required" });
     }
 
+    console.log(`Marking notification ${id} as read for user ${userId}`);
+
+    // Parse ID safely
+    const notificationId = parseInt(id);
+    if (isNaN(notificationId)) {
+      console.log(`Invalid notification ID: ${id}`);
+      return res.status(400).json({ message: "Invalid notification ID" });
+    }
+
     const notification = await prisma.notification.findFirst({
       where: {
-        id: parseInt(id),
+        id: notificationId,
         companyId,
         OR: [{ userId }, { userId: null }],
       },
     });
 
     if (!notification) {
+      console.log(`Notification ${id} not found for user ${userId}`);
       return res.status(404).json({ message: "Notification not found" });
     }
 
     const updated = await prisma.notification.update({
-      where: { id: parseInt(id) },
+      where: { id: notificationId },
       data: { read: true },
     });
 
+    console.log(`Notification ${id} marked as read successfully`);
     return res.status(200).json({ notification: updated });
   } catch (error) {
+    console.error(`Error marking notification as read:`, error);
     return res.status(500).json({ message: error.message });
   }
 };

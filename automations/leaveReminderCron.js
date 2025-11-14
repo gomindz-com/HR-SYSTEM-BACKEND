@@ -113,7 +113,7 @@ const checkAndSendReminders = async () => {
             type: "REMINDER",
             category: "LEAVE",
             priority: daysLeft === 1 ? "HIGH" : "NORMAL",
-            redirectUrl: `/my-portal`,
+            redirectUrl: `/leave`,
           });
         } catch (notifError) {
           console.error(
