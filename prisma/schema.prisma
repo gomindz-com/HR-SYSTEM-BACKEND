@@ -204,13 +204,18 @@ model PerformanceReview {
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
+  id        Int      @id @default(cuid())
+  userId    Int?
+  companyId  Int
   message   String
   type      String
+  category  String?
+  priority  String
+  redirectUrl String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   user      Employee @relation(fields: [userId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
 }
 
 model Invitation {
