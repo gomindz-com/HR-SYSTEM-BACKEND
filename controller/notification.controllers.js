@@ -60,21 +60,30 @@ export const getMyNotifications = async (req, res) => {
       },
     });
 
-    // Map notifications with correct read status
-    const notificationsWithReadStatus = notifications.map((notification) => {
-      // If notification is user-specific, use the notification's read field
-      // If notification is company-wide, check if user has read it
-      const isRead =
-        notification.userId !== null
-          ? notification.read
-          : notification.userReads.length > 0;
+    // Map notifications with correct read status and filter out hidden ones
+    const notificationsWithReadStatus = notifications
+      .map((notification) => {
+        // If notification is user-specific, use the notification's read field
+        // If notification is company-wide, check if user has read it
+        const isRead =
+          notification.userId !== null
+            ? notification.read
+            : notification.userReads.length > 0;
 
-      return {
-        ...notification,
-        read: isRead,
-        userReads: undefined, // Remove from response
-      };
-    });
+        // Check if user has hidden this notification
+        const isHidden =
+          notification.userId === null && notification.userReads.length > 0
+            ? notification.userReads[0].hidden
+            : false;
+
+        return {
+          ...notification,
+          read: isRead,
+          hidden: isHidden,
+          userReads: undefined, // Remove from response
+        };
+      })
+      .filter((notification) => !notification.hidden); // Exclude hidden notifications
 
     // Count unread notifications
     const userSpecificNotifications = await prisma.notification.count({
@@ -85,7 +94,7 @@ export const getMyNotifications = async (req, res) => {
       },
     });
 
-    // Count company-wide notifications not read by this user
+    // Count company-wide notifications not read by this user (and not hidden)
     const companyWideNotifications = await prisma.notification.findMany({
       where: {
         companyId,
@@ -99,7 +108,7 @@ export const getMyNotifications = async (req, res) => {
     });
 
     const unreadCompanyWide = companyWideNotifications.filter(
-      (n) => n.userReads.length === 0
+      (n) => n.userReads.length === 0 // No record = unread and not hidden
     ).length;
 
     const unreadCount = userSpecificNotifications + unreadCompanyWide;
@@ -151,19 +160,28 @@ export const getAllNotifications = async (req, res) => {
       },
     });
 
-    // Map notifications with correct read status
-    let notificationsWithReadStatus = allNotifications.map((notification) => {
-      const isRead =
-        notification.userId !== null
-          ? notification.read
-          : notification.userReads.length > 0;
+    // Map notifications with correct read status and filter out hidden ones
+    let notificationsWithReadStatus = allNotifications
+      .map((notification) => {
+        const isRead =
+          notification.userId !== null
+            ? notification.read
+            : notification.userReads.length > 0;
 
-      return {
-        ...notification,
-        read: isRead,
-        userReads: undefined,
-      };
-    });
+        // Check if user has hidden this notification
+        const isHidden =
+          notification.userId === null && notification.userReads.length > 0
+            ? notification.userReads[0].hidden
+            : false;
+
+        return {
+          ...notification,
+          read: isRead,
+          hidden: isHidden,
+          userReads: undefined,
+        };
+      })
+      .filter((notification) => !notification.hidden); // Exclude hidden notifications
 
     // Apply read filter if specified
     if (read !== undefined) {
@@ -351,9 +369,10 @@ export const deleteNotification = async (req, res) => {
       return res.status(400).json({ message: "Notification ID is required" });
     }
 
+    const notificationId = parseInt(id);
     const notification = await prisma.notification.findFirst({
       where: {
-        id: parseInt(id),
+        id: notificationId,
         companyId,
         OR: [{ userId }, { userId: null }],
       },
@@ -363,13 +382,44 @@ export const deleteNotification = async (req, res) => {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    await prisma.notification.delete({
-      where: { id: parseInt(id) },
-    });
+    // If it's a company-wide notification, mark as hidden for this user only
+    if (notification.userId === null) {
+      await prisma.userNotificationRead.upsert({
+        where: {
+          userId_notificationId: {
+            userId,
+            notificationId,
+          },
+        },
+        update: {
+          hidden: true,
+        },
+        create: {
+          userId,
+          notificationId,
+          hidden: true,
+          readAt: new Date(),
+        },
+      });
 
-    return res
-      .status(200)
-      .json({ message: "Notification deleted successfully" });
+      return res
+        .status(200)
+        .json({ message: "Notification hidden successfully" });
+    }
+
+    // If it's a user-specific notification, only allow deletion if it belongs to the user
+    if (notification.userId === userId) {
+      await prisma.notification.delete({
+        where: { id: notificationId },
+      });
+
+      return res
+        .status(200)
+        .json({ message: "Notification deleted successfully" });
+    }
+
+    // User trying to delete someone else's notification
+    return res.status(403).json({ message: "Access denied" });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -381,16 +431,50 @@ export const deleteAllNotifications = async (req, res) => {
     const userId = req.user.id;
     const companyId = req.user.companyId;
 
-    const deleted = await prisma.notification.deleteMany({
+    // Delete user-specific notifications (hard delete)
+    const deletedUserSpecific = await prisma.notification.deleteMany({
       where: {
         companyId,
-        OR: [{ userId }, { userId: null }],
+        userId,
       },
     });
 
+    // Hide all company-wide notifications for this user
+    const companyWideNotifications = await prisma.notification.findMany({
+      where: {
+        companyId,
+        userId: null,
+      },
+      select: { id: true },
+    });
+
+    // Mark all company-wide notifications as hidden for this user
+    const hidePromises = companyWideNotifications.map((notification) =>
+      prisma.userNotificationRead.upsert({
+        where: {
+          userId_notificationId: {
+            userId,
+            notificationId: notification.id,
+          },
+        },
+        update: {
+          hidden: true,
+        },
+        create: {
+          userId,
+          notificationId: notification.id,
+          hidden: true,
+          readAt: new Date(),
+        },
+      })
+    );
+
+    await Promise.all(hidePromises);
+
     return res.status(200).json({
-      message: "All notifications deleted successfully",
-      count: deleted.count,
+      message: "All notifications cleared successfully",
+      deletedCount: deletedUserSpecific.count,
+      hiddenCount: companyWideNotifications.length,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

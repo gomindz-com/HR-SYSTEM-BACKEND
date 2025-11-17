@@ -230,6 +230,7 @@ model UserNotificationRead {
   userId         Int
   notificationId Int
   readAt         DateTime @default(now())
+  hidden         Boolean  @default(false)
 
   user         Employee     @relation(fields: [userId], references: [id])
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
