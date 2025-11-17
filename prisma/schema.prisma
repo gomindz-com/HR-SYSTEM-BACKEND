@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("HR_DATABASE_URL")
 }
 
 model Company {
@@ -41,6 +41,7 @@ model Company {
   subscription       Subscription?
   payments           Payment[]
   WorkdayDaysConfig  WorkdayDaysConfig[]
+  notifications     Notification[]
 }
 
 model CompanyLocation {
