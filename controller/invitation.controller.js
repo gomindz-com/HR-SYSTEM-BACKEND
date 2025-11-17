@@ -73,6 +73,37 @@ export const sendInvitation = async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    if (role === "MANAGER") {
+      const findManager = await prisma.employee.findFirst({
+        where: {
+          companyId,
+          role: "MANAGER",
+          departmentId,
+        },
+      });
+
+      if (findManager) {
+        return res.status(400).json({ message: "Manager already exists" });
+      }
+
+      // Also check pending invitations for MANAGER role in this department
+      const pendingManagerInvite = await prisma.invitation.findFirst({
+        where: {
+          companyId,
+          role: "MANAGER",
+          departmentId,
+          status: "PENDING",
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (pendingManagerInvite) {
+        return res.status(400).json({
+          message:
+            "A manager invitation is already pending for this department",
+        });
+      }
+    }
     await prisma.invitation.create({
       data: {
         email: normalizedEmail,
@@ -270,6 +301,45 @@ export const sendBulkInvitations = async (req, res) => {
               });
               continue;
             }
+          }
+        }
+
+        // Check if role is MANAGER - enforce one manager per department
+        if (role === "MANAGER" && departmentId) {
+          const findManager = await prisma.employee.findFirst({
+            where: {
+              companyId,
+              role: "MANAGER",
+              departmentId,
+            },
+          });
+
+          if (findManager) {
+            errors.push({
+              email: normalizedEmail,
+              error: "Manager already exists for this department",
+            });
+            continue;
+          }
+
+          // Also check pending invitations for MANAGER role in this department
+          const pendingManagerInvite = await prisma.invitation.findFirst({
+            where: {
+              companyId,
+              role: "MANAGER",
+              departmentId,
+              status: "PENDING",
+              expiresAt: { gt: new Date() },
+            },
+          });
+
+          if (pendingManagerInvite) {
+            errors.push({
+              email: normalizedEmail,
+              error:
+                "A manager invitation is already pending for this department",
+            });
+            continue;
           }
         }
 

@@ -7,7 +7,7 @@ import {
   ICON_TYPES,
 } from "../lib/activity-utils.js";
 import { createNotification } from "../utils/notification.utils.js";
-
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
 // REQUEST LEAVE
 export const requestLeave = async (req, res) => {
   const id = req.user.id;
@@ -242,6 +242,9 @@ export const getLeaveRequests = async (req, res) => {
         validLeaveTypes.includes(leaveTypeFilter.toUpperCase()) && {
           leaveType: leaveTypeFilter.toUpperCase(),
         }),
+      employee: {
+        ...getDepartmentFilter(req.user),
+      },
     };
 
     const [leaveRequests, total] = await Promise.all([
@@ -600,13 +603,20 @@ export const getLeaveStats = async (req, res) => {
         where: {
           companyId: companyId,
           status: "PENDING",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
+
       }),
       // Count approved requests
       prisma.leaveRequest.count({
         where: {
           companyId: companyId,
           status: "APPROVED",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
       // Count rejected requests
@@ -614,6 +624,9 @@ export const getLeaveStats = async (req, res) => {
         where: {
           companyId: companyId,
           status: "REJECTED",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
       // Sum total days from approved requests
@@ -621,6 +634,9 @@ export const getLeaveStats = async (req, res) => {
         where: {
           companyId: companyId,
           status: "APPROVED",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
         _sum: {
           days: true,
@@ -630,6 +646,9 @@ export const getLeaveStats = async (req, res) => {
       prisma.leaveRequest.count({
         where: {
           companyId: companyId,
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
     ]);

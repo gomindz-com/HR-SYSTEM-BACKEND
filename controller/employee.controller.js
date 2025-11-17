@@ -5,6 +5,7 @@ import {
   PRIORITY_LEVELS,
   ICON_TYPES,
 } from "../lib/activity-utils.js";
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
 export const listEmployees = async (req, res) => {
   const companyId = req.user.companyId;
 
@@ -31,7 +32,7 @@ export const listEmployees = async (req, res) => {
   } = req.query;
 
   // Build where clause
-  const where = { companyId, deleted: false };
+  const where = { companyId, deleted: false, ...getDepartmentFilter(req.user) };
 
   // Handle search across multiple fields (name, email, position, employeeId)
   if (search) {
@@ -289,7 +290,7 @@ export const listArchivedEmployees = async (req, res) => {
     req.query;
 
   // Build where clause - only deleted employees
-  const where = { companyId, deleted: true };
+  const where = { companyId, deleted: true, ...getDepartmentFilter(req.user) };
 
   // Handle search across multiple fields (name, email, position)
   if (search) {

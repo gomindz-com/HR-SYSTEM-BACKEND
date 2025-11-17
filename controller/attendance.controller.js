@@ -13,6 +13,7 @@ import {
   ICON_TYPES,
 } from "../lib/activity-utils.js";
 import { createNotification } from "../utils/notification.utils.js";
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
@@ -568,7 +569,12 @@ export const listAttendance = async (req, res) => {
 
   // Filters
   const { employeeId, status, date, locationId } = req.query;
-  const where = { companyId };
+  const where = {
+    companyId,
+    employee: {
+      ...getDepartmentFilter(req.user),
+    },
+  };
 
   // Safe parse for employeeId
   const parsedEmployeeId = parseInt(employeeId);
@@ -782,22 +788,34 @@ export const getCompanyAttendanceStats = async (req, res) => {
       daysEarly,
     ] = await Promise.all([
       prisma.attendance.count({
-        where: { companyId, status: { not: "ABSENT" } },
+        where: { companyId, status: { not: "ABSENT" }, employee: {
+          ...getDepartmentFilter(req.user),
+        } },
+      }),
+      prisma.attendance.count({ 
+        where: { companyId, employee: {
+          ...getDepartmentFilter(req.user),
+        } },
       }),
       prisma.attendance.count({
-        where: { companyId },
+        where: { companyId, status: "LATE", employee: {
+          ...getDepartmentFilter(req.user),
+        } },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "LATE" },
+        where: { companyId, status: "ABSENT", employee: {
+          ...getDepartmentFilter(req.user),
+        } },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "ABSENT" },
+        where: { companyId, status: "ON_TIME", employee: {
+          ...getDepartmentFilter(req.user),
+        } },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "ON_TIME" },
-      }),
-      prisma.attendance.count({
-        where: { companyId, status: "EARLY" },
+        where: { companyId, status: "EARLY", employee: {
+          ...getDepartmentFilter(req.user),
+        } },
       }),
     ]);
 
