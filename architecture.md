@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = env("HR_DATABASE_URL")
 }
 
 model User {
@@ -282,36 +282,30 @@ flowchart TD
 ## 🏗️ Development Flow
 
 1. **Authentication**
-
    - Use the `User` model for admin/HR logins.
    - Employees are managed separately (not for login unless you extend the model).
 
 2. **Employee Management**
-
    - CRUD operations on `Employee`.
    - Assign to `Department`.
    - Set employment details, status, and QR secret.
 
 3. **Attendance Tracking**
-
    - Employees check in/out (optionally via QR).
    - Create `Attendance` records with status, times, and notes.
    - Approvers can update/approve attendance if needed.
 
 4. **Leave Management**
-
    - Employees submit `LeaveRequest` with type, dates, and reason.
    - Approvers (managers/HR) update status and add comments.
    - Attachments (e.g., medical notes) can be uploaded.
 
 5. **Payroll**
-
    - HR/admin creates payroll records for each employee per period.
    - Calculate net pay from salary, bonuses, deductions, and taxes.
    - Update status as processed/paid.
 
 6. **Performance Reviews**
-
    - Managers/HR create reviews for employees.
    - Track period, score, rating, and comments.
    - Status tracks if review is in progress or completed.
@@ -325,13 +319,11 @@ flowchart TD
 ## 🧩 Integration Tips
 
 - **Frontend:**
-
   - Use the enums in your API responses for dropdowns and status displays.
   - Always use IDs for relations (e.g., `employeeId`, `departmentId`).
   - For QR check-in/out, use the `qrSecret` and `qrCheckIn`/`qrCheckOut` fields.
 
 - **Backend:**
-
   - Use Prisma’s relations for efficient querying (e.g., `include: { department: true }`).
   - Validate enum values on create/update.
   - Use default values for dates and statuses.
