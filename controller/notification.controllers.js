@@ -320,37 +320,48 @@ export const markAllAsRead = async (req, res) => {
       data: { read: true },
     });
 
-    // Get all company-wide notifications for this company
+    // Get all company-wide notifications with user's existing state
     const companyWideNotifications = await prisma.notification.findMany({
       where: {
         companyId,
         userId: null,
       },
-      select: { id: true },
+      include: {
+        userReads: {
+          where: { userId },
+        },
+      },
     });
 
-    // Create UserNotificationRead entries for all company-wide notifications
-    // that the user hasn't read yet
-    const createPromises = companyWideNotifications.map((notification) =>
-      prisma.userNotificationRead.upsert({
-        where: {
-          userId_notificationId: {
+    // Only mark as read if not already hidden by this user
+    const markReadPromises = companyWideNotifications
+      .filter((notification) => {
+        // Skip if user has already hidden this notification
+        return !(
+          notification.userReads.length > 0 && notification.userReads[0].hidden
+        );
+      })
+      .map((notification) =>
+        prisma.userNotificationRead.upsert({
+          where: {
+            userId_notificationId: {
+              userId,
+              notificationId: notification.id,
+            },
+          },
+          update: {
+            readAt: new Date(),
+          },
+          create: {
             userId,
             notificationId: notification.id,
+            readAt: new Date(),
+            hidden: false,
           },
-        },
-        update: {
-          readAt: new Date(),
-        },
-        create: {
-          userId,
-          notificationId: notification.id,
-          readAt: new Date(),
-        },
-      })
-    );
+        })
+      );
 
-    await Promise.all(createPromises);
+    await Promise.all(markReadPromises);
 
     return res.status(200).json({ success: true });
   } catch (error) {
