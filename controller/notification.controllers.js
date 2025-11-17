@@ -45,6 +45,7 @@ export const getMyNotifications = async (req, res) => {
         .json({ message: "User ID and Company ID are required" });
     }
 
+    // Fetch notifications (both user-specific and company-wide)
     const notifications = await prisma.notification.findMany({
       where: {
         companyId,
@@ -52,17 +53,60 @@ export const getMyNotifications = async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
       take: limit,
+      include: {
+        userReads: {
+          where: { userId },
+        },
+      },
     });
 
-    const unreadCount = await prisma.notification.count({
+    // Map notifications with correct read status
+    const notificationsWithReadStatus = notifications.map((notification) => {
+      // If notification is user-specific, use the notification's read field
+      // If notification is company-wide, check if user has read it
+      const isRead =
+        notification.userId !== null
+          ? notification.read
+          : notification.userReads.length > 0;
+
+      return {
+        ...notification,
+        read: isRead,
+        userReads: undefined, // Remove from response
+      };
+    });
+
+    // Count unread notifications
+    const userSpecificNotifications = await prisma.notification.count({
       where: {
         companyId,
-        OR: [{ userId }, { userId: null }],
+        userId,
         read: false,
       },
     });
 
-    return res.status(200).json({ notifications, unreadCount });
+    // Count company-wide notifications not read by this user
+    const companyWideNotifications = await prisma.notification.findMany({
+      where: {
+        companyId,
+        userId: null,
+      },
+      include: {
+        userReads: {
+          where: { userId },
+        },
+      },
+    });
+
+    const unreadCompanyWide = companyWideNotifications.filter(
+      (n) => n.userReads.length === 0
+    ).length;
+
+    const unreadCount = userSpecificNotifications + unreadCompanyWide;
+
+    return res
+      .status(200)
+      .json({ notifications: notificationsWithReadStatus, unreadCount });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -89,9 +133,6 @@ export const getAllNotifications = async (req, res) => {
       OR: [{ userId }, { userId: null }],
     };
 
-    if (read !== undefined) {
-      where.read = read === "true";
-    }
     if (category) {
       where.category = category;
     }
@@ -99,18 +140,48 @@ export const getAllNotifications = async (req, res) => {
       where.priority = priority;
     }
 
-    const [notifications, total] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: pageSize,
-      }),
-      prisma.notification.count({ where }),
-    ]);
+    // Fetch all notifications matching basic filters
+    const allNotifications = await prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        userReads: {
+          where: { userId },
+        },
+      },
+    });
+
+    // Map notifications with correct read status
+    let notificationsWithReadStatus = allNotifications.map((notification) => {
+      const isRead =
+        notification.userId !== null
+          ? notification.read
+          : notification.userReads.length > 0;
+
+      return {
+        ...notification,
+        read: isRead,
+        userReads: undefined,
+      };
+    });
+
+    // Apply read filter if specified
+    if (read !== undefined) {
+      const readFilter = read === "true";
+      notificationsWithReadStatus = notificationsWithReadStatus.filter(
+        (n) => n.read === readFilter
+      );
+    }
+
+    // Calculate pagination
+    const total = notificationsWithReadStatus.length;
+    const paginatedNotifications = notificationsWithReadStatus.slice(
+      skip,
+      skip + pageSize
+    );
 
     return res.status(200).json({
-      notifications,
+      notifications: paginatedNotifications,
       pagination: {
         page,
         pageSize,
@@ -181,13 +252,34 @@ export const markAsRead = async (req, res) => {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    const updated = await prisma.notification.update({
-      where: { id: notificationId },
-      data: { read: true },
-    });
+    // If notification is user-specific, update the notification's read field
+    if (notification.userId !== null) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { read: true },
+      });
+    } else {
+      // If notification is company-wide, create/update UserNotificationRead entry
+      await prisma.userNotificationRead.upsert({
+        where: {
+          userId_notificationId: {
+            userId,
+            notificationId,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId,
+          notificationId,
+          readAt: new Date(),
+        },
+      });
+    }
 
     console.log(`Notification ${id} marked as read successfully`);
-    return res.status(200).json({ notification: updated });
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error(`Error marking notification as read:`, error);
     return res.status(500).json({ message: error.message });
@@ -200,16 +292,49 @@ export const markAllAsRead = async (req, res) => {
     const userId = req.user.id;
     const companyId = req.user.companyId;
 
-    const updated = await prisma.notification.updateMany({
+    // Mark all user-specific notifications as read
+    await prisma.notification.updateMany({
       where: {
         companyId,
-        OR: [{ userId }, { userId: null }],
+        userId,
         read: false,
       },
       data: { read: true },
     });
 
-    return res.status(200).json({ count: updated.count });
+    // Get all company-wide notifications for this company
+    const companyWideNotifications = await prisma.notification.findMany({
+      where: {
+        companyId,
+        userId: null,
+      },
+      select: { id: true },
+    });
+
+    // Create UserNotificationRead entries for all company-wide notifications
+    // that the user hasn't read yet
+    const createPromises = companyWideNotifications.map((notification) =>
+      prisma.userNotificationRead.upsert({
+        where: {
+          userId_notificationId: {
+            userId,
+            notificationId: notification.id,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId,
+          notificationId: notification.id,
+          readAt: new Date(),
+        },
+      })
+    );
+
+    await Promise.all(createPromises);
+
+    return res.status(200).json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
