@@ -137,9 +137,9 @@ app.use(
   })
 );
 
-app.use(cookieParser());
 
-// ROUTES
+app.use(cookieParser());
+// ROUTES PREFIXES
 app.use("/api/auth", authRoutes);
 app.use("/api/invitation", invitationRoutes);
 app.use("/api/department", departmentRoutes);
