@@ -147,6 +147,8 @@ model LeaveRequest {
   endDate        DateTime
   days           Int
   status         LeaveStatus @default(PENDING)
+  hrApprovalStatus  LeaveStatus  @default(PENDING)
+  hrRejectReason  String?
   approverId     Int?
   comments       String?
   attachmentUrls Json?

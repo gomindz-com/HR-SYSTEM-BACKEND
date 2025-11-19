@@ -7,6 +7,8 @@ import {
   rejectLeave,
   getLeaveStats,
   getEmployeeLeaveBalance,
+  hrApproveLeave,
+  hrRejectLeave,
 } from "../controller/leave.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { checkSubscription } from "../middleware/subscription.middleware.js";
@@ -25,5 +27,7 @@ router.get("/stats", getLeaveStats);
 router.get("/balance", getEmployeeLeaveBalance);
 router.post("/approve/:id", approveLeave);
 router.post("/reject/:id", rejectLeave);
+router.post("/hr-approve/:id", hrApproveLeave);
+router.post("/hr-reject/:id", hrRejectLeave);
 
 export default router;
