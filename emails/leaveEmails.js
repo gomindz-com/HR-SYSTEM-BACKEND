@@ -85,7 +85,6 @@ export const sendLeaveRequestSubmittedEmail = async (
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Leave request submitted email sent to ${employee.email}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Failed to send leave request submitted email:", error);
@@ -177,7 +176,6 @@ export const sendManagerApprovalEmail = async (employee, leaveRequest) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Manager approval email sent to ${employee.email}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Failed to send manager approval email:", error);
@@ -275,7 +273,6 @@ export const sendManagerRejectionEmail = async (
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Manager rejection email sent to ${employee.email}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Failed to send manager rejection email:", error);
@@ -391,7 +388,6 @@ export const sendHRApprovalEmail = async (
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ HR approval email sent to ${employee.email}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Failed to send HR approval email:", error);
@@ -492,7 +488,6 @@ export const sendHRRejectionEmail = async (
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ HR rejection email sent to ${employee.email}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Failed to send HR rejection email:", error);

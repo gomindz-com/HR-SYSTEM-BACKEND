@@ -31,7 +31,6 @@ export async function sendEmail(to, subject, html, text) {
       result.body?.messageId ||
       result.body?.id ||
       "unknown";
-    console.log("✅ Email sent successfully via Brevo:", messageId);
 
     return { success: true, messageId };
   } catch (error) {
