@@ -168,6 +168,13 @@ export const updateEmployee = async (req, res) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
+  // RBAC: Only ADMIN can update employees
+  if (req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can update employee information",
+    });
+  }
+
   // Check if the employee exists and belongs to the company
   const employee = await prisma.employee.findFirst({
     where: {
@@ -389,6 +396,13 @@ export const updateEmployeeProfile = async (req, res) => {
 
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // RBAC: Only ADMIN can update employee profiles
+  if (req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can update employee profiles",
+    });
   }
 
   // Check if the employee exists and belongs to the company
