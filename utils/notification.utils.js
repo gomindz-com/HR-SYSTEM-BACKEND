@@ -13,6 +13,7 @@ export const NOTIFICATION_CATEGORIES = {
   ATTENDANCE: "ATTENDANCE",
   PAYROLL: "PAYROLL",
   PERFORMANCE: "PERFORMANCE",
+  CALENDAR: "CALENDAR",
 };
 
 export const createNotification = async ({
