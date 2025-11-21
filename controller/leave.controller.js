@@ -7,7 +7,14 @@ import {
   ICON_TYPES,
 } from "../lib/activity-utils.js";
 import { createNotification } from "../utils/notification.utils.js";
-
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
+import {
+  sendLeaveRequestSubmittedEmail,
+  sendManagerApprovalEmail,
+  sendManagerRejectionEmail,
+  sendHRApprovalEmail,
+  sendHRRejectionEmail,
+} from "../emails/leaveEmails.js";
 // REQUEST LEAVE
 export const requestLeave = async (req, res) => {
   const id = req.user.id;
@@ -154,21 +161,71 @@ export const requestLeave = async (req, res) => {
       icon: ICON_TYPES.LEAVE,
     });
 
-    // Notify HR/Admin about new leave request
-    try {
-      const adminUser = await prisma.employee.findFirst({
-        where: {
-          companyId,
-          role: "ADMIN",
-          deleted: false,
-        },
-        select: { id: true },
-      });
+    // Get employee data for email
+    const employee = await prisma.employee.findUnique({
+      where: { id: id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        departmentId: true,
+      },
+    });
 
-      if (adminUser) {
+    // Send confirmation email to employee
+    if (employee) {
+      try {
+        await sendLeaveRequestSubmittedEmail(employee, leaveRequest);
+      } catch (emailError) {
+        console.error(
+          "Error sending leave request submitted email:",
+          emailError
+        );
+        // Don't fail the request if email fails
+      }
+    }
+
+    // Notify Manager or HR/Admin about new leave request
+    try {
+      let notifyUserId = null;
+
+      // Find manager in same department
+      if (employee?.departmentId) {
+        const manager = await prisma.employee.findFirst({
+          where: {
+            companyId: companyId,
+            departmentId: employee.departmentId,
+            role: "MANAGER",
+            deleted: false,
+          },
+          select: { id: true },
+        });
+
+        if (manager) {
+          notifyUserId = manager.id;
+        }
+      }
+
+      // If no manager found, notify ADMIN/HR
+      if (!notifyUserId) {
+        const adminUser = await prisma.employee.findFirst({
+          where: {
+            companyId: companyId,
+            role: "ADMIN",
+            deleted: false,
+          },
+          select: { id: true },
+        });
+
+        if (adminUser) {
+          notifyUserId = adminUser.id;
+        }
+      }
+
+      if (notifyUserId) {
         await createNotification({
           companyId,
-          userId: adminUser.id,
+          userId: notifyUserId,
           message: `${req.user.name} requested ${leaveType} leave (${days} days)`,
           type: "LEAVE_REQUESTED",
           category: "LEAVE",
@@ -242,6 +299,9 @@ export const getLeaveRequests = async (req, res) => {
         validLeaveTypes.includes(leaveTypeFilter.toUpperCase()) && {
           leaveType: leaveTypeFilter.toUpperCase(),
         }),
+      employee: {
+        ...getDepartmentFilter(req.user),
+      },
     };
 
     const [leaveRequests, total] = await Promise.all([
@@ -355,6 +415,7 @@ export const getMyLeaveRequests = async (req, res) => {
   }
 };
 
+// ==========MANAGER APPROVAL==========
 export const approveLeave = async (req, res) => {
   const id = req.params.id;
   const companyId = req.user.companyId;
@@ -395,40 +456,17 @@ export const approveLeave = async (req, res) => {
         isApproved: true,
         approvedAt: new Date(),
         updatedAt: new Date(),
+        hrApprovalStatus: "PENDING", // Still needs HR approval
       },
     });
 
     // Send email notification to the employee
-    const emailContent = {
-      from: process.env.GMAIL_USER,
-      to: leaveRequest.employee.email,
-      subject: "Leave Request Approved",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2c3e50;">Leave Request Approved</h2>
-          <p>Dear ${leaveRequest.employee.name},</p>
-          <p>Your leave request has been <strong>approved</strong>.</p>
-          
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #495057;">Leave Details:</h3>
-            <p><strong>Leave Type:</strong> ${leaveRequest.leaveType}</p>
-            <p><strong>Start Date:</strong> ${new Date(leaveRequest.startDate).toLocaleDateString()}</p>
-            <p><strong>End Date:</strong> ${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
-            <p><strong>Duration:</strong> ${leaveRequest.days} day(s)</p>
-            ${leaveRequest.comments ? `<p><strong>Comments:</strong> ${leaveRequest.comments}</p>` : ""}
-          </div>
-          
-          <p>Your leave has been approved and is now confirmed. Please ensure all your work is properly handed over before your leave period.</p>
-          
-          <p>If you have any questions, please contact your supervisor or HR department.</p>
-          
-          <p>Best regards,<br>HR Team</p>
-        </div>
-      `,
-    };
-
-    // Send the email
-    await transporter.sendMail(emailContent);
+    try {
+      await sendManagerApprovalEmail(leaveRequest.employee, leaveRequest);
+    } catch (emailError) {
+      console.error("Error sending manager approval email:", emailError);
+      // Don't fail the request if email fails
+    }
 
     // Create activity for approved leave request
     await createActivity({
@@ -445,7 +483,7 @@ export const approveLeave = async (req, res) => {
       await createNotification({
         companyId,
         userId: leaveRequest.employee.id,
-        message: `Your ${leaveRequest.leaveType} leave was approved`,
+        message: `Your ${leaveRequest.leaveType} leave was approved by manager - pending HR review`,
         type: "LEAVE_APPROVED",
         category: "LEAVE",
         priority: "NORMAL",
@@ -453,6 +491,36 @@ export const approveLeave = async (req, res) => {
       });
     } catch (notifError) {
       console.error("Error creating leave approval notification:", notifError);
+      // Don't fail the request if notification fails
+    }
+
+    // Notify HR/Admin about manager approval
+    try {
+      const adminUser = await prisma.employee.findFirst({
+        where: {
+          companyId: companyId,
+          role: "ADMIN",
+          deleted: false,
+        },
+        select: { id: true },
+      });
+
+      if (adminUser) {
+        await createNotification({
+          companyId,
+          userId: adminUser.id,
+          message: `${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave was approved by manager - pending HR review`,
+          type: "LEAVE_REQUESTED",
+          category: "LEAVE",
+          priority: "HIGH",
+          redirectUrl: `/leave`,
+        });
+      }
+    } catch (notifError) {
+      console.error(
+        "Error creating HR notification for manager approval:",
+        notifError
+      );
       // Don't fail the request if notification fails
     }
 
@@ -465,7 +533,7 @@ export const approveLeave = async (req, res) => {
   }
 };
 
-// REJECT LEAVE
+// ==========MANAGER REJECT LEAVE==========
 export const rejectLeave = async (req, res) => {
   const id = req.params.id;
   const companyId = req.user.companyId;
@@ -506,43 +574,21 @@ export const rejectLeave = async (req, res) => {
         approverId: req.user.id,
         updatedAt: new Date(),
         rejectReason: rejectReason,
+        hrApprovalStatus: "PENDING", // HR can still review
       },
     });
 
     // Send email notification to the employee
-    const emailContent = {
-      from: process.env.GMAIL_USER,
-      to: leaveRequest.employee.email,
-      subject: "Leave Request Rejected",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #e74c3c;">Leave Request Rejected</h2>
-          <p>Dear ${leaveRequest.employee.name},</p>
-          <p>We regret to inform you that your leave request has been <strong>rejected</strong>.</p>
-          
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #495057;">Leave Details:</h3>
-            <p><strong>Leave Type:</strong> ${leaveRequest.leaveType}</p>
-            <p><strong>Start Date:</strong> ${new Date(leaveRequest.startDate).toLocaleDateString()}</p>
-            <p><strong>End Date:</strong> ${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
-            <p><strong>Duration:</strong> ${leaveRequest.days} day(s)</p>
-            ${leaveRequest.comments ? `<p><strong>Your Comments:</strong> ${leaveRequest.comments}</p>` : ""}
-          </div>
-          
-          <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
-            <h3 style="margin-top: 0; color: #856404;">Rejection Reason:</h3>
-            <p><strong>${rejectReason}</strong></p>
-          </div>
-          
-          <p>If you have any questions about this decision or would like to discuss alternative arrangements, please contact your supervisor or HR department.</p>
-          
-          <p>Best regards,<br>HR Team</p>
-        </div>
-      `,
-    };
-
-    // Send the email
-    await transporter.sendMail(emailContent);
+    try {
+      await sendManagerRejectionEmail(
+        leaveRequest.employee,
+        leaveRequest,
+        rejectReason
+      );
+    } catch (emailError) {
+      console.error("Error sending manager rejection email:", emailError);
+      // Don't fail the request if email fails
+    }
 
     // Create activity for rejected leave request
     await createActivity({
@@ -559,7 +605,7 @@ export const rejectLeave = async (req, res) => {
       await createNotification({
         companyId,
         userId: leaveRequest.employee.id,
-        message: `Your ${leaveRequest.leaveType} leave was rejected: ${rejectReason}`,
+        message: `Your ${leaveRequest.leaveType} leave was rejected by manager: ${rejectReason}`,
         type: "LEAVE_REJECTED",
         category: "LEAVE",
         priority: "HIGH",
@@ -570,12 +616,369 @@ export const rejectLeave = async (req, res) => {
       // Don't fail the request if notification fails
     }
 
+    // Notify HR/Admin about manager rejection
+    try {
+      const adminUser = await prisma.employee.findFirst({
+        where: {
+          companyId: companyId,
+          role: "ADMIN",
+          deleted: false,
+        },
+        select: { id: true },
+      });
+
+      if (adminUser) {
+        await createNotification({
+          companyId,
+          userId: adminUser.id,
+          message: `${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave was rejected by manager - HR can review`,
+          type: "LEAVE_REQUESTED",
+          category: "LEAVE",
+          priority: "HIGH",
+          redirectUrl: `/leave`,
+        });
+      }
+    } catch (notifError) {
+      console.error(
+        "Error creating HR notification for manager rejection:",
+        notifError
+      );
+      // Don't fail the request if notification fails
+    }
+
     return res
       .status(200)
       .json({ message: "leave request rejected successfully" });
   } catch (error) {
     console.log("error in rejectLeave controller", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ==========HR APPROVAL==========
+export const hrApproveLeave = async (req, res) => {
+  const leaveId = req.params.id; // Fix: was req.params
+  const { id, companyId } = req.user;
+
+  if (!leaveId) {
+    return res.status(400).json({ message: "leave id is required" });
+  }
+
+  if (!id) {
+    return res.status(400).json({ message: "user id is required" });
+  }
+
+  if (!companyId) {
+    return res.status(400).json({ message: "company id is required" });
+  }
+
+  try {
+    // Fetch leave request with employee data
+    const leaveRequest = await prisma.leaveRequest.findUnique({
+      where: { id: parseInt(leaveId), companyId: companyId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!leaveRequest) {
+      return res.status(404).json({ message: "leave request not found" });
+    }
+
+    // Check if already approved by HR
+    if (leaveRequest.hrApprovalStatus === "APPROVED") {
+      return res
+        .status(400)
+        .json({ message: "leave request is already approved by hr" });
+    }
+
+    // Check if HR approval is pending
+    if (leaveRequest.hrApprovalStatus !== "PENDING") {
+      return res
+        .status(400)
+        .json({ message: "leave request is not pending for hr approval" });
+    }
+
+    // Determine previous manager status for email context
+    const wasManagerApproved = leaveRequest.status === "APPROVED";
+    const wasManagerRejected = leaveRequest.status === "REJECTED";
+
+    // Update database based on current status
+    let updateData = {
+      hrApprovalStatus: "APPROVED",
+    };
+
+    if (leaveRequest.status === "PENDING") {
+      // Single-tier: HR approves without manager approval
+      updateData.status = "APPROVED";
+      updateData.approverId = id;
+      updateData.isApproved = true;
+      updateData.approvedAt = new Date();
+    } else if (leaveRequest.status === "REJECTED") {
+      // Override: HR approves after manager rejection
+      updateData.status = "APPROVED";
+      updateData.approverId = id;
+      updateData.isApproved = true;
+      updateData.approvedAt = new Date();
+    }
+    // If status is already "APPROVED", just update hrApprovalStatus
+
+    await prisma.leaveRequest.update({
+      where: { id: parseInt(leaveId), companyId: companyId },
+      data: updateData,
+    });
+
+    // Send email notification to the employee
+    try {
+      await sendHRApprovalEmail(
+        leaveRequest.employee,
+        leaveRequest,
+        wasManagerApproved,
+        wasManagerRejected
+      );
+    } catch (emailError) {
+      console.error("Error sending HR approval email:", emailError);
+      // Don't fail the request if email fails
+    }
+
+    // Create activity
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.LEAVE_REQUEST,
+      title: "Leave Fully Approved",
+      description: `HR approved ${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave (${leaveRequest.days} days)`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.LEAVE,
+    });
+
+    // Notify employee
+    try {
+      await createNotification({
+        companyId,
+        userId: leaveRequest.employee.id,
+        message: `Your ${leaveRequest.leaveType} leave was fully approved by HR`,
+        type: "LEAVE_APPROVED",
+        category: "LEAVE",
+        priority: "HIGH",
+        redirectUrl: `/leave`,
+      });
+    } catch (notifError) {
+      console.error("Error creating leave approval notification:", notifError);
+      // Don't fail the request if notification fails
+    }
+
+    // Notify manager if they approved/rejected before
+    if (wasManagerApproved || wasManagerRejected) {
+      try {
+        // Find manager in same department
+        if (leaveRequest.employee.departmentId) {
+          const manager = await prisma.employee.findFirst({
+            where: {
+              companyId: companyId,
+              departmentId: leaveRequest.employee.departmentId,
+              role: "MANAGER",
+              deleted: false,
+            },
+            select: { id: true },
+          });
+
+          if (manager) {
+            const message = wasManagerApproved
+              ? `HR approved ${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave (you approved it)`
+              : `HR overrode your rejection and approved ${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave`;
+
+            await createNotification({
+              companyId,
+              userId: manager.id,
+              message: message,
+              type: "LEAVE_APPROVED",
+              category: "LEAVE",
+              priority: "NORMAL",
+              redirectUrl: `/leave`,
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error("Error creating manager notification:", notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+
+    res
+      .status(200)
+      .json({ message: "leave request approved by hr successfully" });
+  } catch (error) {
+    console.log("error in hrApproveLeave controller", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ==========HR REJECT LEAVE==========
+export const hrRejectLeave = async (req, res) => {
+  const leaveId = req.params.id; // Fix: was req.params
+  const { hrRejectReason } = req.body;
+  const { id, companyId } = req.user;
+
+  if (!leaveId) {
+    return res.status(400).json({ message: "leave id is required" });
+  }
+
+  if (!hrRejectReason) {
+    return res.status(400).json({ message: "HR reject reason is required" });
+  }
+
+  if (!id) {
+    return res.status(400).json({ message: "user id is required" });
+  }
+
+  if (!companyId) {
+    return res.status(400).json({ message: "company id is required" });
+  }
+
+  try {
+    // Fetch leave request with employee data
+    const leaveRequest = await prisma.leaveRequest.findUnique({
+      where: { id: parseInt(leaveId), companyId: companyId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!leaveRequest) {
+      return res.status(404).json({ message: "leave request not found" });
+    }
+
+    // Check if already approved by HR
+    if (leaveRequest.hrApprovalStatus === "APPROVED") {
+      return res
+        .status(400)
+        .json({ message: "leave request is already approved by hr" });
+    }
+
+    // Check if HR approval is pending
+    if (leaveRequest.hrApprovalStatus !== "PENDING") {
+      return res
+        .status(400)
+        .json({ message: "leave request is not pending for hr approval" });
+    }
+
+    // Determine if manager approved before
+    const wasManagerApproved = leaveRequest.status === "APPROVED";
+
+    // Update database
+    let updateData = {
+      hrApprovalStatus: "REJECTED",
+      hrRejectReason: hrRejectReason,
+    };
+
+    if (leaveRequest.status === "APPROVED") {
+      // Override manager approval
+      updateData.status = "REJECTED";
+    } else if (leaveRequest.status === "PENDING") {
+      // HR rejects without manager approval
+      updateData.status = "REJECTED";
+    }
+    // If status is already "REJECTED", just update hrApprovalStatus
+
+    await prisma.leaveRequest.update({
+      where: { id: parseInt(leaveId), companyId: companyId },
+      data: updateData,
+    });
+
+    // Send email notification to the employee
+    try {
+      await sendHRRejectionEmail(
+        leaveRequest.employee,
+        leaveRequest,
+        hrRejectReason,
+        wasManagerApproved
+      );
+    } catch (emailError) {
+      console.error("Error sending HR rejection email:", emailError);
+      // Don't fail the request if email fails
+    }
+
+    // Create activity
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.LEAVE_REQUEST,
+      title: "Leave Rejected by HR",
+      description: `HR rejected ${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave`,
+      priority: PRIORITY_LEVELS.HIGH,
+      icon: ICON_TYPES.LEAVE,
+    });
+
+    // Notify employee
+    try {
+      await createNotification({
+        companyId,
+        userId: leaveRequest.employee.id,
+        message: `Your ${leaveRequest.leaveType} leave was rejected by HR: ${hrRejectReason}`,
+        type: "LEAVE_REJECTED",
+        category: "LEAVE",
+        priority: "HIGH",
+        redirectUrl: `/leave`,
+      });
+    } catch (notifError) {
+      console.error("Error creating leave rejection notification:", notifError);
+      // Don't fail the request if notification fails
+    }
+
+    // Notify manager if they approved before
+    if (wasManagerApproved) {
+      try {
+        // Find manager in same department
+        if (leaveRequest.employee.departmentId) {
+          const manager = await prisma.employee.findFirst({
+            where: {
+              companyId: companyId,
+              departmentId: leaveRequest.employee.departmentId,
+              role: "MANAGER",
+              deleted: false,
+            },
+            select: { id: true },
+          });
+
+          if (manager) {
+            await createNotification({
+              companyId,
+              userId: manager.id,
+              message: `HR overrode your approval and rejected ${leaveRequest.employee.name}'s ${leaveRequest.leaveType} leave`,
+              type: "LEAVE_REJECTED",
+              category: "LEAVE",
+              priority: "NORMAL",
+              redirectUrl: `/leave`,
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error("Error creating manager notification:", notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+
+    res
+      .status(200)
+      .json({ message: "leave request rejected by hr successfully" });
+  } catch (error) {
+    console.log("error in hrRejectLeave controller", error);
+    return res
+      .status(500)
+      .json({ error: error.message, message: "Internal server error" });
   }
 };
 
@@ -600,13 +1003,20 @@ export const getLeaveStats = async (req, res) => {
         where: {
           companyId: companyId,
           status: "PENDING",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
-      // Count approved requests
+      // Count fully approved requests (HR approved)
       prisma.leaveRequest.count({
         where: {
           companyId: companyId,
           status: "APPROVED",
+          hrApprovalStatus: "APPROVED", // Only count fully approved
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
       // Count rejected requests
@@ -614,13 +1024,20 @@ export const getLeaveStats = async (req, res) => {
         where: {
           companyId: companyId,
           status: "REJECTED",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
-      // Sum total days from approved requests
+      // Sum total days from fully approved requests (HR approved)
       prisma.leaveRequest.aggregate({
         where: {
           companyId: companyId,
           status: "APPROVED",
+          hrApprovalStatus: "APPROVED", // Only count fully approved
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
         _sum: {
           days: true,
@@ -630,6 +1047,9 @@ export const getLeaveStats = async (req, res) => {
       prisma.leaveRequest.count({
         where: {
           companyId: companyId,
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
         },
       }),
     ]);
@@ -676,12 +1096,13 @@ export const getEmployeeLeaveBalance = async (req, res) => {
             status: "PENDING",
           },
         }),
-        // Count approved requests for this employee
+        // Count fully approved requests for this employee (HR approved)
         prisma.leaveRequest.count({
           where: {
             employeeId: employeeId,
             companyId: companyId,
             status: "APPROVED",
+            hrApprovalStatus: "APPROVED", // Only count fully approved
           },
         }),
         // Count rejected requests for this employee
@@ -692,12 +1113,13 @@ export const getEmployeeLeaveBalance = async (req, res) => {
             status: "REJECTED",
           },
         }),
-        // Sum total days used from approved requests
+        // Sum total days used from fully approved requests (HR approved)
         prisma.leaveRequest.aggregate({
           where: {
             employeeId: employeeId,
             companyId: companyId,
             status: "APPROVED",
+            hrApprovalStatus: "APPROVED", // Only count fully approved
           },
           _sum: {
             days: true,

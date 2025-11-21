@@ -73,6 +73,37 @@ export const sendInvitation = async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    if (role === "MANAGER") {
+      const findManager = await prisma.employee.findFirst({
+        where: {
+          companyId,
+          role: "MANAGER",
+          departmentId,
+        },
+      });
+
+      if (findManager) {
+        return res.status(400).json({ message: "Manager already exists" });
+      }
+
+      // Also check pending invitations for MANAGER role in this department
+      const pendingManagerInvite = await prisma.invitation.findFirst({
+        where: {
+          companyId,
+          role: "MANAGER",
+          departmentId,
+          status: "PENDING",
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (pendingManagerInvite) {
+        return res.status(400).json({
+          message:
+            "A manager invitation is already pending for this department",
+        });
+      }
+    }
     await prisma.invitation.create({
       data: {
         email: normalizedEmail,
@@ -273,6 +304,45 @@ export const sendBulkInvitations = async (req, res) => {
           }
         }
 
+        // Check if role is MANAGER - enforce one manager per department
+        if (role === "MANAGER" && departmentId) {
+          const findManager = await prisma.employee.findFirst({
+            where: {
+              companyId,
+              role: "MANAGER",
+              departmentId,
+            },
+          });
+
+          if (findManager) {
+            errors.push({
+              email: normalizedEmail,
+              error: "Manager already exists for this department",
+            });
+            continue;
+          }
+
+          // Also check pending invitations for MANAGER role in this department
+          const pendingManagerInvite = await prisma.invitation.findFirst({
+            where: {
+              companyId,
+              role: "MANAGER",
+              departmentId,
+              status: "PENDING",
+              expiresAt: { gt: new Date() },
+            },
+          });
+
+          if (pendingManagerInvite) {
+            errors.push({
+              email: normalizedEmail,
+              error:
+                "A manager invitation is already pending for this department",
+            });
+            continue;
+          }
+        }
+
         // Create invitation
         const token = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -416,6 +486,24 @@ export const acceptInvitation = async (req, res) => {
     const idx = Math.floor(Math.random() * 100) + 1;
     const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
 
+    // Check if employeeId from invitation is already taken
+    // If it is, set it to null to avoid unique constraint violation
+    let finalEmployeeId = invitation.employeeId || null;
+    if (finalEmployeeId) {
+      const existingEmployeeWithId = await prisma.employee.findUnique({
+        where: { employeeId: finalEmployeeId },
+      });
+
+      if (existingEmployeeWithId) {
+        // EmployeeId is already taken, set to null
+        // Employee can still be created without employeeId
+        console.warn(
+          `EmployeeId "${finalEmployeeId}" from invitation is already taken. Creating employee without employeeId.`
+        );
+        finalEmployeeId = null;
+      }
+    }
+
     const newEmployee = await prisma.employee.create({
       data: {
         name,
@@ -423,7 +511,7 @@ export const acceptInvitation = async (req, res) => {
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,
-        employeeId: invitation.employeeId || null,
+        employeeId: finalEmployeeId,
         profilePic: randomAvatar,
         position: invitation.position,
         shiftType: invitation.shiftType || "MORNING_SHIFT",

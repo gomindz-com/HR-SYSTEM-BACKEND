@@ -41,6 +41,7 @@ export const verifyToken = async (req, res, next) => {
         email: true,
         role: true,
         companyId: true,
+        departmentId: true,
       },
     });
 

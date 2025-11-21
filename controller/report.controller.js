@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.config.js";
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
 export const employeeReport = async (req, res) => {
   try {
     // Extract and validate user context
@@ -39,7 +40,8 @@ export const employeeReport = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-      companyId: companyId, // Always filter by company for security
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
     };
 
     // Text search across multiple fields (matches frontend search input)
@@ -342,7 +344,8 @@ export const leaveReport = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-      companyId: companyId, // Always filter by company for security
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
     };
 
     // Text search across employee name
@@ -577,7 +580,7 @@ export const attendanceReport = async (req, res) => {
       dateTo, // Filter by attendance date
       timePeriod, // Predefined time periods: day, week, month, quarter, year
       page = 1, // Pagination
-      limit = 10, // Items per page 
+      limit = 10, // Items per page
     } = req.query;
 
     // Convert to proper types with validation
@@ -596,7 +599,8 @@ export const attendanceReport = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-      companyId: companyId, // Always filter by company for security
+        companyId: companyId,
+      ...getDepartmentFilter(req.user),
     };
 
     // Text search across employee name
@@ -730,12 +734,12 @@ export const attendanceReport = async (req, res) => {
       take: limitNum,
     });
 
-    // Get total count for pagination 
+    // Get total count for pagination
     const totalCount = await prisma.attendance.count({
       where: whereClause,
     });
 
-    // Calculate pagination info 
+    // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limitNum);
     const hasNextPage = pageNum < totalPages;
     const hasPrevPage = pageNum > 1;
@@ -768,7 +772,7 @@ export const attendanceReport = async (req, res) => {
     res.status(200).json({
       success: true,
       data: formattedAttendances,
-      pagination: { 
+      pagination: {
         currentPage: pageNum,
         totalPages,
         totalCount,
@@ -846,7 +850,7 @@ export const payrollReports = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-      companyId: companyId, // Always filter by company for security
+      companyId: companyId, ...getDepartmentFilter
     };
 
     // Employee filter
