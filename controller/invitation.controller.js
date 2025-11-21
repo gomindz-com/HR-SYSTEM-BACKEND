@@ -486,6 +486,24 @@ export const acceptInvitation = async (req, res) => {
     const idx = Math.floor(Math.random() * 100) + 1;
     const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
 
+    // Check if employeeId from invitation is already taken
+    // If it is, set it to null to avoid unique constraint violation
+    let finalEmployeeId = invitation.employeeId || null;
+    if (finalEmployeeId) {
+      const existingEmployeeWithId = await prisma.employee.findUnique({
+        where: { employeeId: finalEmployeeId },
+      });
+
+      if (existingEmployeeWithId) {
+        // EmployeeId is already taken, set to null
+        // Employee can still be created without employeeId
+        console.warn(
+          `EmployeeId "${finalEmployeeId}" from invitation is already taken. Creating employee without employeeId.`
+        );
+        finalEmployeeId = null;
+      }
+    }
+
     const newEmployee = await prisma.employee.create({
       data: {
         name,
@@ -493,7 +511,7 @@ export const acceptInvitation = async (req, res) => {
         password: hashedPassword,
         companyId: invitation.companyId,
         role: invitation.role,
-        employeeId: invitation.employeeId || null,
+        employeeId: finalEmployeeId,
         profilePic: randomAvatar,
         position: invitation.position,
         shiftType: invitation.shiftType || "MORNING_SHIFT",
