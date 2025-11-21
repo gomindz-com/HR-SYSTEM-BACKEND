@@ -9,14 +9,14 @@ import { requireRole } from "../middleware/rbac.middleware.js";
 const router = express.Router();
 router.get(
   "/companies",
-  requireRole(["SUPER_ADMIN"]),
   verifyToken,
+  requireRole(["SUPER_ADMIN"]),
   listCompanies
 );
 router.get(
   "/company-stats",
-  requireRole(["SUPER_ADMIN"]),
   verifyToken,
+  requireRole(["SUPER_ADMIN"]),
   companyStats
 );
 

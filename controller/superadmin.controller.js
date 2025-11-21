@@ -79,8 +79,17 @@ export const listCompanies = async (req, res) => {
             select: {
               id: true,
               status: true,
-              planType: true,
-              expiresAt: true,
+              startDate: true,
+              endDate: true,
+              trialEndDate: true,
+              createdAt: true,
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
+              },
             },
           },
           _count: {
