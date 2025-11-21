@@ -17,6 +17,7 @@ import documentRoutes from "./routes/document.route.js";
 import subscriptionRoutes from "./routes/subscription.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
+import superadminRoutes from "./routes/superadmin.route.js";
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -155,6 +156,7 @@ app.use("/api/document", documentRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/webhook", webhookRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/superadmin", superadminRoutes);
 // ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status
