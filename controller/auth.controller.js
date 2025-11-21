@@ -71,8 +71,8 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Check if email is verified
-    if (!user.emailVerified) {
+    // Check if email is verified (skip for SUPER_ADMIN)
+    if (!user.emailVerified && user.role !== "SUPER_ADMIN") {
       return res.status(403).json({
         message: "Please verify your email before logging in",
         needsVerification: true,
@@ -202,15 +202,17 @@ export const resetPassword = async (req, res) => {
       },
     });
 
-    // Create activity for password reset
-    await createActivity({
-      companyId: user.companyId,
-      type: ACTIVITY_TYPES.PASSWORD_CHANGE,
-      title: "Password Reset",
-      description: `${user.name} reset their password`,
-      priority: PRIORITY_LEVELS.NORMAL,
-      icon: ICON_TYPES.EMPLOYEE,
-    });
+    // Create activity for password reset (skip if no companyId for SUPER_ADMIN)
+    if (user.companyId) {
+      await createActivity({
+        companyId: user.companyId,
+        type: ACTIVITY_TYPES.PASSWORD_CHANGE,
+        title: "Password Reset",
+        description: `${user.name} reset their password`,
+        priority: PRIORITY_LEVELS.NORMAL,
+        icon: ICON_TYPES.EMPLOYEE,
+      });
+    }
 
     res.status(200).json({
       message: "Password reset successful",
@@ -367,7 +369,11 @@ export const resendVerificationEmail = async (req, res) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(employee.email, verificationToken, employee.name);
+      await sendVerificationEmail(
+        employee.email,
+        verificationToken,
+        employee.name
+      );
       console.log(`✅ Resent verification email to: ${employee.email}`);
     } catch (emailError) {
       console.error("❌ Failed to resend verification email:", emailError);
@@ -377,7 +383,8 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Verification email sent! Please check your inbox and spam folder.",
+      message:
+        "Verification email sent! Please check your inbox and spam folder.",
     });
   } catch (error) {
     console.error("Error in resendVerificationEmail:", error);

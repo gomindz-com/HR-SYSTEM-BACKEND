@@ -67,7 +67,7 @@ model Employee {
   password             String
   position             String?
   departmentId         Int?
-  companyId            Int
+  companyId            Int?
   location             String?
   status               EmployeeStatus @default(ACTIVE)
   avatar               String?
@@ -91,7 +91,7 @@ model Employee {
   attendances              Attendance[]            @relation("EmployeeAttendance")
   hrForCompanies           Company[]               @relation("Company_hr")
   managedDepartments       Department[]            @relation("DepartmentManager")
-  company                  Company                 @relation(fields: [companyId], references: [id])
+  company                  Company?                @relation(fields: [companyId], references: [id], onDelete: SetNull)
   department               Department?             @relation(fields: [departmentId], references: [id])
   EmployeeBenefit          EmployeeBenefit[]
   EmployeePayrollProfile   EmployeePayrollProfile?
@@ -319,6 +319,7 @@ enum Role {
   STAFF
   MANAGER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum EmployeeStatus {

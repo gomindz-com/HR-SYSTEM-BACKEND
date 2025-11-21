@@ -17,6 +17,8 @@ import documentRoutes from "./routes/document.route.js";
 import subscriptionRoutes from "./routes/subscription.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
+import superadminRoutes from "./routes/superadmin.route.js";
+import { verifyToken } from "./middleware/auth.middleware.js";
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -109,7 +111,10 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration
-const allowedOrigins = ["http://localhost:8080"];
+const allowedOrigins = [
+  "http://localhost:8080",
+  "http://localhost:3000",
+];
 
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
@@ -137,7 +142,6 @@ app.use(
   })
 );
 
-
 app.use(cookieParser());
 // ROUTES PREFIXES
 app.use("/api/auth", authRoutes);
@@ -155,6 +159,8 @@ app.use("/api/document", documentRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/webhook", webhookRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/superadmin", superadminRoutes);
+
 // ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status
