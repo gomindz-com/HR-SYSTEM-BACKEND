@@ -18,6 +18,7 @@ import subscriptionRoutes from "./routes/subscription.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
 import calendarRoutes from "./routes/calendar.router.js";
+import superadminRoutes from "./routes/superadmin.route.js";
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
