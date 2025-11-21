@@ -111,7 +111,7 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration
-const allowedOrigins = ["http://localhost:8080"];
+const allowedOrigins = ["http://localhost:8080", "http://localhost:3000"];
 
 if (process.env.CLIENT_URL) {
   allowedOrigins.push(process.env.CLIENT_URL);
