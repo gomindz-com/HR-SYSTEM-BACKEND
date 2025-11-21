@@ -13,6 +13,7 @@ import {
   ICON_TYPES,
 } from "../lib/activity-utils.js";
 import { createNotification } from "../utils/notification.utils.js";
+import { getDepartmentFilter } from "../utils/access-control.utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
@@ -568,7 +569,12 @@ export const listAttendance = async (req, res) => {
 
   // Filters
   const { employeeId, status, date, locationId } = req.query;
-  const where = { companyId };
+  const where = {
+    companyId,
+    employee: {
+      ...getDepartmentFilter(req.user),
+    },
+  };
 
   // Safe parse for employeeId
   const parsedEmployeeId = parseInt(employeeId);
@@ -782,22 +788,57 @@ export const getCompanyAttendanceStats = async (req, res) => {
       daysEarly,
     ] = await Promise.all([
       prisma.attendance.count({
-        where: { companyId, status: { not: "ABSENT" } },
+        where: {
+          companyId,
+          status: { not: "ABSENT" },
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
       prisma.attendance.count({
-        where: { companyId },
+        where: {
+          companyId,
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "LATE" },
+        where: {
+          companyId,
+          status: "LATE",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "ABSENT" },
+        where: {
+          companyId,
+          status: "ABSENT",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "ON_TIME" },
+        where: {
+          companyId,
+          status: "ON_TIME",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
       prisma.attendance.count({
-        where: { companyId, status: "EARLY" },
+        where: {
+          companyId,
+          status: "EARLY",
+          employee: {
+            ...getDepartmentFilter(req.user),
+          },
+        },
       }),
     ]);
 
@@ -1135,6 +1176,186 @@ export const adminCreateAttendanceRecord = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in adminCreateAttendanceRecord controller", error);
+    return res.status(500).json({ message: `${error.message}` });
+  }
+};
+
+export const adminUpdateAttendanceRecord = async (req, res) => {
+  const { attendanceId } = req.params;
+  const { companyId, role, id } = req.user;
+  const { timeIn, timeOut, locationId } = req.body;
+
+  // Check if user is admin
+  if (role !== "ADMIN") {
+    return res
+      .status(403)
+      .json({ message: "Only admins can update attendance records" });
+  }
+
+  if (!attendanceId) {
+    return res.status(400).json({ message: "Attendance ID is required" });
+  }
+
+  if (!companyId) {
+    return res.status(400).json({ message: "Company ID is required" });
+  }
+
+  try {
+    // Find existing attendance record
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        id: parseInt(attendanceId),
+        companyId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            shiftType: true,
+          },
+        },
+      },
+    });
+
+    if (!existingAttendance) {
+      return res.status(404).json({
+        message:
+          "Attendance record not found or doesn't belong to this company",
+      });
+    }
+
+    // Parse and validate timeIn if provided
+    let parsedTimeIn = existingAttendance.timeIn;
+    if (timeIn) {
+      parsedTimeIn = new Date(timeIn);
+      if (isNaN(parsedTimeIn.getTime())) {
+        return res.status(400).json({
+          message: "Invalid timeIn format. Please provide a valid date/time.",
+        });
+      }
+    }
+
+    // Parse and validate timeOut if provided
+    let parsedTimeOut = existingAttendance.timeOut;
+    if (timeOut !== undefined && timeOut !== null) {
+      if (timeOut === "") {
+        parsedTimeOut = null;
+      } else {
+        parsedTimeOut = new Date(timeOut);
+        if (isNaN(parsedTimeOut.getTime())) {
+          return res.status(400).json({
+            message:
+              "Invalid timeOut format. Please provide a valid date/time.",
+          });
+        }
+      }
+    }
+
+    // Validate that timeOut is after timeIn if both are provided
+    if (parsedTimeIn && parsedTimeOut && parsedTimeOut <= parsedTimeIn) {
+      return res.status(400).json({
+        message: "Time out must be after time in",
+      });
+    }
+
+    // Validate locationId if provided
+    let validatedLocationId = existingAttendance.locationId;
+    if (locationId !== undefined && locationId !== null) {
+      if (locationId === "" || locationId === "none") {
+        validatedLocationId = null;
+      } else {
+        const parsedLocationId = parseInt(locationId);
+        if (isNaN(parsedLocationId)) {
+          return res.status(400).json({
+            message: "Invalid location ID format",
+          });
+        }
+
+        const location = await prisma.companyLocation.findFirst({
+          where: {
+            id: parsedLocationId,
+            companyId,
+            isActive: true,
+          },
+        });
+
+        if (!location) {
+          return res.status(400).json({
+            message:
+              "Invalid location or location doesn't belong to this company",
+          });
+        }
+        validatedLocationId = location.id;
+      }
+    }
+
+    // Get company settings for status recalculation
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        workStartTime: true,
+        lateThreshold: true,
+        workStartTime2: true,
+        lateThreshold2: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Recalculate status based on timeIn
+    const attendanceStatus = determineAttendanceStatus(
+      parsedTimeIn,
+      company,
+      existingAttendance.employee.shiftType
+    );
+
+    // Update attendance record
+    const updatedAttendance = await prisma.attendance.update({
+      where: { id: parseInt(attendanceId) },
+      data: {
+        timeIn: parsedTimeIn,
+        timeOut: parsedTimeOut,
+        status: attendanceStatus,
+        locationId: validatedLocationId,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        location: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create activity log
+    await createActivity({
+      companyId,
+      createdById: id,
+      type: ACTIVITY_TYPES.ATTENDANCE,
+      title: "Admin Updated Attendance Record",
+      description: `Admin updated attendance record for ${existingAttendance.employee.name} on ${new Date(existingAttendance.date).toLocaleDateString()}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.ATTENDANCE,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Attendance record updated successfully",
+      data: { attendance: updatedAttendance },
+    });
+  } catch (error) {
+    console.error("Error in adminUpdateAttendanceRecord controller", error);
     return res.status(500).json({ message: `${error.message}` });
   }
 };

@@ -12,6 +12,7 @@ import {
   adminClockOut,
   viewEmployeeAttendanceStats,
   adminCreateAttendanceRecord,
+  adminUpdateAttendanceRecord,
 } from "../controller/attendance.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { checkSubscription } from "../middleware/subscription.middleware.js";
@@ -35,5 +36,6 @@ router.get("/employee/:employeeId", listSpecificEmployeeAttendance);
 router.post("/admin/add/:employeeId", adminAddAttendance);
 router.post("/admin/clock-out/:employeeId", adminClockOut);
 router.post("/admin/create-record", adminCreateAttendanceRecord);
+router.put("/admin/update/:attendanceId", adminUpdateAttendanceRecord);
 
 export default router;

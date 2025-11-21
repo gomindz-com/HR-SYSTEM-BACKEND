@@ -41,7 +41,8 @@ model Company {
   subscription       Subscription?
   payments           Payment[]
   WorkdayDaysConfig  WorkdayDaysConfig[]
-  notifications     Notification[]
+  notifications      Notification[]
+  calendars          Calendar[]
 }
 
 model CompanyLocation {
@@ -106,6 +107,7 @@ model Employee {
   documents                Document[]
   uploadedDocuments        Document[]              @relation("DocumentUploader")
   userNotificationReads    UserNotificationRead[]
+  calendars                Calendar[]
 }
 
 model Department {
@@ -139,25 +141,53 @@ model Attendance {
 }
 
 model LeaveRequest {
-  id             Int         @id @default(autoincrement())
-  employeeId     Int
-  companyId      Int
-  leaveType      LeaveType
-  startDate      DateTime
-  endDate        DateTime
-  days           Int
-  status         LeaveStatus @default(PENDING)
-  approverId     Int?
-  comments       String?
-  attachmentUrls Json?
-  isApproved     Boolean?
-  rejectReason   String?
-  approvedAt     DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @default(now())
-  approver       Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
-  company        Company     @relation(fields: [companyId], references: [id])
-  employee       Employee    @relation(fields: [employeeId], references: [id])
+  id               Int         @id @default(autoincrement())
+  employeeId       Int
+  companyId        Int
+  leaveType        LeaveType
+  startDate        DateTime
+  endDate          DateTime
+  days             Int
+  status           LeaveStatus @default(PENDING)
+  hrApprovalStatus LeaveStatus @default(PENDING)
+  hrRejectReason   String?
+  approverId       Int?
+  comments         String?
+  attachmentUrls   Json?
+  isApproved       Boolean?
+  rejectReason     String?
+  approvedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @default(now())
+  approver         Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
+  company          Company     @relation(fields: [companyId], references: [id])
+  employee         Employee    @relation(fields: [employeeId], references: [id])
+}
+
+model Calendar {
+  id          String       @id @default(cuid())
+  companyId   Int
+  createdById Int
+  type        CalendarType
+  date        DateTime     @db.Date
+  name        String // "Christmas", "Company Founding Day"
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  createdBy Employee? @relation(fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@index([date])
+  @@index([companyId, date])
+  @@index([type])
+}
+
+enum CalendarType {
+  PUBLIC_HOLIDAY
+  SCHOOL_HOLIDAY
+  EVENT
 }
 
 model Payroll {
@@ -206,16 +236,16 @@ model PerformanceReview {
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   userId      Int?
   companyId   Int
   message     String
   type        String
   category    String?
-  priority    String    @default("NORMAL")
+  priority    String   @default("NORMAL")
   redirectUrl String?
-  read        Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   company   Company                @relation(fields: [companyId], references: [id])
   user      Employee?              @relation(fields: [userId], references: [id])
