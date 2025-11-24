@@ -161,6 +161,26 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
+    // Check if yesterday was a holiday (PUBLIC_HOLIDAY or SCHOOL_HOLIDAY)
+    const isHoliday = await prisma.calendar.findFirst({
+      where: {
+        companyId,
+        date: companyDateMidnight,
+        type: {
+          in: ["PUBLIC_HOLIDAY", "SCHOOL_HOLIDAY"],
+        },
+        isActive: true,
+      },
+    });
+
+    if (isHoliday) {
+      return {
+        success: true,
+        message: `Yesterday was a ${holiday.type.toLowerCase().replace("_", " ")} - skipping absent marking`,
+        count: 0,
+      };
+    }
+
     // Check for existing absent records
     const existingAbsentRecords = await prisma.attendance.count({
       where: {
