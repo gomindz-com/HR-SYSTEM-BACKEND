@@ -114,7 +114,7 @@ app.use(express.json());
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:3000",
-  "https://hrsuperadmindashboard.netlify.app",
+  "https://admin.hr.gomindz.gm"
 ];
 
 if (process.env.CLIENT_URL) {
