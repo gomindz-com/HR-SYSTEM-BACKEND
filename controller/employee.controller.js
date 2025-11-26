@@ -128,6 +128,9 @@ export const getEmployeeDetails = async (req, res) => {
             companyEmail: true,
           },
         },
+        employeeWorkDaysConfigs: {
+          take: 1, // Only get the first one (should be unique anyway)
+        },
         attendances: {
           take: 5,
           orderBy: { date: "desc" },
@@ -564,5 +567,327 @@ export const toggleEmployeeStatus = async (req, res) => {
   } catch (error) {
     console.error("Error toggling employee status", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Get employee workday configuration
+ * Returns employee-specific config or company default
+ */
+export const getEmployeeWorkdayConfig = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.user.companyId;
+
+  // RBAC: Employees can only view their own, admins can view any
+  if (req.user.role !== "ADMIN" && req.user.id !== parseInt(id)) {
+    return res.status(403).json({
+      message: "You can only view your own workday configuration",
+    });
+  }
+
+  if (!id || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  try {
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    // Check if employee has custom workday config
+    const employeeConfig = await prisma.employeeWorkDaysConfig.findUnique({
+      where: { employeeId: parseInt(id) },
+    });
+
+    if (employeeConfig) {
+      // Employee has custom config
+      return res.status(200).json({
+        data: {
+          workdayConfig: {
+            monday: employeeConfig.monday,
+            tuesday: employeeConfig.tuesday,
+            wednesday: employeeConfig.wednesday,
+            thursday: employeeConfig.thursday,
+            friday: employeeConfig.friday,
+            saturday: employeeConfig.saturday,
+            sunday: employeeConfig.sunday,
+          },
+          isCustom: true,
+          customConfigId: employeeConfig.id,
+        },
+      });
+    }
+
+    // Employee uses company default - get company config
+    const companyConfig = await prisma.workdayDaysConfig.findFirst({
+      where: { companyId },
+    });
+
+    if (companyConfig) {
+      return res.status(200).json({
+        data: {
+          workdayConfig: {
+            monday: companyConfig.monday,
+            tuesday: companyConfig.tuesday,
+            wednesday: companyConfig.wednesday,
+            thursday: companyConfig.thursday,
+            friday: companyConfig.friday,
+            saturday: companyConfig.saturday,
+            sunday: companyConfig.sunday,
+          },
+          isCustom: false,
+          customConfigId: null,
+        },
+      });
+    }
+
+    // Final fallback - default workdays (Mon-Fri)
+    return res.status(200).json({
+      data: {
+        workdayConfig: {
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          sunday: false,
+        },
+        isCustom: false,
+        customConfigId: null,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching employee workday config:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Update employee workday configuration
+ * Only admins can update workday configs
+ */
+export const updateEmployeeWorkdayConfig = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.user.companyId;
+
+  // RBAC: Only ADMIN can update workday configs
+  if (req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can update workday configuration",
+    });
+  }
+
+  if (!id || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } =
+    req.body;
+
+  // Validate at least one workday is selected
+  const workdays = [
+    monday,
+    tuesday,
+    wednesday,
+    thursday,
+    friday,
+    saturday,
+    sunday,
+  ];
+  const hasWorkday = workdays.some((day) => day === true);
+
+  if (!hasWorkday) {
+    return res.status(400).json({
+      message: "At least one workday must be selected",
+    });
+  }
+
+  try {
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    // Upsert employee workday config
+    const workdayConfig = await prisma.employeeWorkDaysConfig.upsert({
+      where: { employeeId: parseInt(id) },
+      update: {
+        monday: monday ?? true,
+        tuesday: tuesday ?? true,
+        wednesday: wednesday ?? true,
+        thursday: thursday ?? true,
+        friday: friday ?? true,
+        saturday: saturday ?? false,
+        sunday: sunday ?? false,
+      },
+      create: {
+        employeeId: parseInt(id),
+        monday: monday ?? true,
+        tuesday: tuesday ?? true,
+        wednesday: wednesday ?? true,
+        thursday: thursday ?? true,
+        friday: friday ?? true,
+        saturday: saturday ?? false,
+        sunday: sunday ?? false,
+      },
+    });
+
+    // Create activity log
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Workday Configuration Updated",
+      description: `Workday configuration updated for ${employee.name}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    return res.status(200).json({
+      message: "Employee workday configuration updated successfully",
+      data: {
+        workdayConfig: {
+          monday: workdayConfig.monday,
+          tuesday: workdayConfig.tuesday,
+          wednesday: workdayConfig.wednesday,
+          thursday: workdayConfig.thursday,
+          friday: workdayConfig.friday,
+          saturday: workdayConfig.saturday,
+          sunday: workdayConfig.sunday,
+        },
+        isCustom: true,
+        customConfigId: workdayConfig.id,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating employee workday config:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Delete employee workday configuration (revert to company default)
+ */
+export const deleteEmployeeWorkdayConfig = async (req, res) => {
+  const { id } = req.params;
+  const companyId = req.user.companyId;
+
+  // RBAC: Only ADMIN can delete workday configs
+  if (req.user.role !== "ADMIN") {
+    return res.status(403).json({
+      message: "Only administrators can delete workday configuration",
+    });
+  }
+
+  if (!id || !companyId) {
+    return res
+      .status(400)
+      .json({ message: "Employee ID and Company ID are required" });
+  }
+
+  try {
+    // Verify employee belongs to company
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: parseInt(id),
+        companyId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or doesn't belong to this company",
+      });
+    }
+
+    // Check if custom config exists
+    const existingConfig = await prisma.employeeWorkDaysConfig.findUnique({
+      where: { employeeId: parseInt(id) },
+    });
+
+    if (!existingConfig) {
+      return res.status(404).json({
+        message: "Employee does not have a custom workday configuration",
+      });
+    }
+
+    // Delete custom config (will fallback to company default)
+    await prisma.employeeWorkDaysConfig.delete({
+      where: { employeeId: parseInt(id) },
+    });
+
+    // Get company config to return in response
+    const companyConfig = await prisma.workdayDaysConfig.findFirst({
+      where: { companyId },
+    });
+
+    // Create activity log
+    await createActivity({
+      companyId,
+      type: ACTIVITY_TYPES.EMPLOYEE_UPDATED,
+      title: "Employee Workday Configuration Reset",
+      description: `Workday configuration reset to company default for ${employee.name}`,
+      priority: PRIORITY_LEVELS.NORMAL,
+      icon: ICON_TYPES.EMPLOYEE,
+    });
+
+    // Return company config or default
+    const workdayConfig = companyConfig
+      ? {
+          monday: companyConfig.monday,
+          tuesday: companyConfig.tuesday,
+          wednesday: companyConfig.wednesday,
+          thursday: companyConfig.thursday,
+          friday: companyConfig.friday,
+          saturday: companyConfig.saturday,
+          sunday: companyConfig.sunday,
+        }
+      : {
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          sunday: false,
+        };
+
+    return res.status(200).json({
+      message: "Employee workday configuration deleted. Using company default.",
+      data: {
+        workdayConfig,
+        isCustom: false,
+        customConfigId: null,
+      },
+    });
+  } catch (error) {
+    console.error("Error deleting employee workday config:", error);
+    return res.status(500).json({ message: error.message });
   }
 };

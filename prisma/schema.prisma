@@ -84,30 +84,31 @@ model Employee {
   resetPasswordToken   String?
   resetPasswordExpires DateTime?
 
-  emailVerified            Boolean                 @default(false)
-  emailVerificationToken   String?                 @unique
+  emailVerified            Boolean                  @default(false)
+  emailVerificationToken   String?                  @unique
   emailVerificationExpires DateTime?
-  sumBonuses               Float?                  @default(0)
-  createdAt                DateTime                @default(now())
-  attendances              Attendance[]            @relation("EmployeeAttendance")
-  hrForCompanies           Company[]               @relation("Company_hr")
-  managedDepartments       Department[]            @relation("DepartmentManager")
-  company                  Company?                @relation(fields: [companyId], references: [id])
-  department               Department?             @relation(fields: [departmentId], references: [id])
+  sumBonuses               Float?                   @default(0)
+  createdAt                DateTime                 @default(now())
+  attendances              Attendance[]             @relation("EmployeeAttendance")
+  hrForCompanies           Company[]                @relation("Company_hr")
+  managedDepartments       Department[]             @relation("DepartmentManager")
+  company                  Company?                 @relation(fields: [companyId], references: [id])
+  department               Department?              @relation(fields: [departmentId], references: [id])
   EmployeeBenefit          EmployeeBenefit[]
   EmployeePayrollProfile   EmployeePayrollProfile?
   sentInvitations          Invitation[]
-  approvedLeaveRequests    LeaveRequest[]          @relation("LeaveApprover")
+  approvedLeaveRequests    LeaveRequest[]           @relation("LeaveApprover")
   leaveRequests            LeaveRequest[]
   notifications            Notification[]
   payrolls                 Payroll[]
-  finalizedPayrolls        Payroll[]               @relation("Payroll_finalizedByToEmployee")
+  finalizedPayrolls        Payroll[]                @relation("Payroll_finalizedByToEmployee")
   performanceReviews       PerformanceReview[]
-  reviewsGiven             PerformanceReview[]     @relation("Reviewer")
+  reviewsGiven             PerformanceReview[]      @relation("Reviewer")
   documents                Document[]
-  uploadedDocuments        Document[]              @relation("DocumentUploader")
+  uploadedDocuments        Document[]               @relation("DocumentUploader")
   userNotificationReads    UserNotificationRead[]
   calendars                Calendar[]
+  employeeWorkDaysConfigs  EmployeeWorkDaysConfig[]
 }
 
 model Department {
@@ -508,4 +509,17 @@ model WorkdayDaysConfig {
   saturday  Boolean @default(false)
   sunday    Boolean @default(false)
   company   Company @relation(fields: [companyId], references: [id])
+}
+
+model EmployeeWorkDaysConfig {
+  id         String   @id @default(cuid())
+  employeeId Int
+  monday     Boolean  @default(true)
+  tuesday    Boolean  @default(true)
+  wednesday  Boolean  @default(true)
+  thursday   Boolean  @default(true)
+  friday     Boolean  @default(true)
+  saturday   Boolean  @default(false)
+  sunday     Boolean  @default(false)
+  employee   Employee @relation(fields: [employeeId], references: [id])
 }

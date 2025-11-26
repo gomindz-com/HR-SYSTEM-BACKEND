@@ -14,6 +14,7 @@ import {
 } from "../lib/activity-utils.js";
 import { createNotification } from "../utils/notification.utils.js";
 import { getDepartmentFilter } from "../utils/access-control.utils.js";
+import { isEmployeeWorkday } from "../utils/automation.utils.js";
 export const checkIn = async (req, res) => {
   const { qrPayload, longitude, latitude } = req.body;
   const employeeId = req.user.id;
@@ -95,6 +96,19 @@ export const checkIn = async (req, res) => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    // Check if today is a workday for this employee
+    const isWorkdayForEmployee = await isEmployeeWorkday(
+      today,
+      employeeId,
+      companyId
+    );
+
+    if (!isWorkdayForEmployee) {
+      return res.status(400).json({
+        message: "Today is not a scheduled workday for you. Check-in not allowed.",
+      });
+    }
 
     const existingAttendance = await prisma.attendance.findFirst({
       where: {

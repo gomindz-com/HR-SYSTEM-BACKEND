@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
-import { isWorkday } from "../utils/automation.utils.js";
+import { isEmployeeWorkday } from "../utils/automation.utils.js";
 import { hasShiftDeadlinePassed } from "../lib/attendance-utils.js";
 
 const cronJobs = new Map();
@@ -134,33 +134,6 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
-    // Check workday configuration
-    let workdayConfig = await prisma.workdayDaysConfig.findFirst({
-      where: { companyId },
-    });
-
-    if (!workdayConfig) {
-      workdayConfig = {
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
-        friday: true,
-        saturday: false,
-        sunday: false,
-      };
-    }
-
-    // Check if yesterday was a workday (using the date we're checking)
-    const companyLocalDate = new Date(companyLocalDateString + "T00:00:00");
-    if (!isWorkday(companyLocalDate, workdayConfig)) {
-      return {
-        success: true,
-        message: "Yesterday was not a workday",
-        count: 0,
-      };
-    }
-
     // Check if yesterday was a holiday (PUBLIC_HOLIDAY or SCHOOL_HOLIDAY)
     const isHoliday = await prisma.calendar.findFirst({
       where: {
@@ -176,7 +149,7 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
     if (isHoliday) {
       return {
         success: true,
-        message: `Yesterday was a ${holiday.type.toLowerCase().replace("_", " ")} - skipping absent marking`,
+        message: `Yesterday was a ${isHoliday.type.toLowerCase().replace("_", " ")} - skipping absent marking`,
         count: 0,
       };
     }
@@ -224,19 +197,36 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
       };
     }
 
-    // Filter employees by shift deadline - only mark absent if their deadline has passed
-    // Pass companyLocalDateString (yesterday's date) so morning shift checks yesterday's deadline
-    const employeesToMarkAbsent = employeesWithoutAttendance.filter(
-      (employee) => {
+    // Filter employees by workday and shift deadline
+    // Check each employee's individual workday config
+    const companyLocalDate = new Date(companyLocalDateString + "T00:00:00");
+
+    const employeesToMarkAbsent = await Promise.all(
+      employeesWithoutAttendance.map(async (employee) => {
+        // Check if yesterday was a workday for THIS employee
+        const isWorkdayForEmployee = await isEmployeeWorkday(
+          companyLocalDate,
+          employee.id,
+          companyId
+        );
+
+        if (!isWorkdayForEmployee) {
+          return null; // Not a workday for this employee, skip them
+        }
+
+        // Check if shift deadline has passed
         const shiftType = employee.shiftType || "MORNING_SHIFT";
-        return hasShiftDeadlinePassed(
+        const deadlinePassed = hasShiftDeadlinePassed(
           companySettings,
           shiftType,
           now,
           companyLocalDateString
         );
-      }
-    );
+
+        // Only include if deadline passed
+        return deadlinePassed ? employee : null;
+      })
+    ).then((results) => results.filter((emp) => emp !== null));
 
     if (employeesToMarkAbsent.length === 0) {
       return {
@@ -274,19 +264,32 @@ async function markEmployeesAbsent(companyId, companyTimezone, dryRun = false) {
           select: { id: true, name: true, companyId: true, shiftType: true },
         });
 
-        // Filter again in transaction to ensure deadlines still passed
-        // Pass companyLocalDateString (yesterday's date) so morning shift checks yesterday's deadline
-        const finalEmployeesToMarkAbsent = employeesToMarkAbsentInTx.filter(
-          (employee) => {
+        // Filter again in transaction with workday check
+        const finalEmployeesToMarkAbsent = await Promise.all(
+          employeesToMarkAbsentInTx.map(async (employee) => {
+            // Check if yesterday was a workday for THIS employee
+            const isWorkdayForEmployee = await isEmployeeWorkday(
+              companyLocalDate,
+              employee.id,
+              companyId
+            );
+
+            if (!isWorkdayForEmployee) {
+              return null; // Not a workday for this employee
+            }
+
+            // Check shift deadline
             const shiftType = employee.shiftType || "MORNING_SHIFT";
-            return hasShiftDeadlinePassed(
+            const deadlinePassed = hasShiftDeadlinePassed(
               companySettings,
               shiftType,
               now,
               companyLocalDateString
             );
-          }
-        );
+
+            return deadlinePassed ? employee : null;
+          })
+        ).then((results) => results.filter((emp) => emp !== null));
 
         if (finalEmployeesToMarkAbsent.length === 0) {
           return { count: 0 };
