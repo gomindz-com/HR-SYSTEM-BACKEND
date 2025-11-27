@@ -608,7 +608,7 @@ export const getEmployeeWorkdayConfig = async (req, res) => {
     }
 
     // Check if employee has custom workday config
-    const employeeConfig = await prisma.employeeWorkDaysConfig.findUnique({
+    const employeeConfig = await prisma.employeeWorkDaysConfig.findFirst({
       where: { employeeId: parseInt(id) },
     });
 
@@ -735,28 +735,36 @@ export const updateEmployeeWorkdayConfig = async (req, res) => {
     }
 
     // Upsert employee workday config
-    const workdayConfig = await prisma.employeeWorkDaysConfig.upsert({
+    // First check if config exists
+    const existingConfig = await prisma.employeeWorkDaysConfig.findFirst({
       where: { employeeId: parseInt(id) },
-      update: {
-        monday: monday ?? true,
-        tuesday: tuesday ?? true,
-        wednesday: wednesday ?? true,
-        thursday: thursday ?? true,
-        friday: friday ?? true,
-        saturday: saturday ?? false,
-        sunday: sunday ?? false,
-      },
-      create: {
-        employeeId: parseInt(id),
-        monday: monday ?? true,
-        tuesday: tuesday ?? true,
-        wednesday: wednesday ?? true,
-        thursday: thursday ?? true,
-        friday: friday ?? true,
-        saturday: saturday ?? false,
-        sunday: sunday ?? false,
-      },
     });
+
+    const workdayConfig = existingConfig
+      ? await prisma.employeeWorkDaysConfig.update({
+          where: { id: existingConfig.id },
+          data: {
+            monday: monday ?? true,
+            tuesday: tuesday ?? true,
+            wednesday: wednesday ?? true,
+            thursday: thursday ?? true,
+            friday: friday ?? true,
+            saturday: saturday ?? false,
+            sunday: sunday ?? false,
+          },
+        })
+      : await prisma.employeeWorkDaysConfig.create({
+          data: {
+            employeeId: parseInt(id),
+            monday: monday ?? true,
+            tuesday: tuesday ?? true,
+            wednesday: wednesday ?? true,
+            thursday: thursday ?? true,
+            friday: friday ?? true,
+            saturday: saturday ?? false,
+            sunday: sunday ?? false,
+          },
+        });
 
     // Create activity log
     await createActivity({
@@ -827,7 +835,7 @@ export const deleteEmployeeWorkdayConfig = async (req, res) => {
     }
 
     // Check if custom config exists
-    const existingConfig = await prisma.employeeWorkDaysConfig.findUnique({
+    const existingConfig = await prisma.employeeWorkDaysConfig.findFirst({
       where: { employeeId: parseInt(id) },
     });
 
@@ -838,8 +846,9 @@ export const deleteEmployeeWorkdayConfig = async (req, res) => {
     }
 
     // Delete custom config (will fallback to company default)
+    // Use the id from existingConfig to delete (id is unique)
     await prisma.employeeWorkDaysConfig.delete({
-      where: { employeeId: parseInt(id) },
+      where: { id: existingConfig.id },
     });
 
     // Get company config to return in response

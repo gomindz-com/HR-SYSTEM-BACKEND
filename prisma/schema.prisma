@@ -513,7 +513,7 @@ model WorkdayDaysConfig {
 
 model EmployeeWorkDaysConfig {
   id         String   @id @default(cuid())
-  employeeId Int
+  employeeId Int      @unique
   monday     Boolean  @default(true)
   tuesday    Boolean  @default(true)
   wednesday  Boolean  @default(true)

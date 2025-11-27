@@ -20,7 +20,7 @@ export const isWorkday = (today, config) => {
 export const isEmployeeWorkday = async (today, employeeId, companyId) => {
   try {
     // Step 1: Check if employee has custom workday configuration
-    const employeeConfig = await prisma.employeeWorkDaysConfig.findUnique({
+    const employeeConfig = await prisma.employeeWorkDaysConfig.findFirst({
       where: {
         employeeId: employeeId,
       },
