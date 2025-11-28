@@ -7,6 +7,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("HR_DATABASE_URL"), // Uses Prisma's env helper for environment variables
+    url: env("HR_DATABASE_URL"), 
   },
 });
