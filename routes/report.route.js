@@ -8,6 +8,7 @@ import {
   leaveReport,
   payrollReports,
   reportStats,
+  taxAndSSNReport,
 } from "../controller/report.controller.js";
 const router = express.Router();
 
@@ -38,6 +39,7 @@ router.get("/attendance-report", checkBasicReports, attendanceReport);
 // Advanced reports (require 'reports' feature - Pro+ plans only)
 router.get("/leave-report", checkFeatureAccess("reports"), leaveReport);
 router.get("/payroll-report", checkFeatureAccess("reports"), payrollReports);
+router.get("/tax-ssn-report", checkFeatureAccess("reports"), taxAndSSNReport);
 router.get("/stats", checkFeatureAccess("reports"), reportStats);
 
 export default router;

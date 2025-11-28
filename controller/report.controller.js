@@ -22,15 +22,19 @@ export const employeeReport = async (req, res) => {
       timePeriod, // Predefined time periods: day, week, month, quarter, year
       page = 1, // Pagination
       limit = 10, // Items per page
+      export: isExport, // Export flag to bypass pagination
     } = req.query;
 
-    // Convert to proper types with validation
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
 
-    // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 10;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
       return res.status(400).json({
         success: false,
         message:
@@ -223,7 +227,7 @@ export const employeeReport = async (req, res) => {
     }
 
     // Build the main query with proper relations
-    const employees = await prisma.employee.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         department: {
@@ -235,19 +239,31 @@ export const employeeReport = async (req, res) => {
       orderBy: {
         createdAt: "desc", // Most recent first
       },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const employees = await prisma.employee.findMany(queryOptions);
 
     // Get total count for pagination
     const totalCount = await prisma.employee.count({
       where: whereClause,
     });
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
 
     // Format response to match frontend expectations
     const formattedEmployees = employees.map((emp) => ({
@@ -263,18 +279,24 @@ export const employeeReport = async (req, res) => {
     }));
 
     // Send response
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedEmployees,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage,
         hasPrevPage,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in employeeReport controller:", error);
 
@@ -326,15 +348,19 @@ export const leaveReport = async (req, res) => {
       timePeriod, // Predefined time periods: day, week, month, quarter, year
       page = 1, // Pagination
       limit = 10, // Items per page
+      export: isExport, // Export flag to bypass pagination
     } = req.query;
 
-    // Convert to proper types with validation
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
 
-    // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 10;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
       return res.status(400).json({
         success: false,
         message:
@@ -468,7 +494,7 @@ export const leaveReport = async (req, res) => {
     }
 
     // Build the main query with proper relations
-    const leaveRequests = await prisma.leaveRequest.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         employee: {
@@ -489,19 +515,31 @@ export const leaveReport = async (req, res) => {
       orderBy: {
         startDate: "desc", // Most recent first
       },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const leaveRequests = await prisma.leaveRequest.findMany(queryOptions);
 
     // Get total count for pagination
     const totalCount = await prisma.leaveRequest.count({
       where: whereClause,
     });
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
 
     // Format response to match frontend expectations
     const formattedLeaveRequests = leaveRequests.map((leave) => ({
@@ -519,18 +557,24 @@ export const leaveReport = async (req, res) => {
     }));
 
     // Send response
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedLeaveRequests,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage,
         hasPrevPage,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in leaveReport controller:", error);
 
@@ -581,15 +625,19 @@ export const attendanceReport = async (req, res) => {
       timePeriod, // Predefined time periods: day, week, month, quarter, year
       page = 1, // Pagination
       limit = 10, // Items per page
+      export: isExport, // Export flag to bypass pagination
     } = req.query;
 
-    // Convert to proper types with validation
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
 
-    // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 10;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
       return res.status(400).json({
         success: false,
         message:
@@ -599,7 +647,7 @@ export const attendanceReport = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-        companyId: companyId,
+      companyId: companyId,
       ...getDepartmentFilter(req.user),
     };
 
@@ -714,7 +762,7 @@ export const attendanceReport = async (req, res) => {
     }
 
     // Build the main query with proper relations
-    const attendances = await prisma.attendance.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         employee: {
@@ -730,19 +778,31 @@ export const attendanceReport = async (req, res) => {
       orderBy: {
         date: "desc", // Most recent first
       },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const attendances = await prisma.attendance.findMany(queryOptions);
 
     // Get total count for pagination
     const totalCount = await prisma.attendance.count({
       where: whereClause,
     });
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
 
     // Format response to match frontend expectations
     const formattedAttendances = attendances.map((att) => ({
@@ -769,18 +829,24 @@ export const attendanceReport = async (req, res) => {
     }));
 
     // Send response
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedAttendances,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage,
         hasPrevPage,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in attendanceReport controller:", error);
 
@@ -832,15 +898,19 @@ export const payrollReports = async (req, res) => {
       page = 1, // Pagination
       limit = 10, // Items per page
       reportType = "summary", // summary, detailed, benefits, taxes
+      export: isExport, // Export flag to bypass pagination
     } = req.query;
 
-    // Convert to proper types with validation
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
 
-    // Validate pagination values
-    if (pageNum < 1 || limitNum < 1 || limitNum > 10000) {
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 10;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
       return res.status(400).json({
         success: false,
         message:
@@ -850,7 +920,8 @@ export const payrollReports = async (req, res) => {
 
     // Start building where clause
     let whereClause = {
-      companyId: companyId, ...getDepartmentFilter
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
     };
 
     // Employee filter
@@ -944,7 +1015,8 @@ export const payrollReports = async (req, res) => {
           pageNum,
           limitNum,
           skip,
-          search
+          search,
+          isExportRequest
         );
       case "benefits":
         return await generateBenefitsReport(
@@ -953,7 +1025,8 @@ export const payrollReports = async (req, res) => {
           whereClause,
           pageNum,
           limitNum,
-          skip
+          skip,
+          isExportRequest
         );
       case "taxes":
         return await generateTaxReport(
@@ -962,7 +1035,8 @@ export const payrollReports = async (req, res) => {
           whereClause,
           pageNum,
           limitNum,
-          skip
+          skip,
+          isExportRequest
         );
       default:
         return await generateDetailedPayrollReport(
@@ -972,7 +1046,8 @@ export const payrollReports = async (req, res) => {
           pageNum,
           limitNum,
           skip,
-          search
+          search,
+          isExportRequest
         );
     }
   } catch (error) {
@@ -1072,7 +1147,8 @@ const generateDetailedPayrollReport = async (
   pageNum,
   limitNum,
   skip,
-  search
+  search,
+  isExportRequest = false
 ) => {
   try {
     // Add search filter if provided
@@ -1083,7 +1159,7 @@ const generateDetailedPayrollReport = async (
       };
     }
 
-    const payrolls = await prisma.payroll.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         employee: {
@@ -1096,12 +1172,23 @@ const generateDetailedPayrollReport = async (
         },
       },
       orderBy: { createdAt: "desc" },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const payrolls = await prisma.payroll.findMany(queryOptions);
 
     const totalCount = await prisma.payroll.count({ where: whereClause });
-    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+    }
 
     const formattedPayrolls = payrolls.map((payroll) => ({
       id: payroll.id,
@@ -1125,18 +1212,24 @@ const generateDetailedPayrollReport = async (
       createdAt: payroll.createdAt,
     }));
 
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedPayrolls,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage: pageNum < totalPages,
         hasPrevPage: pageNum > 1,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in generateDetailedPayrollReport:", error);
     res.status(500).json({
@@ -1153,10 +1246,11 @@ const generateBenefitsReport = async (
   whereClause,
   pageNum,
   limitNum,
-  skip
+  skip,
+  isExportRequest = false
 ) => {
   try {
-    const payrolls = await prisma.payroll.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         employee: {
@@ -1167,12 +1261,23 @@ const generateBenefitsReport = async (
         },
       },
       orderBy: { createdAt: "desc" },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const payrolls = await prisma.payroll.findMany(queryOptions);
 
     const totalCount = await prisma.payroll.count({ where: whereClause });
-    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+    }
 
     const formattedPayrolls = payrolls.map((payroll) => ({
       id: payroll.id,
@@ -1187,18 +1292,24 @@ const generateBenefitsReport = async (
       createdAt: payroll.createdAt,
     }));
 
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedPayrolls,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage: pageNum < totalPages,
         hasPrevPage: pageNum > 1,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in generateBenefitsReport:", error);
     res.status(500).json({
@@ -1215,10 +1326,11 @@ const generateTaxReport = async (
   whereClause,
   pageNum,
   limitNum,
-  skip
+  skip,
+  isExportRequest = false
 ) => {
   try {
-    const payrolls = await prisma.payroll.findMany({
+    const queryOptions = {
       where: whereClause,
       include: {
         employee: {
@@ -1229,12 +1341,23 @@ const generateTaxReport = async (
         },
       },
       orderBy: { createdAt: "desc" },
-      skip: skip,
-      take: limitNum,
-    });
+    };
+
+    // Only add pagination if not exporting
+    if (!isExportRequest) {
+      queryOptions.skip = skip;
+      queryOptions.take = limitNum;
+    }
+
+    const payrolls = await prisma.payroll.findMany(queryOptions);
 
     const totalCount = await prisma.payroll.count({ where: whereClause });
-    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Calculate pagination info (skip for export)
+    let totalPages = 1;
+    if (!isExportRequest) {
+      totalPages = Math.ceil(totalCount / limitNum);
+    }
 
     const formattedPayrolls = payrolls.map((payroll) => ({
       id: payroll.id,
@@ -1251,18 +1374,24 @@ const generateTaxReport = async (
       createdAt: payroll.createdAt,
     }));
 
-    res.status(200).json({
+    const response = {
       success: true,
       data: formattedPayrolls,
-      pagination: {
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
         currentPage: pageNum,
         totalPages,
         totalCount,
         hasNextPage: pageNum < totalPages,
         hasPrevPage: pageNum > 1,
         limit: limitNum,
-      },
-    });
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error in generateTaxReport:", error);
     res.status(500).json({
@@ -1591,6 +1720,266 @@ export const reportStats = async (req, res) => {
       success: false,
       message: "Internal server error",
       error: error.message,
+    });
+  }
+};
+
+export const taxAndSSNReport = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters
+    const {
+      search, // Search term for employee name
+      department, // Filter by department ID
+      status, // Filter by payroll status
+      periodStart, // Filter by payroll period start
+      periodEnd, // Filter by payroll period end
+      timePeriod, // Predefined time periods: month, quarter, year
+      page = 1, // Pagination
+      limit = 50, // Items per page
+      export: isExport, // Export flag to bypass pagination
+    } = req.query;
+
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
+
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 50;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
+      });
+    }
+
+    // Start building where clause
+    let whereClause = {
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
+    };
+
+    // Status filter - default to FINALIZED and PAID if not specified
+    if (status && status !== "ALL") {
+      if (["DRAFT", "FINALIZED", "PAID"].includes(status)) {
+        whereClause.status = status;
+      }
+    } else if (!status) {
+      // Default to only finalized and paid payrolls
+      whereClause.status = { in: ["FINALIZED", "PAID"] };
+    }
+
+    // Search filter for employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        ...whereClause.employee,
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    // Department filter
+    if (department) {
+      const deptId = parseInt(department);
+      if (!isNaN(deptId)) {
+        whereClause.employee = {
+          ...whereClause.employee,
+          departmentId: deptId,
+        };
+      }
+    }
+
+    // Period filters - filter by payroll period end date
+    if (periodStart || periodEnd) {
+      whereClause.periodEnd = {};
+      if (periodStart) {
+        const fromDate = new Date(periodStart);
+        if (!isNaN(fromDate.getTime())) {
+          whereClause.periodEnd.gte = fromDate;
+        }
+      }
+      if (periodEnd) {
+        const toDate = new Date(periodEnd);
+        if (!isNaN(toDate.getTime())) {
+          toDate.setHours(23, 59, 59, 999);
+          whereClause.periodEnd.lte = toDate;
+        }
+      }
+    } else if (timePeriod) {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (timePeriod.toLowerCase()) {
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        case "quarter":
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), 11, 31);
+          break;
+        case "last3months":
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        default:
+          break;
+      }
+
+      if (startDate && endDate) {
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.periodEnd = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Get all payrolls matching the criteria
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            employeeId: true,
+            email: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+      orderBy: { periodEnd: "desc" },
+    });
+
+    // Aggregate by employee
+    const employeeMap = new Map();
+
+    payrolls.forEach((payroll) => {
+      const empId = payroll.employeeId;
+      if (!employeeMap.has(empId)) {
+        employeeMap.set(empId, {
+          employeeId: payroll.employee.id,
+          employeeNumber: payroll.employee.employeeId,
+          employeeName: payroll.employee.name,
+          email: payroll.employee.email,
+          position: payroll.employee.position || "N/A",
+          department: payroll.employee.department?.name || "Unknown",
+          totalIncomeTax: 0,
+          totalSocialSecurity: 0,
+          totalTaxAndSSN: 0,
+          payrollCount: 0,
+          latestPeriod: null,
+        });
+      }
+
+      const emp = employeeMap.get(empId);
+      emp.totalIncomeTax += payroll.incomeTax || 0;
+      emp.totalSocialSecurity += payroll.socialSecurity || 0;
+      emp.totalTaxAndSSN +=
+        (payroll.incomeTax || 0) + (payroll.socialSecurity || 0);
+      emp.payrollCount += 1;
+
+      // Track latest period
+      if (!emp.latestPeriod || payroll.periodEnd > emp.latestPeriod) {
+        emp.latestPeriod = payroll.periodEnd;
+      }
+    });
+
+    const formattedData = Array.from(employeeMap.values());
+
+    // Calculate summary
+    const summary = formattedData.reduce(
+      (acc, emp) => {
+        acc.totalTaxAmount += emp.totalIncomeTax;
+        acc.totalSSNAmount += emp.totalSocialSecurity;
+        acc.grandTotal += emp.totalTaxAndSSN;
+        return acc;
+      },
+      {
+        totalEmployees: formattedData.length,
+        totalTaxAmount: 0,
+        totalSSNAmount: 0,
+        grandTotal: 0,
+      }
+    );
+
+    // Apply pagination if not exporting
+    let paginatedData = formattedData;
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      paginatedData = formattedData.slice(skip, skip + limitNum);
+      totalPages = Math.ceil(formattedData.length / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
+
+    // Send response
+    const response = {
+      success: true,
+      data: paginatedData,
+      summary: summary,
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
+        currentPage: pageNum,
+        totalPages,
+        totalCount: formattedData.length,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      };
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error(`Error in taxAndSSNReport controller: ${error}`);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate entry found",
+      });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };

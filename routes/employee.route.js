@@ -10,6 +10,9 @@ import {
   reinstateEmployee,
   updateEmployeeProfile,
   toggleEmployeeStatus,
+  getEmployeeWorkdayConfig,
+  updateEmployeeWorkdayConfig,
+  deleteEmployeeWorkdayConfig,
 } from "../controller/employee.controller.js";
 
 const router = express.Router();
@@ -18,6 +21,27 @@ const router = express.Router();
 // Note: Employee limit checking is handled in feature.middleware when creating new employees
 router.get("/", verifyToken, checkSubscription, listEmployees);
 router.get("/archived", verifyToken, checkSubscription, listArchivedEmployees);
+
+// Employee workday configuration routes (must be before /:id route)
+router.get(
+  "/:id/workday-config",
+  verifyToken,
+  checkSubscription,
+  getEmployeeWorkdayConfig
+);
+router.put(
+  "/:id/workday-config",
+  verifyToken,
+  checkSubscription,
+  updateEmployeeWorkdayConfig
+);
+router.delete(
+  "/:id/workday-config",
+  verifyToken,
+  checkSubscription,
+  deleteEmployeeWorkdayConfig
+);
+
 router.get("/:id", verifyToken, checkSubscription, getEmployeeDetails);
 router.put(
   "/update-employee/:id",
