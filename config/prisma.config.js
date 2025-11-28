@@ -1,44 +1,50 @@
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import pg from "pg";
+
+const connectionString =
+  process.env.HR_DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL or HR_DATABASE_URL environment variable is not set"
+  );
+}
 
 // Create a singleton instance for better connection management
 let prisma = null;
 
 if (process.env.NODE_ENV === "production") {
-  // In production, always create a new instance with optimized connection settings
+  // In production, use connection pooling with adapter
+  const pool = new pg.Pool({
+    connectionString,
+    max: 20, // Maximum number of clients in the pool
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 30000,
+  });
+
+  const adapter = new PrismaPg(pool);
+
   prisma = new PrismaClient({
+    adapter,
     log: ["error"], // Only log errors in production
-    datasources: {
-      db: {
-        url: process.env.HR_DATABASE_URL,
-      },
-    },
-    // Optimize connection pool for production automation workloads
-    __internal: {
-      engine: {
-        connectTimeout: 30000, // 30 seconds
-        queryTimeout: 60000, // 60 seconds
-        poolTimeout: 60000, // 60 seconds
-      },
-    },
   });
 } else {
   // In development, use global instance to prevent multiple connections
   if (!global.prisma) {
+    const pool = new pg.Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    const adapter = new PrismaPg(pool);
+
     global.prisma = new PrismaClient({
-      log: ["error"], // Only log errors in development
-      datasources: {
-        db: {
-          url: process.env.HR_DATABASE_URL,
-        },
-      },
-      // Optimize connection pool for development
-      __internal: {
-        engine: {
-          connectTimeout: 10000, // 10 seconds
-          queryTimeout: 30000, // 30 seconds
-          poolTimeout: 30000, // 30 seconds
-        },
-      },
+      adapter,
+      log: ["error"],
     });
   }
   prisma = global.prisma;
@@ -46,9 +52,7 @@ if (process.env.NODE_ENV === "production") {
 
 // Add error handling
 prisma.$on("error", (e) => {
-  // Only log critical errors, not connection issues
   if (e.code === "P1001" || e.code === "P1002") {
-    // Connection issues - these are usually temporary
     console.log(
       "Database connection issue detected - will retry automatically"
     );
@@ -56,18 +60,6 @@ prisma.$on("error", (e) => {
     console.error("Prisma error:", e.message);
   }
 });
-
-// Add query logging only for development if needed
-if (
-  process.env.NODE_ENV === "development" &&
-  process.env.LOG_QUERIES === "true"
-) {
-  prisma.$on("query", (e) => {
-    console.log("Query:", e.query);
-    console.log("Params:", e.params);
-    console.log("Duration:", e.duration + "ms");
-  });
-}
 
 // Graceful shutdown handling
 const gracefulShutdown = async () => {
@@ -84,15 +76,7 @@ prisma
   .$connect()
   .then(() => {
     console.log("✅ Database connection established successfully");
-    console.log(" Using database: PostgreSQL");
-    // Don't log the full database URL for security
-    const dbUrl = process.env.HR_DATABASE_URL;
-    if (dbUrl) {
-      const urlParts = dbUrl.split("@");
-      if (urlParts.length > 1) {
-        console.log(` Database: ${urlParts[1]}`);
-      }
-    }
+    console.log(" Using database: PostgreSQL with Prisma 7 adapter");
   })
   .catch((error) => {
     console.error("❌ Failed to connect to database:", error.message);
