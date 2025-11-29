@@ -97,18 +97,19 @@ export const checkIn = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // TODO: Workday validation temporarily disabled - re-enable after fixing employee workday configuration logic
     // Check if today is a workday for this employee
-    const isWorkdayForEmployee = await isEmployeeWorkday(
-      today,
-      employeeId,
-      companyId
-    );
+    // const isWorkdayForEmployee = await isEmployeeWorkday(
+    //   today,
+    //   employeeId,
+    //   companyId
+    // );
 
-    if (!isWorkdayForEmployee) {
-      return res.status(400).json({
-        message: "Today is not a scheduled workday for you. Check-in not allowed.",
-      });
-    }
+    // if (!isWorkdayForEmployee) {
+    //   return res.status(400).json({
+    //     message: "Today is not a scheduled workday for you. Check-in not allowed.",
+    //   });
+    // }
 
     const existingAttendance = await prisma.attendance.findFirst({
       where: {
