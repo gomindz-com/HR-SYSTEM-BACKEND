@@ -13,24 +13,24 @@ if (!connectionString) {
   );
 }
 
-// Ensure SSL parameters are in the connection string for self-signed certificates
-// If connection string doesn't have sslmode, add it
-if (!connectionString.includes("sslmode")) {
-  const separator = connectionString.includes("?") ? "&" : "?";
-  connectionString = `${connectionString}${separator}sslmode=require`;
-}
+// Remove any existing sslmode from connection string - we'll handle SSL via pool config
+// This ensures our SSL settings (rejectUnauthorized: false) take precedence
+connectionString = connectionString.replace(/[?&]sslmode=[^&]*/g, "");
+// Clean up any trailing ? or & after removal
+connectionString = connectionString.replace(/\?$|&$/, "").replace(/\?&/, "?");
 
 // Create a singleton instance for better connection management
 let prisma = null;
 
 if (process.env.NODE_ENV === "production") {
   // In production, use connection pooling with adapter
+  // Note: SSL config must match connection string sslmode
   const pool = new pg.Pool({
     connectionString,
     max: 20, // Maximum number of clients in the pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 30000,
-    // SSL configuration for self-signed certificates
+    // SSL configuration for self-signed certificates - must be set as object
     ssl: {
       rejectUnauthorized: false, // Accept self-signed certificates
     },
@@ -50,7 +50,7 @@ if (process.env.NODE_ENV === "production") {
       max: 10,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
-      // SSL configuration for self-signed certificates (enable in dev too if needed)
+      // SSL configuration for self-signed certificates - must be set as object
       ssl: {
         rejectUnauthorized: false, // Accept self-signed certificates
       },
