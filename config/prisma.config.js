@@ -4,13 +4,20 @@ import pkg from "@prisma/client";
 const { PrismaClient } = pkg;
 import pg from "pg";
 
-const connectionString =
+let connectionString =
   process.env.HR_DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(
     "DATABASE_URL or HR_DATABASE_URL environment variable is not set"
   );
+}
+
+// Ensure SSL parameters are in the connection string for self-signed certificates
+// If connection string doesn't have sslmode, add it
+if (!connectionString.includes("sslmode")) {
+  const separator = connectionString.includes("?") ? "&" : "?";
+  connectionString = `${connectionString}${separator}sslmode=require`;
 }
 
 // Create a singleton instance for better connection management
@@ -23,6 +30,7 @@ if (process.env.NODE_ENV === "production") {
     max: 20, // Maximum number of clients in the pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 30000,
+    // SSL configuration for self-signed certificates
     ssl: {
       rejectUnauthorized: false, // Accept self-signed certificates
     },
@@ -42,6 +50,7 @@ if (process.env.NODE_ENV === "production") {
       max: 10,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
+      // SSL configuration for self-signed certificates (enable in dev too if needed)
       ssl: {
         rejectUnauthorized: false, // Accept self-signed certificates
       },
