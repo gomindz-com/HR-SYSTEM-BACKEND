@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+const { PrismaClient } = pkg;
 import pg from "pg";
 
 const connectionString =
@@ -22,6 +23,9 @@ if (process.env.NODE_ENV === "production") {
     max: 20, // Maximum number of clients in the pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 30000,
+    ssl: {
+      rejectUnauthorized: false, // Accept self-signed certificates
+    },
   });
 
   const adapter = new PrismaPg(pool);
@@ -38,6 +42,9 @@ if (process.env.NODE_ENV === "production") {
       max: 10,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
+      ssl: {
+        rejectUnauthorized: false, // Accept self-signed certificates
+      },
     });
 
     const adapter = new PrismaPg(pool);
