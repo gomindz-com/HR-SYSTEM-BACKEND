@@ -253,6 +253,7 @@ export const getCompanyDetail = async (req, res) => {
             status: true,
             startDate: true,
             endDate: true,
+            trialEndDate: true,
             plan: {
               select: {
                 name: true,
@@ -347,6 +348,7 @@ export const getCompanyDetail = async (req, res) => {
         subscriptionStatus: company.subscription.status,
         startDate: company.subscription.startDate,
         endDate: company.subscription.endDate,
+        trialEndDate: company.subscription.trialEndDate,
         planType: company.subscription.plan?.name || "TRIAL",
       };
     }
@@ -372,25 +374,33 @@ export const getCompanyDetail = async (req, res) => {
 
     // Calculate trial days remaining
     let trialInfo = null;
-    if (transformedSubscription) {
-      const now = new Date();
-      const endDate = new Date(transformedSubscription.endDate);
+    if (company.subscription) {
+      const isTrial = company.subscription.status === "TRIAL";
 
-      // Calculate days remaining
-      const timeDiff = endDate.getTime() - now.getTime();
-      const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      if (isTrial && company.subscription.trialEndDate) {
+        const now = new Date();
+        const trialEndDate = new Date(company.subscription.trialEndDate);
 
-      // Check if it's a trial subscription
-      const isTrial =
-        transformedSubscription.planType === "TRIAL" ||
-        transformedSubscription.subscriptionStatus === "TRIAL";
+        // Calculate days remaining
+        const timeDiff = trialEndDate.getTime() - now.getTime();
+        const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        const isExpired = daysRemaining <= 0;
 
-      trialInfo = {
-        isTrial,
-        daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
-        isExpired: daysRemaining <= 0,
-        endDate: transformedSubscription.endDate,
-      };
+        trialInfo = {
+          isTrial: true,
+          daysRemaining: isExpired ? 0 : daysRemaining,
+          isExpired: isExpired,
+          endDate: company.subscription.trialEndDate,
+        };
+      } else if (isTrial && !company.subscription.trialEndDate) {
+        // Trial subscription but no trialEndDate set
+        trialInfo = {
+          isTrial: true,
+          daysRemaining: 0,
+          isExpired: true,
+          endDate: null,
+        };
+      }
     }
 
     // Return transformed company data
