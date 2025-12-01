@@ -48,9 +48,48 @@ export const createPaymentIntent = async (
       intent.data.payment_intent_id
     );
 
+    // Get payment link from Modem Pay response
+    // Modem Pay should provide payment_link directly
+    let paymentLink = intent.data.payment_link || intent.data.link;
+
+    // Only reconstruct if payment_link is not provided (fallback)
+    if (!paymentLink) {
+      const token = intent.data.token;
+      const paymentIntentId = intent.data.payment_intent_id || intent.data.id;
+
+      if (token) {
+        paymentLink = `https://checkout.modempay.com/?token=${token}`;
+        console.log("Payment link not provided, constructed using token");
+      } else if (paymentIntentId) {
+        paymentLink = `https://checkout.modempay.com/?payment_intent=${paymentIntentId}`;
+        console.log(
+          "Payment link not provided, constructed using payment intent ID"
+        );
+      } else {
+        console.error(
+          "Payment link not found in Modem Pay response:",
+          JSON.stringify(intent.data, null, 2)
+        );
+        throw new Error(
+          "Payment link not provided by Modem Pay. Please check the API response."
+        );
+      }
+    }
+
+    // Validate that payment link is a valid absolute URL
+    try {
+      const url = new URL(paymentLink);
+      if (!url.protocol || !url.host) {
+        throw new Error("Payment link is not a valid absolute URL");
+      }
+    } catch (urlError) {
+      console.error("Invalid payment link format:", paymentLink, urlError);
+      throw new Error("Invalid payment link format received from Modem Pay");
+    }
+
     return {
-      paymentLink: intent.data.payment_link,
-      intentId: intent.data.payment_intent_id,
+      paymentLink,
+      intentId: intent.data.payment_intent_id || intent.data.id,
     };
   } catch (error) {
     console.error("Payment intent creation failed:", error);
@@ -106,11 +145,19 @@ export const handlePaymentWebhook = async (webhookData) => {
 
       if (isUpgradePayment) {
         // This is an upgrade payment - update the current subscription with new plan
+        // Add 30 days to current endDate (or use now + 30 days if subscription is expired)
+        const currentEndDate = subscription.endDate || new Date();
+        const now = new Date();
+        const baseDate = currentEndDate > now ? currentEndDate : now;
+        const newEndDate = new Date(
+          baseDate.getTime() + 30 * 24 * 60 * 60 * 1000
+        ); // Add 30 days
+
         await prisma.subscription.update({
           where: { id: subscriptionId },
           data: {
             planId: metadata.newPlanId, // Switch to new plan
-            endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Extend by 30 days
+            endDate: newEndDate,
           },
         });
 
@@ -118,8 +165,14 @@ export const handlePaymentWebhook = async (webhookData) => {
           `Upgraded subscription for company ${subscription.companyId} to plan ${metadata.newPlanId}`
         );
       } else {
-        // Regular subscription payment - extend current subscription
-        const newEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+        // Regular subscription payment - extend current subscription by 30 days
+        // Add 30 days to current endDate (or use now + 30 days if subscription is expired)
+        const currentEndDate = subscription.endDate || new Date();
+        const now = new Date();
+        const baseDate = currentEndDate > now ? currentEndDate : now;
+        const newEndDate = new Date(
+          baseDate.getTime() + 30 * 24 * 60 * 60 * 1000
+        ); // Add 30 days
 
         await prisma.subscription.update({
           where: { id: subscriptionId },

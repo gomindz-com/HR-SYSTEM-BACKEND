@@ -470,22 +470,32 @@ export const createRenewalPayment = async (req, res) => {
       }
     );
 
-    // Check if this is a direct link request (from email)
-    const userAgent = req.get("User-Agent") || "";
-    const isDirectLink =
-      req.query.direct === "true" || userAgent.includes("Mozilla");
+    if (!paymentLink) {
+      console.error("Payment link is null after creation");
+      return res.status(500).json({
+        success: false,
+        error: "Failed to generate payment link. Please try again.",
+      });
+    }
+
+    // Check if this is a direct link request (from email) vs API call
+    // POST requests from frontend should return JSON
+    // GET requests with direct=true should redirect (for email links)
+    const isDirectLink = req.method === "GET" && req.query.direct === "true";
 
     if (isDirectLink) {
-      // Redirect directly to payment link for email clicks
+      // Redirect directly to payment link for email clicks (GET requests with direct=true)
       res.redirect(paymentLink);
     } else {
-      // Return JSON for API calls
+      // Return JSON for API calls (POST requests from frontend)
       res.json({
         success: true,
         message: "Renewal payment intent created successfully",
         data: {
-          paymentLink,
-          intentId,
+          paymentIntent: {
+            paymentLink,
+            intentId,
+          },
           amount: totalAmount,
           pricePerUser: subscription.plan.price,
           employeeCount,
@@ -569,9 +579,15 @@ export const cancelSubscription = async (req, res) => {
 
 export const regeneratePaymentLink = async (req, res) => {
   try {
-    const companyId = req.user.companyId;
+    const companyId = req.user?.companyId;
 
-    console.log(`Regenerating payment link for company ${companyId}`);
+    if (!companyId) {
+      console.error("Regenerate payment link: No companyId found in req.user");
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized - company ID not found",
+      });
+    }
 
     // Check if company has lifetime access
     const company = await prisma.company.findUnique({
@@ -586,19 +602,30 @@ export const regeneratePaymentLink = async (req, res) => {
       });
     }
 
-    // Get current subscription
+    // Get current subscription - check for PENDING, EXPIRED, or TRIAL status
     const subscription = await prisma.subscription.findFirst({
       where: {
         companyId,
-        status: "PENDING",
+        status: {
+          in: ["PENDING", "EXPIRED", "TRIAL"], // Allow payment link for these statuses
+        },
       },
       include: { plan: true },
+      orderBy: { createdAt: "desc" }, // Get the most recent subscription
     });
 
     if (!subscription) {
+      // Check if there's any subscription at all
+      const anySubscription = await prisma.subscription.findFirst({
+        where: { companyId },
+        select: { status: true },
+      });
+
       return res.status(404).json({
         success: false,
-        error: "No pending subscription found",
+        error: anySubscription
+          ? `Your subscription is ${anySubscription.status}. Please use the renewal option if your subscription is active.`
+          : "No subscription found. Please create a subscription first.",
       });
     }
 
@@ -612,6 +639,7 @@ export const regeneratePaymentLink = async (req, res) => {
 
     // Create fresh payment intent
     const returnUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/hr-choice?payment=success`;
+
     const { paymentLink, intentId } = await createPaymentIntent(
       subscription.id,
       totalAmount,
@@ -625,6 +653,29 @@ export const regeneratePaymentLink = async (req, res) => {
       }
     );
 
+    if (!paymentLink) {
+      console.error(
+        "Regenerate payment link: Payment link is null after creation"
+      );
+      return res.status(500).json({
+        success: false,
+        error: "Failed to generate payment link. Please try again.",
+      });
+    }
+
+    // Validate payment link is a valid URL
+    try {
+      new URL(paymentLink);
+    } catch (urlError) {
+      console.error(
+        "Regenerate payment link: Invalid payment link URL",
+        urlError
+      );
+      return res.status(500).json({
+        success: false,
+        error: "Invalid payment link format. Please contact support.",
+      });
+    }
     res.json({
       success: true,
       message: "Payment link regenerated successfully",
@@ -644,7 +695,7 @@ export const regeneratePaymentLink = async (req, res) => {
     console.error("Regenerate payment link failed:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to regenerate payment link",
+      error: error.message || "Failed to regenerate payment link",
     });
   }
 };
