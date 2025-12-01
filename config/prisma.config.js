@@ -13,11 +13,11 @@ if (!connectionString) {
   );
 }
 
-// Remove any existing sslmode from connection string - we'll handle SSL via pool config
-// This ensures our SSL settings (rejectUnauthorized: false) take precedence
-connectionString = connectionString.replace(/[?&]sslmode=[^&]*/g, "");
-// Clean up any trailing ? or & after removal
-connectionString = connectionString.replace(/\?$|&$/, "").replace(/\?&/, "?");
+// Remove all query parameters from the connection string
+// We handle SSL via pool config, so query params like sslmode and channel_binding are not needed
+// Split on '?' to separate the base URL from query parameters
+const baseUrl = connectionString.split('?')[0];
+connectionString = baseUrl;
 
 // Create a singleton instance for better connection management
 let prisma = null;
