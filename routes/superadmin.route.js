@@ -2,6 +2,7 @@ import express from "express";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import {
   getCompanies,
+  getCompanyDetail,
   getCompanyStats,
 } from "../controller/superadmin.controller.js";
 
@@ -16,4 +17,7 @@ router.get("/companies", getCompanies);
 // Get company statistics
 router.get("/company-stats", getCompanyStats);
 
+router.get("/company/:id", getCompanyDetail);
+
 export default router;
+

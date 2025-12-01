@@ -175,3 +175,151 @@ export const getCompanyStats = async (req, res) => {
     });
   }
 };
+
+// Get Detail Company
+export const getCompanyDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid company ID is required',
+      });
+    }
+
+    // Fetch company with related data
+    const company = await prisma.company.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        // HR person details
+        hr: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        
+        // Employees with limited fields for overview
+        employees: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            position: true,
+            departmentId: true,
+            employeeStatus: true,
+          },
+          take: 10, // Limit for performance
+          orderBy: { createdAt: 'desc' },
+        },
+        
+        // Departments
+        departments: {
+          select: {
+            id: true,
+            departmentName: true,
+            _count: {
+              select: { employees: true },
+            },
+          },
+        },
+        
+        // Locations
+        locations: {
+          select: {
+            id: true,
+            locationName: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        
+        // Subscription info
+        subscription: {
+          select: {
+            id: true,
+            subscriptionStatus: true,
+            startDate: true,
+            endDate: true,
+            planType: true,
+          },
+        },
+        
+        // Workday configuration
+        WorkdayDaysConfig: {
+          select: {
+            id: true,
+            dayOfWeek: true,
+            isWorkday: true,
+          },
+        },
+        
+        // Counts for statistics
+        _count: {
+          select: {
+            employees: true,
+            departments: true,
+            locations: true,
+            attendances: true,
+            leaveRequests: true,
+          },
+        },
+      },
+    });
+
+    // Check if company exists
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found',
+      });
+    }
+
+    // Calculate trial days remaining
+    let trialInfo = null;
+    
+    if (company.subscription) {
+      const now = new Date();
+      const endDate = new Date(company.subscription.endDate);
+      
+      // Calculate days remaining
+      const timeDiff = endDate.getTime() - now.getTime();
+      const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      
+      // Check if it's a trial subscription
+      const isTrial = company.subscription.planType === 'TRIAL' || 
+                      company.subscription.subscriptionStatus === 'TRIAL';
+      
+      trialInfo = {
+        isTrial,
+        daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+        isExpired: daysRemaining <= 0,
+        endDate: company.subscription.endDate,
+      };
+    }
+
+    // Return company data with trial info
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...company,
+        trialInfo,
+      },
+    });
+
+  } catch (error) {
+    console.error('Error fetching company details:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch company details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
