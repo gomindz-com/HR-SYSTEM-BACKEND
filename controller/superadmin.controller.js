@@ -179,13 +179,21 @@ export const getCompanyStats = async (req, res) => {
 // Get Detail Company
 export const getCompanyDetail = async (req, res) => {
   try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
     const { id } = req.params;
 
     // Validate ID
     if (!id || isNaN(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Valid company ID is required',
+        message: "Valid company ID is required",
       });
     }
 
@@ -197,70 +205,76 @@ export const getCompanyDetail = async (req, res) => {
         hr: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
             email: true,
-            phoneNumber: true,
+            phone: true,
           },
         },
-        
+
         // Employees with limited fields for overview
         employees: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
             email: true,
             position: true,
             departmentId: true,
-            employeeStatus: true,
+            status: true,
           },
           take: 10, // Limit for performance
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
         },
-        
+
         // Departments
         departments: {
           select: {
             id: true,
-            departmentName: true,
+            name: true,
             _count: {
               select: { employees: true },
             },
           },
         },
-        
+
         // Locations
         locations: {
           select: {
             id: true,
-            locationName: true,
-            address: true,
+            name: true,
             latitude: true,
             longitude: true,
           },
         },
-        
+
         // Subscription info
         subscription: {
           select: {
             id: true,
-            subscriptionStatus: true,
+            status: true,
             startDate: true,
             endDate: true,
-            planType: true,
+            plan: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
-        
+
         // Workday configuration
         WorkdayDaysConfig: {
           select: {
             id: true,
-            dayOfWeek: true,
-            isWorkday: true,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: true,
+            sunday: true,
           },
         },
-        
+
         // Counts for statistics
         _count: {
           select: {
@@ -278,48 +292,144 @@ export const getCompanyDetail = async (req, res) => {
     if (!company) {
       return res.status(404).json({
         success: false,
-        message: 'Company not found',
+        message: "Company not found",
       });
     }
 
+    // Transform HR data to match frontend expectations
+    let transformedHr = null;
+    if (company.hr) {
+      const nameParts = company.hr.name.split(" ");
+      transformedHr = {
+        id: company.hr.id,
+        firstName: nameParts[0] || "",
+        lastName: nameParts.slice(1).join(" ") || "",
+        email: company.hr.email,
+        phoneNumber: company.hr.phone,
+      };
+    }
+
+    // Transform employees data
+    const transformedEmployees = company.employees.map((emp) => {
+      const nameParts = emp.name.split(" ");
+      return {
+        id: emp.id,
+        firstName: nameParts[0] || "",
+        lastName: nameParts.slice(1).join(" ") || "",
+        email: emp.email,
+        position: emp.position,
+        departmentId: emp.departmentId,
+        employeeStatus: emp.status,
+      };
+    });
+
+    // Transform departments data
+    const transformedDepartments = company.departments.map((dept) => ({
+      id: dept.id,
+      departmentName: dept.name,
+      _count: dept._count,
+    }));
+
+    // Transform locations data
+    const transformedLocations = company.locations.map((loc) => ({
+      id: loc.id,
+      locationName: loc.name,
+      address: null, // CompanyLocation doesn't have address field
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+    }));
+
+    // Transform subscription data
+    let transformedSubscription = null;
+    if (company.subscription) {
+      transformedSubscription = {
+        id: company.subscription.id,
+        subscriptionStatus: company.subscription.status,
+        startDate: company.subscription.startDate,
+        endDate: company.subscription.endDate,
+        planType: company.subscription.plan?.name || "TRIAL",
+      };
+    }
+
+    // Transform WorkdayDaysConfig to match frontend format
+    const transformedWorkdayConfig = company.WorkdayDaysConfig.map((config) => {
+      const days = [
+        { day: "Monday", value: config.monday },
+        { day: "Tuesday", value: config.tuesday },
+        { day: "Wednesday", value: config.wednesday },
+        { day: "Thursday", value: config.thursday },
+        { day: "Friday", value: config.friday },
+        { day: "Saturday", value: config.saturday },
+        { day: "Sunday", value: config.sunday },
+      ];
+
+      return days.map(({ day, value }) => ({
+        id: `${config.id}-${day}`,
+        dayOfWeek: day,
+        isWorkday: value,
+      }));
+    }).flat();
+
     // Calculate trial days remaining
     let trialInfo = null;
-    
-    if (company.subscription) {
+    if (transformedSubscription) {
       const now = new Date();
-      const endDate = new Date(company.subscription.endDate);
-      
+      const endDate = new Date(transformedSubscription.endDate);
+
       // Calculate days remaining
       const timeDiff = endDate.getTime() - now.getTime();
       const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
-      
+
       // Check if it's a trial subscription
-      const isTrial = company.subscription.planType === 'TRIAL' || 
-                      company.subscription.subscriptionStatus === 'TRIAL';
-      
+      const isTrial =
+        transformedSubscription.planType === "TRIAL" ||
+        transformedSubscription.subscriptionStatus === "TRIAL";
+
       trialInfo = {
         isTrial,
         daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
         isExpired: daysRemaining <= 0,
-        endDate: company.subscription.endDate,
+        endDate: transformedSubscription.endDate,
       };
     }
 
-    // Return company data with trial info
+    // Return transformed company data
     return res.status(200).json({
       success: true,
       data: {
-        ...company,
+        id: company.id,
+        companyName: company.companyName,
+        companyEmail: company.companyEmail,
+        companyTin: company.companyTin,
+        companyAddress: company.companyAddress,
+        companyDescription: company.companyDescription,
+        timezone: company.timezone,
+        workStartTime: company.workStartTime,
+        workEndTime: company.workEndTime,
+        workStartTime2: company.workStartTime2,
+        workEndTime2: company.workEndTime2,
+        lateThreshold: company.lateThreshold,
+        checkInDeadline: company.checkInDeadline,
+        lateThreshold2: company.lateThreshold2,
+        checkInDeadline2: company.checkInDeadline2,
+        hasLifetimeAccess: company.hasLifetimeAccess,
+        createdAt: company.createdAt,
+        hr: transformedHr,
+        employees: transformedEmployees,
+        departments: transformedDepartments,
+        locations: transformedLocations,
+        subscription: transformedSubscription,
+        WorkdayDaysConfig: transformedWorkdayConfig,
         trialInfo,
+        _count: company._count,
       },
     });
-
   } catch (error) {
-    console.error('Error fetching company details:', error);
+    console.error("Error fetching company details:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch company details',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      message: "Failed to fetch company details",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
