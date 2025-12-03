@@ -14,6 +14,7 @@ import {
   deleteCompanyLocation,
   getWorkdayConfig,
   updateWorkdayConfiguration,
+  blockModalCompanyUpdate,
 } from "../controller/company.controller.js";
 
 const router = express.Router();
@@ -64,5 +65,16 @@ router.delete(
 );
 
 router.get("/workday-config", verifyToken, checkSubscription, getWorkdayConfig);
-router.put("/workday-config", verifyToken, checkSubscription, updateWorkdayConfiguration);
+router.put(
+  "/workday-config",
+  verifyToken,
+  checkSubscription,
+  updateWorkdayConfiguration
+);
+router.put(
+  "/block-modal-company-update",
+  verifyToken,
+  checkSubscription,
+  blockModalCompanyUpdate
+);
 export default router;

@@ -544,6 +544,90 @@ export const updateCompanyInfo = async (req, res) => {
   }
 };
 
+export const blockModalCompanyUpdate = async (req, res) => {
+  const { companyId } = req.user;
+
+  if (!companyId) {
+    return res.status(401).json({
+      message: "Your session has expired. Please logout and login again.",
+    });
+  }
+
+  try {
+    const { companyEmail, companyTin, companyAddress } = req.body;
+
+    if (!companyEmail || !companyTin || !companyAddress) {
+      return res.status(400).json({
+        message: "Company email, TIN, and address are all required",
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(companyEmail)) {
+      return res.status(400).json({
+        message: "Please enter a valid email address",
+      });
+    }
+
+    const existingCompanyWithEmail = await prisma.company.findFirst({
+      where: {
+        companyEmail: companyEmail.trim(),
+        id: { not: companyId },
+      },
+    });
+
+    if (existingCompanyWithEmail) {
+      return res.status(400).json({
+        message: "A company with this email already exists",
+      });
+    }
+
+    const existingCompanyWithTin = await prisma.company.findFirst({
+      where: {
+        companyTin: companyTin.trim(),
+        id: { not: companyId },
+      },
+    });
+
+    if (existingCompanyWithTin) {
+      return res.status(400).json({
+        message: "A company with this TIN already exists",
+      });
+    }
+
+    const updatedCompany = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        companyEmail: companyEmail.trim(),
+        companyTin: companyTin.trim(),
+        companyAddress: companyAddress.trim(),
+      },
+      select: {
+        id: true,
+        companyName: true,
+        companyEmail: true,
+        companyTin: true,
+        companyAddress: true,
+      },
+    });
+
+    if (!updatedCompany) {
+      return res.status(404).json({
+        message: "Company not found or unauthorized",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Company information updated successfully",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    console.error("Error updating company info:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const createCompanyLocation = async (req, res) => {
   const { id } = req.user;
   const { companyId } = req.user;

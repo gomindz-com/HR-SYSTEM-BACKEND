@@ -46,6 +46,7 @@ export const login = async (req, res) => {
         company: {
           select: {
             companyName: true,
+            companyEmail: true,
             companyAddress: true,
             companyDescription: true,
             companyTin: true,
@@ -250,6 +251,7 @@ export const checkAuth = async (req, res) => {
         company: {
           select: {
             companyName: true,
+            companyEmail: true,
             companyAddress: true,
             companyDescription: true,
             companyTin: true,
@@ -367,7 +369,11 @@ export const resendVerificationEmail = async (req, res) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(employee.email, verificationToken, employee.name);
+      await sendVerificationEmail(
+        employee.email,
+        verificationToken,
+        employee.name
+      );
       console.log(`✅ Resent verification email to: ${employee.email}`);
     } catch (emailError) {
       console.error("❌ Failed to resend verification email:", emailError);
@@ -377,7 +383,8 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Verification email sent! Please check your inbox and spam folder.",
+      message:
+        "Verification email sent! Please check your inbox and spam folder.",
     });
   } catch (error) {
     console.error("Error in resendVerificationEmail:", error);
