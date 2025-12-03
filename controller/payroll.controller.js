@@ -1470,7 +1470,7 @@ export const finalizePayroll = async (req, res) => {
       await createNotification({
         companyId,
         userId: finalizedPayroll.employee.id,
-        message: `Your payroll of ${finalizedPayroll.netSalary} GMD has been processed`,
+        message: `Your payroll of ${finalizedPayroll.netPay} GMD has been processed`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "HIGH",
@@ -1562,7 +1562,7 @@ export const finalizeAllPayrolls = async (req, res) => {
       const notifications = payrollsWithEmployees.map((payroll) => ({
         companyId,
         userId: payroll.employee.id,
-        message: `Your payroll of ${payroll.netSalary} GMD has been processed`,
+        message: `Your payroll of ${payroll.netPay} GMD has been processed`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "HIGH",
@@ -1965,7 +1965,7 @@ export const markIndividualPayrollAsPaid = async (req, res) => {
       await createNotification({
         companyId,
         userId: updatedPayroll.employee.id,
-        message: `Your payroll payment of ${updatedPayroll.netSalary} GMD has been released`,
+        message: `Your payroll payment of ${updatedPayroll.netPay} GMD has been released`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "NORMAL",
@@ -2120,7 +2120,7 @@ export const markPeriodAsPaid = async (req, res) => {
       const notifications = paidPayrolls.map((payroll) => ({
         companyId,
         userId: payroll.employee.id,
-        message: `Your payroll payment of ${payroll.netSalary} GMD has been released`,
+        message: `Your payroll payment of ${payroll.netPay} GMD has been released`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "NORMAL",
