@@ -1983,3 +1983,527 @@ export const taxAndSSNReport = async (req, res) => {
     });
   }
 };
+
+// Tax Report - Income Tax Only
+export const taxReport = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters
+    const {
+      search, // Search term for employee name
+      department, // Filter by department ID
+      status, // Filter by payroll status
+      periodStart, // Filter by payroll period start
+      periodEnd, // Filter by payroll period end
+      timePeriod, // Predefined time periods: month, quarter, year
+      page = 1, // Pagination
+      limit = 50, // Items per page
+      export: isExport, // Export flag to bypass pagination
+    } = req.query;
+
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
+
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 50;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
+      });
+    }
+
+    // Start building where clause
+    let whereClause = {
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
+    };
+
+    // Status filter - default to FINALIZED and PAID if not specified
+    if (status && status !== "ALL") {
+      if (["DRAFT", "FINALIZED", "PAID"].includes(status)) {
+        whereClause.status = status;
+      }
+    } else if (!status) {
+      // Default to only finalized and paid payrolls
+      whereClause.status = { in: ["FINALIZED", "PAID"] };
+    }
+
+    // Search filter for employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        ...whereClause.employee,
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    // Department filter
+    if (department) {
+      const deptId = parseInt(department);
+      if (!isNaN(deptId)) {
+        whereClause.employee = {
+          ...whereClause.employee,
+          departmentId: deptId,
+        };
+      }
+    }
+
+    // Period filters - filter by payroll period end date
+    if (periodStart || periodEnd) {
+      whereClause.periodEnd = {};
+      if (periodStart) {
+        const fromDate = new Date(periodStart);
+        if (!isNaN(fromDate.getTime())) {
+          whereClause.periodEnd.gte = fromDate;
+        }
+      }
+      if (periodEnd) {
+        const toDate = new Date(periodEnd);
+        if (!isNaN(toDate.getTime())) {
+          toDate.setHours(23, 59, 59, 999);
+          whereClause.periodEnd.lte = toDate;
+        }
+      }
+    } else if (timePeriod) {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (timePeriod.toLowerCase()) {
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        case "quarter":
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), 11, 31);
+          break;
+        case "last3months":
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        default:
+          break;
+      }
+
+      if (startDate && endDate) {
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.periodEnd = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Get all payrolls matching the criteria
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            employeeId: true,
+            email: true,
+            salary: true,
+            EmployeePayrollProfile: {
+              select: {
+                customTaxRate: true,
+                socialSecurityRate: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { periodEnd: "desc" },
+    });
+
+    // Aggregate by employee
+    const employeeMap = new Map();
+
+    payrolls.forEach((payroll) => {
+      const empId = payroll.employeeId;
+      if (!employeeMap.has(empId)) {
+        // Construct employee ID if null
+        const constructedEmpId =
+          payroll.employee.employeeId ||
+          `EMP${payroll.employee.id.toString().padStart(5, "0")}`;
+
+        const taxRate =
+          payroll.employee.EmployeePayrollProfile?.customTaxRate || 0;
+        const ssnRate =
+          payroll.employee.EmployeePayrollProfile?.socialSecurityRate || 0;
+
+        employeeMap.set(empId, {
+          employeeId: constructedEmpId,
+          employeeName: payroll.employee.name,
+          email: payroll.employee.email,
+          taxPercentage: taxRate * 100, // Convert to percentage
+          basicSalary: payroll.employee.salary || 0,
+          totalTaxAmount: 0,
+          totalSSNAmount: 0,
+        });
+      }
+
+      const emp = employeeMap.get(empId);
+      emp.totalTaxAmount += payroll.incomeTax || 0;
+      emp.totalSSNAmount += payroll.socialSecurity || 0;
+    });
+
+    const formattedData = Array.from(employeeMap.values());
+
+    // Calculate summary
+    const summary = formattedData.reduce(
+      (acc, emp) => {
+        acc.totalTaxAmount += emp.totalTaxAmount;
+        acc.totalSSNAmount += emp.totalSSNAmount;
+        acc.grandTotal += emp.totalTaxAmount + emp.totalSSNAmount;
+        return acc;
+      },
+      {
+        totalEmployees: formattedData.length,
+        totalTaxAmount: 0,
+        totalSSNAmount: 0,
+        grandTotal: 0,
+      }
+    );
+
+    // Apply pagination if not exporting
+    let paginatedData = formattedData;
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      paginatedData = formattedData.slice(skip, skip + limitNum);
+      totalPages = Math.ceil(formattedData.length / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
+
+    // Send response
+    const response = {
+      success: true,
+      data: paginatedData,
+      summary: summary,
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
+        currentPage: pageNum,
+        totalPages,
+        totalCount: formattedData.length,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      };
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error(`Error in taxReport controller: ${error}`);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate entry found",
+      });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// SSN Report - Social Security Only
+export const ssnReport = async (req, res) => {
+  try {
+    // Extract and validate user context
+    if (!req.user?.companyId) {
+      return res.status(401).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const { companyId } = req.user;
+
+    // Extract query parameters
+    const {
+      search, // Search term for employee name
+      department, // Filter by department ID
+      status, // Filter by payroll status
+      periodStart, // Filter by payroll period start
+      periodEnd, // Filter by payroll period end
+      timePeriod, // Predefined time periods: month, quarter, year
+      page = 1, // Pagination
+      limit = 50, // Items per page
+      export: isExport, // Export flag to bypass pagination
+    } = req.query;
+
+    // Check if this is an export request
+    const isExportRequest = isExport === "true";
+
+    // Convert to proper types with validation (skip validation for export)
+    const pageNum = parseInt(page) || 1;
+    const limitNum = isExportRequest ? undefined : parseInt(limit) || 50;
+    const skip = isExportRequest ? undefined : (pageNum - 1) * limitNum;
+
+    // Validate pagination values (skip for export)
+    if (!isExportRequest && (pageNum < 1 || limitNum < 1 || limitNum > 10000)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 10000",
+      });
+    }
+
+    // Start building where clause
+    let whereClause = {
+      companyId: companyId,
+      ...getDepartmentFilter(req.user),
+    };
+
+    // Status filter - default to FINALIZED and PAID if not specified
+    if (status && status !== "ALL") {
+      if (["DRAFT", "FINALIZED", "PAID"].includes(status)) {
+        whereClause.status = status;
+      }
+    } else if (!status) {
+      // Default to only finalized and paid payrolls
+      whereClause.status = { in: ["FINALIZED", "PAID"] };
+    }
+
+    // Search filter for employee name
+    if (search && search.trim()) {
+      whereClause.employee = {
+        ...whereClause.employee,
+        name: { contains: search.trim(), mode: "insensitive" },
+      };
+    }
+
+    // Department filter
+    if (department) {
+      const deptId = parseInt(department);
+      if (!isNaN(deptId)) {
+        whereClause.employee = {
+          ...whereClause.employee,
+          departmentId: deptId,
+        };
+      }
+    }
+
+    // Period filters - filter by payroll period end date
+    if (periodStart || periodEnd) {
+      whereClause.periodEnd = {};
+      if (periodStart) {
+        const fromDate = new Date(periodStart);
+        if (!isNaN(fromDate.getTime())) {
+          whereClause.periodEnd.gte = fromDate;
+        }
+      }
+      if (periodEnd) {
+        const toDate = new Date(periodEnd);
+        if (!isNaN(toDate.getTime())) {
+          toDate.setHours(23, 59, 59, 999);
+          whereClause.periodEnd.lte = toDate;
+        }
+      }
+    } else if (timePeriod) {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (timePeriod.toLowerCase()) {
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        case "quarter":
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), 11, 31);
+          break;
+        case "last3months":
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        default:
+          break;
+      }
+
+      if (startDate && endDate) {
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.periodEnd = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Get all payrolls matching the criteria
+    const payrolls = await prisma.payroll.findMany({
+      where: whereClause,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            employeeId: true,
+            email: true,
+            salary: true,
+            EmployeePayrollProfile: {
+              select: {
+                customTaxRate: true,
+                socialSecurityRate: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { periodEnd: "desc" },
+    });
+
+    // Aggregate by employee
+    const employeeMap = new Map();
+
+    payrolls.forEach((payroll) => {
+      const empId = payroll.employeeId;
+      if (!employeeMap.has(empId)) {
+        // Construct employee ID if null
+        const constructedEmpId =
+          payroll.employee.employeeId ||
+          `EMP${payroll.employee.id.toString().padStart(5, "0")}`;
+
+        const taxRate =
+          payroll.employee.EmployeePayrollProfile?.customTaxRate || 0;
+        const ssnRate =
+          payroll.employee.EmployeePayrollProfile?.socialSecurityRate || 0;
+
+        employeeMap.set(empId, {
+          employeeId: constructedEmpId,
+          employeeName: payroll.employee.name,
+          email: payroll.employee.email,
+          ssnPercentage: ssnRate * 100, // Convert to percentage
+          basicSalary: payroll.employee.salary || 0,
+          totalSSNAmount: 0,
+          totalTaxAmount: 0,
+        });
+      }
+
+      const emp = employeeMap.get(empId);
+      emp.totalSSNAmount += payroll.socialSecurity || 0;
+      emp.totalTaxAmount += payroll.incomeTax || 0;
+    });
+
+    const formattedData = Array.from(employeeMap.values());
+
+    // Calculate summary
+    const summary = formattedData.reduce(
+      (acc, emp) => {
+        acc.totalTaxAmount += emp.totalTaxAmount;
+        acc.totalSSNAmount += emp.totalSSNAmount;
+        acc.grandTotal += emp.totalTaxAmount + emp.totalSSNAmount;
+        return acc;
+      },
+      {
+        totalEmployees: formattedData.length,
+        totalTaxAmount: 0,
+        totalSSNAmount: 0,
+        grandTotal: 0,
+      }
+    );
+
+    // Apply pagination if not exporting
+    let paginatedData = formattedData;
+    let totalPages = 1;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (!isExportRequest) {
+      paginatedData = formattedData.slice(skip, skip + limitNum);
+      totalPages = Math.ceil(formattedData.length / limitNum);
+      hasNextPage = pageNum < totalPages;
+      hasPrevPage = pageNum > 1;
+    }
+
+    // Send response
+    const response = {
+      success: true,
+      data: paginatedData,
+      summary: summary,
+    };
+
+    // Only include pagination if not exporting
+    if (!isExportRequest) {
+      response.pagination = {
+        currentPage: pageNum,
+        totalPages,
+        totalCount: formattedData.length,
+        hasNextPage,
+        hasPrevPage,
+        limit: limitNum,
+      };
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error(`Error in ssnReport controller: ${error}`);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate entry found",
+      });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};

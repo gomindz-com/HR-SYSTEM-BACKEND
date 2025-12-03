@@ -9,6 +9,8 @@ import {
   payrollReports,
   reportStats,
   taxAndSSNReport,
+  taxReport,
+  ssnReport,
 } from "../controller/report.controller.js";
 const router = express.Router();
 
@@ -40,6 +42,8 @@ router.get("/attendance-report", checkBasicReports, attendanceReport);
 router.get("/leave-report", checkFeatureAccess("reports"), leaveReport);
 router.get("/payroll-report", checkFeatureAccess("reports"), payrollReports);
 router.get("/tax-ssn-report", checkFeatureAccess("reports"), taxAndSSNReport);
+router.get("/tax-report", checkFeatureAccess("reports"), taxReport);
+router.get("/ssn-report", checkFeatureAccess("reports"), ssnReport);
 router.get("/stats", checkFeatureAccess("reports"), reportStats);
 
 export default router;
