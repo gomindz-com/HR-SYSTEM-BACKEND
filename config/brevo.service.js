@@ -1,6 +1,6 @@
 import brevo from "@getbrevo/brevo";
 
-export async function sendEmail(to, subject, html, text) {
+export async function sendEmail(to, subject, html, text, attachments = []) {
   try {
     const apiInstance = new brevo.TransactionalEmailsApi();
     apiInstance.setApiKey(
@@ -21,6 +21,12 @@ export async function sendEmail(to, subject, html, text) {
       subject: subject,
       htmlContent: html,
       ...(text && { textContent: text }),
+      ...(attachments.length > 0 && { 
+        attachment: attachments.map(att => ({
+          name: att.filename,
+          content: att.content,
+        }))
+      }),
     };
 
     const result = await apiInstance.sendTransacEmail(sendSmtpEmail);

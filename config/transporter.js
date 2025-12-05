@@ -16,7 +16,8 @@ export const transporter = {
         toEmail,
         mailOptions.subject,
         mailOptions.html,
-        mailOptions.text
+        mailOptions.text,
+        mailOptions.attachments || []
       );
 
       const response = {

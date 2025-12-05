@@ -10,6 +10,9 @@ import {
   createNotification,
   createBulkNotifications,
 } from "../utils/notification.utils.js";
+import { generatePayslipPDF } from "../lib/payslipPDF.js";
+import { sendPayslipEmail } from "../emails/payslipEmails.js";
+import { processBatch } from "../utils/batchProcessing.js";
 
 // ================================
 // BENEFITS AND PAYROLL SETTING
@@ -1465,12 +1468,61 @@ export const finalizePayroll = async (req, res) => {
       },
     });
 
-    // Notify employee about finalized payroll
+    // Generate and send payslip
+    let emailSent = false;
+    try {
+      // Fetch company details for PDF generation
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          companyName: true,
+          companyEmail: true,
+        },
+      });
+
+      // Generate PDF payslip
+      console.log(
+        `📄 Generating payslip PDF for ${finalizedPayroll.employee.name}...`
+      );
+      const pdfBuffer = await generatePayslipPDF(
+        finalizedPayroll,
+        finalizedPayroll.employee,
+        company
+      );
+
+      // Send email with PDF attachment
+      console.log(
+        `📧 Sending payslip email to ${finalizedPayroll.employee.email}...`
+      );
+      const emailResult = await sendPayslipEmail(
+        finalizedPayroll.employee,
+        finalizedPayroll,
+        pdfBuffer
+      );
+
+      emailSent = emailResult.success;
+
+      if (emailSent) {
+        console.log(
+          `✅ Payslip successfully sent to ${finalizedPayroll.employee.email}`
+        );
+      }
+    } catch (payslipError) {
+      console.error(
+        "❌ Error generating or sending payslip (continuing with finalization):",
+        payslipError
+      );
+      // Don't fail the finalization if payslip generation/sending fails
+    }
+
+    // Create in-app notification
     try {
       await createNotification({
         companyId,
         userId: finalizedPayroll.employee.id,
-        message: `Your payroll of ${finalizedPayroll.netPay} GMD has been processed`,
+        message: emailSent
+          ? `Your payslip for ${finalizedPayroll.netPay} gmd is ready! Check your email.`
+          : `Your payroll of ${finalizedPayroll.netPay} gmd has been processed`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "HIGH",
@@ -1485,8 +1537,11 @@ export const finalizePayroll = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Payroll finalized successfully",
+      message: emailSent
+        ? "Payroll finalized and payslip sent via email"
+        : "Payroll finalized successfully",
       data: finalizedPayroll,
+      emailSent,
     });
   } catch (error) {
     console.error("Error finalizing payroll:", error);
@@ -1546,23 +1601,102 @@ export const finalizeAllPayrolls = async (req, res) => {
       return finalizedPayrolls;
     });
 
-    // Notify all employees about finalized payrolls (bulk)
-    try {
-      const payrollsWithEmployees = await prisma.payroll.findMany({
-        where: {
-          id: { in: result.map((p) => p.id) },
-        },
-        include: {
-          employee: {
-            select: { id: true },
+    // Fetch company details for PDF generation
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        companyName: true,
+        companyEmail: true,
+      },
+    });
+
+    // Fetch all finalized payrolls with complete employee details
+    const payrollsWithEmployees = await prisma.payroll.findMany({
+      where: {
+        id: { in: result.map((p) => p.id) },
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
           },
         },
-      });
+      },
+    });
 
+    console.log(
+      `📦 Starting batch payslip distribution for ${payrollsWithEmployees.length} employees...`
+    );
+
+    // Generate and send payslips using batch processing
+    let emailStats = {
+      sent: 0,
+      failed: 0,
+      failedEmployees: [],
+    };
+
+    try {
+      const batchResults = await processBatch(
+        payrollsWithEmployees,
+        5, // Process 5 payslips at a time
+        async (payroll) => {
+          try {
+            // Generate PDF payslip
+            const pdfBuffer = await generatePayslipPDF(
+              payroll,
+              payroll.employee,
+              company
+            );
+
+            // Send email with PDF attachment
+            const emailResult = await sendPayslipEmail(
+              payroll.employee,
+              payroll,
+              pdfBuffer
+            );
+
+            if (emailResult.success) {
+              emailStats.sent++;
+              return { success: true, employeeName: payroll.employee.name };
+            } else {
+              throw new Error(emailResult.error || "Failed to send email");
+            }
+          } catch (error) {
+            emailStats.failed++;
+            emailStats.failedEmployees.push({
+              name: payroll.employee.name,
+              email: payroll.employee.email,
+              error: error.message,
+            });
+            throw error;
+          }
+        },
+        200 // 200ms delay between batches
+      );
+
+      console.log(
+        `✅ Batch payslip distribution completed: ${emailStats.sent} sent, ${emailStats.failed} failed`
+      );
+    } catch (batchError) {
+      console.error("Error during batch payslip processing:", batchError);
+      // Continue even if some emails failed
+    }
+
+    // Create in-app notifications for all employees
+    try {
       const notifications = payrollsWithEmployees.map((payroll) => ({
         companyId,
         userId: payroll.employee.id,
-        message: `Your payroll of ${payroll.netPay} GMD has been processed`,
+        message:
+          emailStats.sent > 0
+            ? `Your payslip for ${payroll.netPay} gmd is ready! Check your email.`
+            : `Your payroll of ${payroll.netPay} gmd has been processed`,
         type: "STATUS_CHANGE",
         category: "PAYROLL",
         priority: "HIGH",
@@ -1576,10 +1710,15 @@ export const finalizeAllPayrolls = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Successfully finalized ${result.length} payroll records`,
+      message: `Successfully finalized ${result.length} payroll records. ${emailStats.sent} payslips sent via email.`,
       data: {
         finalizedCount: result.length,
         finalizedPayrolls: result,
+        emailStats: {
+          sent: emailStats.sent,
+          failed: emailStats.failed,
+          failedEmployees: emailStats.failedEmployees,
+        },
       },
     });
   } catch (error) {
