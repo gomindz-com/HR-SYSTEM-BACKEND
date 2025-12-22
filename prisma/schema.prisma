@@ -35,7 +35,6 @@ model Company {
   invitations        Invitation[]
   leaveRequests      LeaveRequest[]
   payrolls           Payroll[]
-  performanceReviews PerformanceReview[]
   documents          Document[]
   subscription       Subscription?
   payments           Payment[]
@@ -101,8 +100,6 @@ model Employee {
   notifications            Notification[]
   payrolls                 Payroll[]
   finalizedPayrolls        Payroll[]                @relation("Payroll_finalizedByToEmployee")
-  performanceReviews       PerformanceReview[]
-  reviewsGiven             PerformanceReview[]      @relation("Reviewer")
   documents                Document[]
   uploadedDocuments        Document[]               @relation("DocumentUploader")
   userNotificationReads    UserNotificationRead[]
@@ -218,22 +215,6 @@ model Payroll {
   finalizedByUser     Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
 }
 
-model PerformanceReview {
-  id          Int          @id @default(autoincrement())
-  employeeId  Int
-  companyId   Int
-  reviewerId  Int
-  periodStart DateTime
-  periodEnd   DateTime
-  score       Float
-  rating      Float
-  comments    String?
-  status      ReviewStatus @default(IN_PROGRESS)
-  createdAt   DateTime     @default(now())
-  company     Company      @relation(fields: [companyId], references: [id])
-  employee    Employee     @relation(fields: [employeeId], references: [id])
-  reviewer    Employee     @relation("Reviewer", fields: [reviewerId], references: [id])
-}
 
 model Notification {
   id          Int      @id @default(autoincrement())
@@ -392,10 +373,6 @@ enum PayrollStatus {
   PAID
 }
 
-enum ReviewStatus {
-  COMPLETED
-  IN_PROGRESS
-}
 
 enum NotificationType {
   LEAVE_REQUEST
