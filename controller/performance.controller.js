@@ -562,7 +562,7 @@ export const activateCycle = async (req, res) => {
         .json({ message: "Review cycle is not in draft status" });
 
     //  Get employees to include
-    
+
     const whereClause = {
       companyId,
       deleted: false,
@@ -585,6 +585,30 @@ export const activateCycle = async (req, res) => {
       return res
         .status(404)
         .json({ message: "No employees eligible for review" });
+
+    // Validate: Check for employees without managers
+    const employeesWithoutManagers = employees.filter(
+      (emp) => !emp.department?.managerId
+    );
+
+    if (employeesWithoutManagers.length > 0) {
+      const employeeNames = employeesWithoutManagers
+        .map((e) => e.name)
+        .join(", ");
+      return res.status(400).json({
+        success: false,
+        message: "Some employees do not have assigned managers",
+        error: "MANAGER_MISSING",
+        employeesWithoutManagers: employeesWithoutManagers.map((e) => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          department: e.department?.name || "No Department",
+          departmentId: e.departmentId,
+        })),
+        details: `The following ${employeesWithoutManagers.length} employee(s) need managers assigned: ${employeeNames}. Please assign managers to their departments before activating the review cycle.`,
+      });
+    }
 
     // create review in a  transaction
 
