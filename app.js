@@ -19,6 +19,7 @@ import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
 import superadminRoutes from "./routes/superadmin.route.js";
 import calendarRoutes from "./routes/calendar.router.js";
+import performanceRoutes from "./routes/performance.route.js";
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -163,6 +164,7 @@ app.use("/api/webhook", webhookRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/superadmin", superadminRoutes);
 app.use("/api/calendar", calendarRoutes);
+app.use("/api/performance", performanceRoutes);
 
 // ESSENTIAL ADMIN ENDPOINTS
 
