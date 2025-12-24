@@ -826,7 +826,12 @@ export const getReviewById = async (req, res) => {
 
   try {
     const review = await prisma.review.findFirst({
-      where: { id: reviewId, companyId },
+      where: {
+        id: reviewId,
+        cycle: {
+          companyId: companyId,
+        },
+      },
       include: {
         cycle: {
           include: {
