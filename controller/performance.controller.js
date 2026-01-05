@@ -1234,7 +1234,7 @@ export const finalizeReview = async (req, res) => {
 
 // Acknowledge a review (employee signs off)
 
-export const acknowledgeReview = async (req, res) => {
+export const acknowledgeReview = async (req, res) => { 
   const userId = req.user.id;
   const { reviewId } = req.params;
 
