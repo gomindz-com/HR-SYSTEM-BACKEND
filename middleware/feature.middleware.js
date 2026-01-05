@@ -1,5 +1,4 @@
 import { FEATURE_DEFINITIONS } from "../config/plans.config.js";
-import prisma from "../config/prisma.config.js";
 
 export const checkFeatureAccess = (requiredFeature) => {
   return async (req, res, next) => {
