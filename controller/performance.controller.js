@@ -228,10 +228,17 @@ export const createTemplate = async (req, res) => {
   if (!companyId)
     return res.status(400).json({ message: "Company ID is required" });
   if (!name) return res.status(400).json({ message: "Name is required" });
-  if (!ratingScale)
-    return res.status(400).json({ message: "Rating scale is required" });
 
   try {
+    // Get company settings for default rating scale
+    const settings = await prisma.performanceSettings.findUnique({
+      where: { companyId },
+    });
+    const defaultRatingScale = settings?.defaultRatingScale || "FIVE_POINT";
+
+    // Use provided ratingScale or fall back to company default
+    const finalRatingScale = ratingScale || defaultRatingScale;
+
     // if isDefault is true, update all other templates to false
     if (isDefault) {
       await prisma.reviewTemplate.updateMany({
@@ -246,7 +253,7 @@ export const createTemplate = async (req, res) => {
         companyId,
         name,
         description,
-        ratingScale: ratingScale || "FIVE_POINT",
+        ratingScale: finalRatingScale,
         isDefault: isDefault || false,
         sections: {
           create: sections?.map((section, sIndex) => ({

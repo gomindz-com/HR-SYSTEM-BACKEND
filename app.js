@@ -60,6 +60,21 @@ try {
   console.error("❌ Failed to initialize leave reminder cron:", error);
 }
 
+// Initialize performance review reminder cron job
+let performanceReminderCron = null;
+try {
+  const startPerformanceReminderCron = await import(
+    "./automations/performanceReminderCron.js"
+  );
+  startPerformanceReminderCron.default();
+  performanceReminderCron = startPerformanceReminderCron;
+  console.log(
+    "📊 Performance review reminder cron job initialized - will run daily at 9:00 AM"
+  );
+} catch (error) {
+  console.error("❌ Failed to initialize performance reminder cron:", error);
+}
+
 // Initialize subscription renewal cron job
 let subscriptionRenewalCron = null;
 try {
