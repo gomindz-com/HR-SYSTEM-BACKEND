@@ -565,6 +565,15 @@ export const activateCycle = async (req, res) => {
     return res.status(400).json({ message: "Cycle ID is required" });
 
   try {
+    // Get performance settings for this company
+    const settings = await prisma.performanceSettings.findUnique({
+      where: { companyId },
+    });
+
+    const allowSelfReview = settings?.allowSelfReview ?? true;
+    const requireManagerReview = settings?.requireManagerReview ?? true;
+    const enableEmailNotifications = settings?.enableEmailNotifications ?? true;
+
     // Get Cycle
 
     const cycle = await prisma.reviewCycle.findFirst({
@@ -639,6 +648,9 @@ export const activateCycle = async (req, res) => {
       });
 
       //   create reviews for each employee
+      // Determine initial status based on settings
+      // If self-review is disabled, skip to PENDING_MANAGER (waiting for manager)
+      const initialStatus = allowSelfReview ? "NOT_STARTED" : "PENDING_MANAGER";
 
       const reviews = await Promise.all(
         employees.map(async (employee) =>
@@ -646,8 +658,10 @@ export const activateCycle = async (req, res) => {
             data: {
               cycleId,
               subjectId: employee.id,
-              managerId: employee.department.manager?.id || null,
-              status: "NOT_STARTED",
+              managerId: requireManagerReview
+                ? employee.department.manager?.id || null
+                : null,
+              status: initialStatus,
             },
           })
         )
@@ -661,12 +675,17 @@ export const activateCycle = async (req, res) => {
       const employee = employees[i];
       const review = result[i];
 
+      // Create notification message based on settings
+      const notificationMessage = allowSelfReview
+        ? `Performance review cycle "${cycle.name}" has been activated. Please complete your self-review.`
+        : `Performance review cycle "${cycle.name}" has been activated. Your manager will complete your review.`;
+
       // Create notification
       try {
         await createNotification({
           companyId,
           userId: employee.id,
-          message: `Performance review cycle "${cycle.name}" has been activated. Please complete your self-review.`,
+          message: notificationMessage,
           type: "REVIEW",
           category: NOTIFICATION_CATEGORIES.PERFORMANCE,
           priority: NOTIFICATION_PRIORITIES.NORMAL,
@@ -679,14 +698,16 @@ export const activateCycle = async (req, res) => {
         );
       }
 
-      // Send email
-      try {
-        await sendCycleActivatedEmail(employee, cycle);
-      } catch (error) {
-        console.error(
-          `Failed to send email to employee ${employee.id}:`,
-          error
-        );
+      // Send email only if email notifications are enabled
+      if (enableEmailNotifications) {
+        try {
+          await sendCycleActivatedEmail(employee, cycle);
+        } catch (error) {
+          console.error(
+            `Failed to send email to employee ${employee.id}:`,
+            error
+          );
+        }
       }
     }
 
@@ -1014,6 +1035,12 @@ export const submitSelfReview = async (req, res) => {
     return res.status(400).json({ message: "Company ID is required" });
 
   try {
+    // Get performance settings
+    const settings = await prisma.performanceSettings.findUnique({
+      where: { companyId },
+    });
+    const enableEmailNotifications = settings?.enableEmailNotifications ?? true;
+
     const review = await prisma.review.findFirst({
       where: { id: reviewId, subjectId: userId },
     });
@@ -1052,12 +1079,14 @@ export const submitSelfReview = async (req, res) => {
           redirectUrl: `/performance/reviews/${reviewId}`,
         });
 
-        // Send email to manager
-        await sendSelfReviewSubmittedEmail(
-          updatedReview.manager,
-          updatedReview.subject,
-          updatedReview
-        );
+        // Send email to manager only if enabled
+        if (enableEmailNotifications) {
+          await sendSelfReviewSubmittedEmail(
+            updatedReview.manager,
+            updatedReview.subject,
+            updatedReview
+          );
+        }
       } catch (error) {
         console.error("Failed to send notification/email to manager:", error);
       }
@@ -1078,10 +1107,17 @@ export const submitSelfReview = async (req, res) => {
 
 export const submitManagerReview = async (req, res) => {
   const userId = req.user.id;
+  const companyId = req.user.companyId;
   const { reviewId } = req.params;
   const { overallRating, overallRatingLabel, managerComments } = req.body;
 
   try {
+    // Get performance settings
+    const settings = await prisma.performanceSettings.findUnique({
+      where: { companyId },
+    });
+    const enableEmailNotifications = settings?.enableEmailNotifications ?? true;
+
     const review = await prisma.review.findFirst({
       where: { id: reviewId, managerId: userId },
     });
@@ -1126,12 +1162,14 @@ export const submitManagerReview = async (req, res) => {
         redirectUrl: `/performance/reviews/${reviewId}`,
       });
 
-      // Send email to employee
-      await sendManagerReviewSubmittedEmail(
-        updatedReview.subject,
-        updatedReview.manager,
-        updatedReview
-      );
+      // Send email to employee only if enabled
+      if (enableEmailNotifications) {
+        await sendManagerReviewSubmittedEmail(
+          updatedReview.subject,
+          updatedReview.manager,
+          updatedReview
+        );
+      }
     } catch (error) {
       console.error("Failed to send notification/email to employee:", error);
     }
@@ -1160,6 +1198,12 @@ export const finalizeReview = async (req, res) => {
     return res.status(400).json({ message: "Company ID is required" });
 
   try {
+    // Get performance settings
+    const settings = await prisma.performanceSettings.findUnique({
+      where: { companyId },
+    });
+    const enableEmailNotifications = settings?.enableEmailNotifications ?? true;
+
     const review = await prisma.review.findFirst({
       where: { id: reviewId },
       include: {
@@ -1233,8 +1277,10 @@ export const finalizeReview = async (req, res) => {
         redirectUrl: `/performance/reviews/${reviewId}`,
       });
 
-      // Send email to employee
-      await sendReviewFinalizedEmail(updatedReview.subject, updatedReview);
+      // Send email to employee only if enabled
+      if (enableEmailNotifications) {
+        await sendReviewFinalizedEmail(updatedReview.subject, updatedReview);
+      }
     } catch (error) {
       console.error("Failed to send notification/email to employee:", error);
     }
