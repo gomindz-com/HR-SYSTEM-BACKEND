@@ -5,9 +5,17 @@ import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_PRIORITIES,
 } from "../utils/notification.utils.js";
+import {
+  sendSelfReviewReminderEmail,
+  sendManagerReviewReminderEmail,
+} from "../emails/performanceEmails.js";
 
-// Function to send self-review reminder notification
+// Function to send self-review reminder (notification + email)
 const sendSelfReviewReminder = async (review, cycle, daysLeft, companyId) => {
+  let notificationSent = false;
+  let emailSent = false;
+
+  // Send in-app notification
   try {
     await createNotification({
       companyId,
@@ -21,26 +29,49 @@ const sendSelfReviewReminder = async (review, cycle, daysLeft, companyId) => {
           : NOTIFICATION_PRIORITIES.NORMAL,
       redirectUrl: `/my-portal/reviews/${review.id}`,
     });
-    console.log(
-      `Self-review reminder sent to employee ${review.subject.email} (${daysLeft} days left)`
-    );
-    return true;
+    notificationSent = true;
   } catch (error) {
     console.error(
-      `Failed to send self-review reminder to ${review.subject.email}:`,
+      `Failed to send self-review notification to ${review.subject.email}:`,
       error
     );
-    return false;
   }
+
+  // Send email
+  try {
+    const emailResult = await sendSelfReviewReminderEmail(
+      review.subject,
+      cycle,
+      daysLeft
+    );
+    emailSent = emailResult.success;
+  } catch (error) {
+    console.error(
+      `Failed to send self-review email to ${review.subject.email}:`,
+      error
+    );
+  }
+
+  if (notificationSent || emailSent) {
+    console.log(
+      `Self-review reminder sent to ${review.subject.email} (${daysLeft} days left) - Notification: ${notificationSent}, Email: ${emailSent}`
+    );
+  }
+
+  return notificationSent || emailSent;
 };
 
-// Function to send manager review reminder notification
+// Function to send manager review reminder (notification + email)
 const sendManagerReviewReminder = async (
   review,
   cycle,
   daysLeft,
   companyId
 ) => {
+  let notificationSent = false;
+  let emailSent = false;
+
+  // Send in-app notification
   try {
     await createNotification({
       companyId,
@@ -54,17 +85,37 @@ const sendManagerReviewReminder = async (
           : NOTIFICATION_PRIORITIES.NORMAL,
       redirectUrl: `/performance/reviews/${review.id}`,
     });
-    console.log(
-      `Manager review reminder sent to ${review.manager.email} for ${review.subject.name} (${daysLeft} days left)`
-    );
-    return true;
+    notificationSent = true;
   } catch (error) {
     console.error(
-      `Failed to send manager review reminder to ${review.manager.email}:`,
+      `Failed to send manager review notification to ${review.manager.email}:`,
       error
     );
-    return false;
   }
+
+  // Send email
+  try {
+    const emailResult = await sendManagerReviewReminderEmail(
+      review.manager,
+      review.subject,
+      cycle,
+      daysLeft
+    );
+    emailSent = emailResult.success;
+  } catch (error) {
+    console.error(
+      `Failed to send manager review email to ${review.manager.email}:`,
+      error
+    );
+  }
+
+  if (notificationSent || emailSent) {
+    console.log(
+      `Manager review reminder sent to ${review.manager.email} for ${review.subject.name} (${daysLeft} days left) - Notification: ${notificationSent}, Email: ${emailSent}`
+    );
+  }
+
+  return notificationSent || emailSent;
 };
 
 // Main function to check and send performance review reminders
@@ -89,7 +140,7 @@ const checkAndSendPerformanceReminders = async () => {
 
       // Skip if email notifications are disabled
       if (!settings?.enableEmailNotifications) {
-        console.log(`[${company.name}] Skipped - Email notifications disabled`);
+        console.log(`[${company.name}] Skipped - Notifications disabled`);
         continue;
       }
 
