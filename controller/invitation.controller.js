@@ -124,7 +124,7 @@ export const sendInvitation = async (req, res) => {
     const baseUrl =
       process.env.NODE_ENV === "development"
         ? "http://localhost:8080"
-        : process.env.CLIENT_URL;
+        : "https://hr.gomindz.gm";
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const mailOptions = {
