@@ -116,7 +116,7 @@ export const getTemplates = async (req, res) => {
 
   try {
     const templates = await prisma.reviewTemplate.findMany({
-      where: { 
+      where: {
         companyId,
         isActive: true,
       },
@@ -159,8 +159,8 @@ export const getTemplateById = async (req, res) => {
 
   try {
     const template = await prisma.reviewTemplate.findFirst({
-      where: { 
-        id: templateId, 
+      where: {
+        id: templateId,
         companyId,
         isActive: true,
       },
@@ -310,9 +310,11 @@ export const updateTemplate = async (req, res) => {
 
     if (!existingTemplate)
       return res.status(404).json({ message: "Template not found" });
-    
+
     if (!existingTemplate.isActive)
-      return res.status(400).json({ message: "Cannot update inactive template" });
+      return res
+        .status(400)
+        .json({ message: "Cannot update inactive template" });
 
     // if isDefault is true, update all other templates to false
     if (isDefault) {
@@ -501,15 +503,17 @@ export const createCycle = async (req, res) => {
   }
   try {
     const template = await prisma.reviewTemplate.findFirst({
-      where: { 
-        id: templateId, 
+      where: {
+        id: templateId,
         companyId,
         isActive: true,
       },
     });
 
     if (!template)
-      return res.status(404).json({ message: "Template not found or inactive" });
+      return res
+        .status(404)
+        .json({ message: "Template not found or inactive" });
 
     const cycle = await prisma.reviewCycle.create({
       data: {
@@ -1248,7 +1252,7 @@ export const finalizeReview = async (req, res) => {
 
 // Acknowledge a review (employee signs off)
 
-export const acknowledgeReview = async (req, res) => { 
+export const acknowledgeReview = async (req, res) => {
   const userId = req.user.id;
   const { reviewId } = req.params;
 
