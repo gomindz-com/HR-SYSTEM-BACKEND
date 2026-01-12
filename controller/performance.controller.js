@@ -817,47 +817,254 @@ export const getMyReviews = async (req, res) => {
   }
 };
 
-// Get reviews I need to complete as a manager
-
+// Get reviews I need to complete as a manager (with pagination)
 export const getReviewsToComplete = async (req, res) => {
   const managerId = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 10;
+  const skip = (page - 1) * pageSize;
+  const search = req.query.search || "";
+  const cycleIdFilter = req.query.cycleId || "";
 
   try {
-    // get reviews that are pending manager review
-    const reviews = await prisma.review.findMany({
-      where: {
-        managerId,
-        status: "PENDING_MANAGER", // Only show when employee has submitted
-      },
+    const where = {
+      managerId,
+      status: "PENDING_MANAGER",
+    };
 
-      include: {
-        cycle: {
-          select: {
-            id: true,
-            name: true,
-            managerReviewDueDate: true,
+    if (search) {
+      where.subject = {
+        name: { contains: search, mode: "insensitive" },
+      };
+    }
+
+    if (cycleIdFilter) {
+      where.cycleId = cycleIdFilter;
+    }
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          cycle: {
+            select: {
+              id: true,
+              name: true,
+              managerReviewDueDate: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              profilePic: true,
+              department: { select: { name: true } },
+            },
           },
         },
-
-        subject: {
-          select: { id: true, name: true, position: true, profilePic: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!reviews.length) {
-      console.log("No reviews found");
-      return res.status(404).json({ message: "No reviews found" });
-    }
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.review.count({ where }),
+    ]);
 
     res.status(200).json({
       success: true,
       message: "Reviews retrieved successfully",
-      data: reviews,
+      data: {
+        reviews,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
     });
   } catch (error) {
     console.log("Error getting reviews to complete:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// Get reviews that HR needs to finalize (status = COMPLETED)
+export const getReviewsToFinalize = async (req, res) => {
+  const companyId = req.user.companyId;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 10;
+  const skip = (page - 1) * pageSize;
+  const search = req.query.search || "";
+  const cycleIdFilter = req.query.cycleId || "";
+
+  try {
+    const where = {
+      status: "COMPLETED",
+      cycle: {
+        companyId: companyId,
+      },
+    };
+
+    if (search) {
+      where.OR = [
+        {
+          subject: {
+            name: { contains: search, mode: "insensitive" },
+          },
+        },
+        {
+          manager: {
+            name: { contains: search, mode: "insensitive" },
+          },
+        },
+      ];
+    }
+
+    if (cycleIdFilter) {
+      where.cycleId = cycleIdFilter;
+    }
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          cycle: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              status: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              profilePic: true,
+              department: { select: { name: true } },
+            },
+          },
+          manager: {
+            select: { id: true, name: true, profilePic: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.review.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "Reviews to finalize retrieved successfully",
+      data: {
+        reviews,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.log("Error getting reviews to finalize:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// Get all reviews for dashboard/analytics (Admin only)
+export const getAllReviews = async (req, res) => {
+  const companyId = req.user.companyId;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 10;
+  const skip = (page - 1) * pageSize;
+  const search = req.query.search || "";
+  const statusFilter = req.query.status || "";
+  const cycleIdFilter = req.query.cycleId || "";
+
+  try {
+    const where = {
+      cycle: {
+        companyId: companyId,
+      },
+    };
+
+    if (search) {
+      where.OR = [
+        {
+          subject: {
+            name: { contains: search, mode: "insensitive" },
+          },
+        },
+        {
+          manager: {
+            name: { contains: search, mode: "insensitive" },
+          },
+        },
+      ];
+    }
+
+    if (statusFilter) {
+      where.status = statusFilter;
+    }
+
+    if (cycleIdFilter) {
+      where.cycleId = cycleIdFilter;
+    }
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          cycle: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              status: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              profilePic: true,
+              department: { select: { name: true } },
+            },
+          },
+          manager: {
+            select: { id: true, name: true, profilePic: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.review.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "All reviews retrieved successfully",
+      data: {
+        reviews,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.log("Error getting all reviews:", error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
