@@ -413,8 +413,6 @@ export const getCycles = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    if (!cycles.length)
-      return res.status(404).json({ message: "No review cycles found" });
 
     res.status(200).json({
       success: true,
