@@ -817,19 +817,23 @@ export const getMyReviews = async (req, res) => {
   }
 };
 
-// Get reviews I need to complete as a manager (with pagination)
+// Get reviews I need to complete as a manager (with pagination, search, filter)
 export const getReviewsToComplete = async (req, res) => {
   const managerId = req.user.id;
+  const companyId = req.user.companyId;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
   const search = req.query.search || "";
-  const cycleIdFilter = req.query.cycleId || "";
+  const cycleId = req.query.cycleId || "";
 
   try {
     const where = {
       managerId,
       status: "PENDING_MANAGER",
+      cycle: {
+        companyId,
+      },
     };
 
     if (search) {
@@ -838,19 +842,22 @@ export const getReviewsToComplete = async (req, res) => {
       };
     }
 
-    if (cycleIdFilter) {
-      where.cycleId = cycleIdFilter;
+    if (cycleId) {
+      where.cycleId = cycleId;
     }
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
         where,
+        skip,
+        take: pageSize,
         include: {
           cycle: {
             select: {
               id: true,
               name: true,
               managerReviewDueDate: true,
+              status: true,
             },
           },
           subject: {
@@ -864,8 +871,6 @@ export const getReviewsToComplete = async (req, res) => {
           },
         },
         orderBy: { createdAt: "desc" },
-        skip,
-        take: pageSize,
       }),
       prisma.review.count({ where }),
     ]);
@@ -896,13 +901,13 @@ export const getReviewsToFinalize = async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
   const search = req.query.search || "";
-  const cycleIdFilter = req.query.cycleId || "";
+  const cycleId = req.query.cycleId || "";
 
   try {
     const where = {
       status: "COMPLETED",
       cycle: {
-        companyId: companyId,
+        companyId,
       },
     };
 
@@ -921,13 +926,15 @@ export const getReviewsToFinalize = async (req, res) => {
       ];
     }
 
-    if (cycleIdFilter) {
-      where.cycleId = cycleIdFilter;
+    if (cycleId) {
+      where.cycleId = cycleId;
     }
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
         where,
+        skip,
+        take: pageSize,
         include: {
           cycle: {
             select: {
@@ -952,8 +959,6 @@ export const getReviewsToFinalize = async (req, res) => {
           },
         },
         orderBy: { createdAt: "desc" },
-        skip,
-        take: pageSize,
       }),
       prisma.review.count({ where }),
     ]);
@@ -984,13 +989,13 @@ export const getAllReviews = async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
   const search = req.query.search || "";
-  const statusFilter = req.query.status || "";
-  const cycleIdFilter = req.query.cycleId || "";
+  const status = req.query.status || "";
+  const cycleId = req.query.cycleId || "";
 
   try {
     const where = {
       cycle: {
-        companyId: companyId,
+        companyId,
       },
     };
 
@@ -1009,17 +1014,19 @@ export const getAllReviews = async (req, res) => {
       ];
     }
 
-    if (statusFilter) {
-      where.status = statusFilter;
+    if (status) {
+      where.status = status;
     }
 
-    if (cycleIdFilter) {
-      where.cycleId = cycleIdFilter;
+    if (cycleId) {
+      where.cycleId = cycleId;
     }
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
         where,
+        skip,
+        take: pageSize,
         include: {
           cycle: {
             select: {
@@ -1027,6 +1034,8 @@ export const getAllReviews = async (req, res) => {
               name: true,
               startDate: true,
               endDate: true,
+              selfReviewDueDate: true,
+              managerReviewDueDate: true,
               status: true,
             },
           },
@@ -1044,8 +1053,6 @@ export const getAllReviews = async (req, res) => {
           },
         },
         orderBy: { createdAt: "desc" },
-        skip,
-        take: pageSize,
       }),
       prisma.review.count({ where }),
     ]);

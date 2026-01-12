@@ -316,3 +316,174 @@ export const sendReviewFinalizedEmail = async (employee, review) => {
   }
 };
 
+// Email template for self-review reminder
+export const sendSelfReviewReminderEmail = async (employee, cycle, daysLeft) => {
+  try {
+    const urgencyColor = daysLeft <= 1 ? "#dc3545" : daysLeft <= 3 ? "#ffc107" : "#007bff";
+    const urgencyText = daysLeft <= 1 ? "URGENT" : daysLeft <= 3 ? "Reminder" : "Friendly Reminder";
+    
+    const htmlContent = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 30px;">⏰</span>
+        </div>
+        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">${urgencyText}: Self-Review Due</h1>
+        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining</p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Self-Review Reminder</h2>
+        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
+          Dear <strong>${employee.name}</strong>,<br><br>
+          This is a reminder that your self-review for the <strong>${cycle.name}</strong> performance cycle is due soon.
+        </p>
+      </div>
+
+      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Review Details</h3>
+        <div style="margin-top: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: #6c757d;">Cycle Name:</span>
+            <strong style="color: #2c3e50;">${cycle.name}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: #6c757d;">Self-Review Due Date:</span>
+            <strong style="color: #2c3e50;">${new Date(cycle.selfReviewDueDate).toLocaleDateString()}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #6c757d;">Days Remaining:</span>
+            <strong style="color: ${urgencyColor};">${daysLeft} day${daysLeft !== 1 ? "s" : ""}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: ${daysLeft <= 1 ? "#f8d7da" : "#fff3cd"}; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid ${daysLeft <= 1 ? "#dc3545" : "#ffc107"};">
+        <p style="margin: 5px 0; color: ${daysLeft <= 1 ? "#721c24" : "#856404"}; font-size: 14px;">
+          <strong>${daysLeft <= 1 ? "⚠️ Urgent Action Required:" : "⏳ Action Required:"}</strong>
+        </p>
+        <p style="margin: 5px 0; color: ${daysLeft <= 1 ? "#721c24" : "#856404"}; font-size: 14px;">
+          Please complete your self-review before the due date to ensure your feedback is included in the performance evaluation process.
+        </p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-top: 20px;">
+        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+          Log in to your HR portal to complete your self-review.
+        </p>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
+        This is an automated reminder. Please do not reply to this email.<br>
+        © 2024 HR Management System. All rights reserved.
+      </p>
+    </div>
+  `;
+
+    const mailOptions = {
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      to: employee.email,
+      subject: `${daysLeft <= 1 ? "⚠️ URGENT: " : ""}Self-Review Due in ${daysLeft} Day${daysLeft !== 1 ? "s" : ""} - ${cycle.name}`,
+      html: htmlContent,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to send self-review reminder email:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Email template for manager review reminder
+export const sendManagerReviewReminderEmail = async (manager, employee, cycle, daysLeft) => {
+  try {
+    const urgencyColor = daysLeft <= 1 ? "#dc3545" : daysLeft <= 3 ? "#ffc107" : "#17a2b8";
+    const urgencyText = daysLeft <= 1 ? "URGENT" : daysLeft <= 3 ? "Reminder" : "Friendly Reminder";
+    
+    const htmlContent = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 30px;">📋</span>
+        </div>
+        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">${urgencyText}: Manager Review Due</h1>
+        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining</p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Manager Review Reminder</h2>
+        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
+          Dear <strong>${manager.name}</strong>,<br><br>
+          This is a reminder that your review of <strong>${employee.name}</strong> for the <strong>${cycle.name}</strong> performance cycle is due soon.
+        </p>
+      </div>
+
+      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Review Details</h3>
+        <div style="margin-top: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: #6c757d;">Employee:</span>
+            <strong style="color: #2c3e50;">${employee.name}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: #6c757d;">Cycle Name:</span>
+            <strong style="color: #2c3e50;">${cycle.name}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: #6c757d;">Manager Review Due Date:</span>
+            <strong style="color: #2c3e50;">${new Date(cycle.managerReviewDueDate).toLocaleDateString()}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #6c757d;">Days Remaining:</span>
+            <strong style="color: ${urgencyColor};">${daysLeft} day${daysLeft !== 1 ? "s" : ""}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
+        <p style="margin: 5px 0; color: #155724; font-size: 14px;"><strong>✓ Note:</strong></p>
+        <p style="margin: 5px 0; color: #155724; font-size: 14px;">
+          ${employee.name} has already completed their self-review and is waiting for your feedback.
+        </p>
+      </div>
+
+      <div style="background: ${daysLeft <= 1 ? "#f8d7da" : "#fff3cd"}; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid ${daysLeft <= 1 ? "#dc3545" : "#ffc107"};">
+        <p style="margin: 5px 0; color: ${daysLeft <= 1 ? "#721c24" : "#856404"}; font-size: 14px;">
+          <strong>${daysLeft <= 1 ? "⚠️ Urgent Action Required:" : "⏳ Action Required:"}</strong>
+        </p>
+        <p style="margin: 5px 0; color: ${daysLeft <= 1 ? "#721c24" : "#856404"}; font-size: 14px;">
+          Please complete your review of ${employee.name} before the due date.
+        </p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-top: 20px;">
+        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+          Log in to your HR portal to complete the review.
+        </p>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
+        This is an automated reminder. Please do not reply to this email.<br>
+        © 2024 HR Management System. All rights reserved.
+      </p>
+    </div>
+  `;
+
+    const mailOptions = {
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      to: manager.email,
+      subject: `${daysLeft <= 1 ? "⚠️ URGENT: " : ""}Manager Review Due in ${daysLeft} Day${daysLeft !== 1 ? "s" : ""} - ${employee.name}`,
+      html: htmlContent,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to send manager review reminder email:", error);
+    return { success: false, error: error.message };
+  }
+};
+

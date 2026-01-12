@@ -65,7 +65,11 @@ router.post("/cycles/:cycleId/complete", requireRole(["ADMIN"]), completeCycle);
 // REVIEWS
 // ============================================
 router.get("/reviews/mine", getMyReviews); // Employee's own reviews
-router.get("/reviews/to-complete", getReviewsToComplete); // Manager's queue
+router.get(
+  "/reviews/to-complete",
+  requireRole(["MANAGER"]),
+  getReviewsToComplete
+); // Manager's queue
 router.get(
   "/reviews/to-finalize",
   requireRole(["ADMIN"]),
