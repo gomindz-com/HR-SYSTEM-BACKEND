@@ -22,6 +22,10 @@ import {
   getReviewsToFinalize,
   getAllReviews,
   getReviewById,
+  // Dashboard
+  getDashboardStats,
+  getDashboardLeaderboard,
+  getDashboardChartData,
   saveResponse,
   submitSelfReview,
   submitManagerReview,
@@ -79,6 +83,13 @@ router.get(
 ); // HR's finalization queue
 router.get("/reviews/all", requireRole(["ADMIN"]), getAllReviews); // All reviews for dashboard
 router.get("/reviews/:reviewId", getReviewById); // Single review details
+
+// ============================================
+// DASHBOARD
+// ============================================
+router.get("/dashboard/stats", getDashboardStats);
+router.get("/dashboard/leaderboard", getDashboardLeaderboard);
+router.get("/dashboard/chart", getDashboardChartData);
 
 // ============================================
 // RESPONSES

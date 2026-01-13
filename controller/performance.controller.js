@@ -1128,6 +1128,297 @@ export const getAllReviews = async (req, res) => {
   }
 };
 
+// ============================================
+// DASHBOARD ENDPOINTS
+// ============================================
+
+export const getDashboardStats = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    const [
+      totalReviews,
+      reviewsByStatus,
+      finalizedReviews,
+      averageRating,
+    ] = await Promise.all([
+      prisma.review.count({ where }),
+      prisma.review.groupBy({
+        by: ["status"],
+        where,
+        _count: true,
+      }),
+      prisma.review.findMany({
+        where: {
+          ...where,
+          status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+        },
+        select: {
+          overallRating: true,
+        },
+      }),
+      prisma.review.aggregate({
+        where: {
+          ...where,
+          status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+          overallRating: { not: null },
+        },
+        _avg: {
+          overallRating: true,
+        },
+      }),
+    ]);
+
+    const statusCounts = {
+      NOT_STARTED: 0,
+      IN_PROGRESS: 0,
+      PENDING_MANAGER: 0,
+      COMPLETED: 0,
+      FINALIZED: 0,
+      ACKNOWLEDGED: 0,
+    };
+
+    reviewsByStatus.forEach((item) => {
+      statusCounts[item.status] = item._count;
+    });
+
+    const completedCount =
+      statusCounts.FINALIZED + statusCounts.ACKNOWLEDGED;
+    const pendingCount =
+      statusCounts.IN_PROGRESS + statusCounts.PENDING_MANAGER;
+
+    res.status(200).json({
+      success: true,
+      message: "Dashboard stats retrieved successfully",
+      data: {
+        totalReviews,
+        completedReviews: completedCount,
+        pendingReviews: pendingCount,
+        averageRating: averageRating._avg.overallRating || 0,
+        statusCounts,
+      },
+    });
+  } catch (error) {
+    console.log("Error getting dashboard stats:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const getDashboardLeaderboard = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+  const limit = parseInt(req.query.limit) || 10;
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+      status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+      overallRating: { not: null },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    // Get all finalized reviews with ratings
+    const reviews = await prisma.review.findMany({
+      where,
+      select: {
+        subjectId: true,
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            profilePic: true,
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        overallRating: true,
+      },
+    });
+
+    // Group by employee and calculate average
+    const employeeRatings = {};
+    reviews.forEach((review) => {
+      const employeeId = review.subjectId;
+      if (!employeeRatings[employeeId]) {
+        employeeRatings[employeeId] = {
+          employee: review.subject,
+          ratings: [],
+        };
+      }
+      if (review.overallRating) {
+        employeeRatings[employeeId].ratings.push(review.overallRating);
+      }
+    });
+
+    // Calculate averages and sort
+    const leaderboard = Object.values(employeeRatings)
+      .map((item) => {
+        const avgRating =
+          item.ratings.reduce((sum, r) => sum + r, 0) / item.ratings.length;
+        return {
+          employeeId: item.employee.id,
+          name: item.employee.name,
+          position: item.employee.position || "No position",
+          department: item.employee.department?.name || "No department",
+          profilePic: item.employee.profilePic,
+          averageRating: Math.round(avgRating * 100) / 100, // Round to 2 decimals
+          reviewCount: item.ratings.length,
+        };
+      })
+      .sort((a, b) => b.averageRating - a.averageRating)
+      .slice(0, limit);
+
+    res.status(200).json({
+      success: true,
+      message: "Leaderboard retrieved successfully",
+      data: leaderboard,
+    });
+  } catch (error) {
+    console.log("Error getting leaderboard:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const getDashboardChartData = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+  const period = req.query.period || "12m";
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+      status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+      finalizedAt: { not: null },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate = new Date();
+    switch (period) {
+      case "3m":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "6m":
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case "12m":
+      default:
+        startDate.setMonth(now.getMonth() - 12);
+        break;
+    }
+
+    where.finalizedAt = {
+      gte: startDate,
+      lte: now,
+    };
+
+    const reviews = await prisma.review.findMany({
+      where,
+      select: {
+        finalizedAt: true,
+        overallRating: true,
+      },
+      orderBy: {
+        finalizedAt: "asc",
+      },
+    });
+
+    // Group by month
+    const monthlyData = {};
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    reviews.forEach((review) => {
+      if (review.finalizedAt) {
+        const date = new Date(review.finalizedAt);
+        const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+        const monthIndex = date.getMonth();
+
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
+            month: monthNames[monthIndex],
+            completed: 0,
+            ratings: [],
+          };
+        }
+
+        monthlyData[monthKey].completed += 1;
+        if (review.overallRating) {
+          monthlyData[monthKey].ratings.push(review.overallRating);
+        }
+      }
+    });
+
+    // Convert to array and calculate averages
+    const chartData = Object.entries(monthlyData)
+      .map(([key, data]) => {
+        const avgRating =
+          data.ratings.length > 0
+            ? data.ratings.reduce((sum, r) => sum + r, 0) /
+              data.ratings.length
+            : 0;
+        return {
+          month: data.month,
+          completed: data.completed,
+          avgRating: Math.round(avgRating * 100) / 100,
+        };
+      })
+      .sort((a, b) => {
+        // Sort by month order
+        const monthOrder = monthNames.indexOf(a.month) -
+          monthNames.indexOf(b.month);
+        return monthOrder;
+      });
+
+    res.status(200).json({
+      success: true,
+      message: "Chart data retrieved successfully",
+      data: chartData,
+    });
+  } catch (error) {
+    console.log("Error getting chart data:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 //  Get a single review with all details
 //  Used for the review form
 
