@@ -1147,38 +1147,34 @@ export const getDashboardStats = async (req, res) => {
       where.cycleId = cycleId;
     }
 
-    const [
-      totalReviews,
-      reviewsByStatus,
-      finalizedReviews,
-      averageRating,
-    ] = await Promise.all([
-      prisma.review.count({ where }),
-      prisma.review.groupBy({
-        by: ["status"],
-        where,
-        _count: true,
-      }),
-      prisma.review.findMany({
-        where: {
-          ...where,
-          status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
-        },
-        select: {
-          overallRating: true,
-        },
-      }),
-      prisma.review.aggregate({
-        where: {
-          ...where,
-          status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
-          overallRating: { not: null },
-        },
-        _avg: {
-          overallRating: true,
-        },
-      }),
-    ]);
+    const [totalReviews, reviewsByStatus, finalizedReviews, averageRating] =
+      await Promise.all([
+        prisma.review.count({ where }),
+        prisma.review.groupBy({
+          by: ["status"],
+          where,
+          _count: true,
+        }),
+        prisma.review.findMany({
+          where: {
+            ...where,
+            status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+          },
+          select: {
+            overallRating: true,
+          },
+        }),
+        prisma.review.aggregate({
+          where: {
+            ...where,
+            status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+            overallRating: { not: null },
+          },
+          _avg: {
+            overallRating: true,
+          },
+        }),
+      ]);
 
     const statusCounts = {
       NOT_STARTED: 0,
@@ -1193,8 +1189,7 @@ export const getDashboardStats = async (req, res) => {
       statusCounts[item.status] = item._count;
     });
 
-    const completedCount =
-      statusCounts.FINALIZED + statusCounts.ACKNOWLEDGED;
+    const completedCount = statusCounts.FINALIZED + statusCounts.ACKNOWLEDGED;
     const pendingCount =
       statusCounts.IN_PROGRESS + statusCounts.PENDING_MANAGER;
 
@@ -1392,8 +1387,7 @@ export const getDashboardChartData = async (req, res) => {
       .map(([key, data]) => {
         const avgRating =
           data.ratings.length > 0
-            ? data.ratings.reduce((sum, r) => sum + r, 0) /
-              data.ratings.length
+            ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
             : 0;
         return {
           month: data.month,
@@ -1403,8 +1397,8 @@ export const getDashboardChartData = async (req, res) => {
       })
       .sort((a, b) => {
         // Sort by month order
-        const monthOrder = monthNames.indexOf(a.month) -
-          monthNames.indexOf(b.month);
+        const monthOrder =
+          monthNames.indexOf(a.month) - monthNames.indexOf(b.month);
         return monthOrder;
       });
 
