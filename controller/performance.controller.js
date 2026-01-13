@@ -404,6 +404,13 @@ export const getCycles = async (req, res) => {
     return res.status(400).json({ message: "Company ID is required" });
 
   try {
+    const statusPriority = {
+      ACTIVE: 1,
+      DRAFT: 2,
+      COMPLETED: 3,
+      ARCHIVED: 4,
+    };
+
     const cycles = await prisma.reviewCycle.findMany({
       where: { companyId },
       include: {
@@ -411,6 +418,16 @@ export const getCycles = async (req, res) => {
         _count: { select: { reviews: true } },
       },
       orderBy: { createdAt: "desc" },
+    });
+
+    cycles.sort((a, b) => {
+      const priorityA = statusPriority[a.status] || 99;
+      const priorityB = statusPriority[b.status] || 99;
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      // If same status, sort by createdAt desc (newest first)
+      return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
     res.status(200).json({
