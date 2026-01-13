@@ -413,7 +413,6 @@ export const getCycles = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-
     res.status(200).json({
       success: true,
       message: "Review cycles retrieved successfully",
@@ -727,6 +726,44 @@ export const activateCycle = async (req, res) => {
   }
 };
 
+export const archiveCycle = async (req, res) => {
+  const companyId = req.user.companyId;
+  const { cycleId } = req.params;
+
+  if (!companyId)
+    return res.status(400).json({ message: "Company ID is required" });
+
+  if (!cycleId)
+    return res.status(400).json({ message: "Cycle ID is required" });
+
+  try {
+    const cycle = await prisma.reviewCycle.findFirst({
+      where: { id: cycleId, companyId },
+    });
+
+    if (!cycle)
+      return res.status(404).json({ message: "Review cycle not found" });
+
+    // Don't allow archiving already archived cycles
+    if (cycle.status === "ARCHIVED")
+      return res.status(400).json({
+        message: "Cycle is already archived",
+      });
+
+    await prisma.reviewCycle.update({
+      where: { id: cycleId },
+      data: { status: "ARCHIVED" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Review cycle archived successfully",
+    });
+  } catch (error) {
+    console.log("Error archiving review cycle:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
 //  Complete a cycle (mark as COMPLETED)
 
 export const completeCycle = async (req, res) => {

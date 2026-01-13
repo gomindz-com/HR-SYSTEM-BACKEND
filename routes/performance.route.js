@@ -15,6 +15,7 @@ import {
   createCycle,
   activateCycle,
   completeCycle,
+  archiveCycle,
   // Reviews
   getMyReviews,
   getReviewsToComplete,
@@ -60,6 +61,7 @@ router.get("/cycles/:cycleId", getCycleById);
 router.post("/cycles", requireRole(["ADMIN"]), createCycle);
 router.post("/cycles/:cycleId/activate", requireRole(["ADMIN"]), activateCycle);
 router.post("/cycles/:cycleId/complete", requireRole(["ADMIN"]), completeCycle);
+router.post("/cycles/:cycleId/archive", requireRole(["ADMIN"]), archiveCycle);
 
 // ============================================
 // REVIEWS
