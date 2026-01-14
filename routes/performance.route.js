@@ -81,7 +81,7 @@ router.get(
   requireRole(["ADMIN"]),
   getReviewsToFinalize
 ); // HR's finalization queue
-router.get("/reviews/all", requireRole(["ADMIN"]), getAllReviews); // All reviews for dashboard
+router.get("/reviews/all", requireRole(["ADMIN", "MANAGER"]), getAllReviews); // All reviews for dashboard
 router.get("/reviews/:reviewId", getReviewById); // Single review details
 
 // ============================================
