@@ -38,24 +38,25 @@ export const superadminLogin = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    // Validate that user is SUPER_ADMIN
-    if (user.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        message: "Access denied. Super admin credentials required.",
-      });
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     if (user.deleted) {
       return res.status(401).json({ message: "Your account has been deleted" });
     }
 
+    // Check password first before checking role (for better error messages)
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
     if (!isPasswordCorrect) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Validate that user is SUPER_ADMIN (only after password is correct)
+    if (user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Access denied. Super admin credentials required.",
+      });
     }
 
     // SUPER_ADMIN doesn't need email verification, but we check status
