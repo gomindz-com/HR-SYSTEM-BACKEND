@@ -226,39 +226,60 @@ export const checkAuth = async (req, res) => {
   const { id } = req.user;
 
   try {
-    const user = await prisma.employee.findUnique({
+    // First get the user to check if they have a companyId
+    const userBasic = await prisma.employee.findUnique({
       where: { id },
       select: {
         id: true,
-        position: true,
-        profilePic: true,
-        name: true,
-        email: true,
-        phone: true,
-        address: true,
-        dateOfBirth: true,
-        emergencyContact: true,
-        status: true,
-        role: true,
-        departmentId: true,
         companyId: true,
-        createdAt: true,
-        department: {
-          select: {
-            name: true,
-          },
-        },
-        company: {
-          select: {
-            companyName: true,
-            companyEmail: true,
-            companyAddress: true,
-            companyDescription: true,
-            companyTin: true,
-            hasLifetimeAccess: true,
-          },
+        role: true,
+      },
+    });
+
+    if (!userBasic) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Build select object conditionally - only include company if companyId exists
+    const selectFields = {
+      id: true,
+      position: true,
+      profilePic: true,
+      name: true,
+      email: true,
+      phone: true,
+      address: true,
+      dateOfBirth: true,
+      emergencyContact: true,
+      status: true,
+      role: true,
+      departmentId: true,
+      companyId: true,
+      createdAt: true,
+      department: {
+        select: {
+          name: true,
         },
       },
+    };
+
+    // Only include company relation if companyId is not null (superadmins have null companyId)
+    if (userBasic.companyId !== null) {
+      selectFields.company = {
+        select: {
+          companyName: true,
+          companyEmail: true,
+          companyAddress: true,
+          companyDescription: true,
+          companyTin: true,
+          hasLifetimeAccess: true,
+        },
+      };
+    }
+
+    const user = await prisma.employee.findUnique({
+      where: { id },
+      select: selectFields,
     });
 
     if (!user) {
