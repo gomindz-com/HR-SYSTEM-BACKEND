@@ -9,6 +9,7 @@ import {
   sendSelfReviewSubmittedEmail,
   sendManagerReviewSubmittedEmail,
   sendReviewFinalizedEmail,
+  sendReviewFinalizedAdminEmail,
 } from "../emails/performanceEmails.js";
 
 // ============================================
@@ -1816,8 +1817,10 @@ export const finalizeReview = async (req, res) => {
         overallRatingLabel,
       },
       include: {
-        subject: { select: { id: true, name: true, email: true } },
-        cycle: { select: { companyId: true } },
+        subject: {
+          select: { id: true, name: true, email: true, position: true },
+        },
+        cycle: { select: { companyId: true, name: true } },
       },
     });
 
@@ -1840,6 +1843,62 @@ export const finalizeReview = async (req, res) => {
       }
     } catch (error) {
       console.error("Failed to send notification/email to employee:", error);
+    }
+
+    // Send notifications and emails to all admins
+    try {
+      // Get all admins in the company
+      const admins = await prisma.employee.findMany({
+        where: {
+          companyId: companyId,
+          role: "ADMIN",
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+
+      // Send in-app notifications to all admins
+      for (const admin of admins) {
+        try {
+          await createNotification({
+            companyId: companyId,
+            userId: admin.id,
+            message: `Performance review for ${updatedReview.subject.name} has been finalized.`,
+            type: "REVIEW",
+            category: NOTIFICATION_CATEGORIES.PERFORMANCE,
+            priority: NOTIFICATION_PRIORITIES.NORMAL,
+            redirectUrl: `/performance/reviews/${reviewId}`,
+          });
+        } catch (error) {
+          console.error(
+            `Failed to send notification to admin ${admin.id}:`,
+            error
+          );
+        }
+      }
+
+      // Send emails to all admins if enabled
+      if (enableEmailNotifications) {
+        for (const admin of admins) {
+          try {
+            await sendReviewFinalizedAdminEmail(
+              admin,
+              updatedReview.subject,
+              updatedReview
+            );
+          } catch (error) {
+            console.error(
+              `Failed to send email to admin ${admin.email}:`,
+              error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to send notifications/emails to admins:", error);
     }
 
     res.status(200).json({
