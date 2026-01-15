@@ -15,12 +15,17 @@ import {
   createCycle,
   activateCycle,
   completeCycle,
+  archiveCycle,
   // Reviews
   getMyReviews,
   getReviewsToComplete,
   getReviewsToFinalize,
   getAllReviews,
   getReviewById,
+  // Dashboard
+  getDashboardStats,
+  getDashboardLeaderboard,
+  getDashboardChartData,
   saveResponse,
   submitSelfReview,
   submitManagerReview,
@@ -60,6 +65,7 @@ router.get("/cycles/:cycleId", getCycleById);
 router.post("/cycles", requireRole(["ADMIN"]), createCycle);
 router.post("/cycles/:cycleId/activate", requireRole(["ADMIN"]), activateCycle);
 router.post("/cycles/:cycleId/complete", requireRole(["ADMIN"]), completeCycle);
+router.post("/cycles/:cycleId/archive", requireRole(["ADMIN"]), archiveCycle);
 
 // ============================================
 // REVIEWS
@@ -75,8 +81,15 @@ router.get(
   requireRole(["ADMIN"]),
   getReviewsToFinalize
 ); // HR's finalization queue
-router.get("/reviews/all", requireRole(["ADMIN"]), getAllReviews); // All reviews for dashboard
+router.get("/reviews/all", requireRole(["ADMIN", "MANAGER"]), getAllReviews); // All reviews for dashboard
 router.get("/reviews/:reviewId", getReviewById); // Single review details
+
+// ============================================
+// DASHBOARD
+// ============================================
+router.get("/dashboard/stats", getDashboardStats);
+router.get("/dashboard/leaderboard", getDashboardLeaderboard);
+router.get("/dashboard/chart", getDashboardChartData);
 
 // ============================================
 // RESPONSES

@@ -15,6 +15,7 @@ export const getCompanies = async (req, res) => {
       search = "",
       dateFrom,
       dateTo,
+      subscriptionStatus,
     } = req.query;
 
     const pageNum = parseInt(page, 10);
@@ -39,6 +40,18 @@ export const getCompanies = async (req, res) => {
       }
       if (dateTo) {
         where.createdAt.lte = new Date(dateTo);
+      }
+    }
+
+    // Filter by subscription status
+    if (subscriptionStatus) {
+      if (subscriptionStatus === "LIFETIME") {
+        where.hasLifetimeAccess = true;
+      } else {
+        where.hasLifetimeAccess = false;
+        where.subscription = {
+          status: subscriptionStatus,
+        };
       }
     }
 

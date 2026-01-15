@@ -18,6 +18,7 @@ import subscriptionRoutes from "./routes/subscription.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import notificationRoutes from "./routes/notification.route.js";
 import superadminRoutes from "./routes/superadmin.route.js";
+import superadminAuthRoutes from "./routes/superadmin-auth.route.js";
 import calendarRoutes from "./routes/calendar.router.js";
 import performanceRoutes from "./routes/performance.route.js";
 // Load environment variables first
@@ -48,9 +49,8 @@ try {
 // Initialize leave reminder cron job
 let leaveReminderCron = null;
 try {
-  const startLeaveReminderCron = await import(
-    "./automations/leaveReminderCron.js"
-  );
+  const startLeaveReminderCron =
+    await import("./automations/leaveReminderCron.js");
   startLeaveReminderCron.default();
   leaveReminderCron = startLeaveReminderCron;
   console.log(
@@ -63,9 +63,8 @@ try {
 // Initialize performance review reminder cron job
 let performanceReminderCron = null;
 try {
-  const startPerformanceReminderCron = await import(
-    "./automations/performanceReminderCron.js"
-  );
+  const startPerformanceReminderCron =
+    await import("./automations/performanceReminderCron.js");
   startPerformanceReminderCron.default();
   performanceReminderCron = startPerformanceReminderCron;
   console.log(
@@ -78,9 +77,8 @@ try {
 // Initialize subscription renewal cron job
 let subscriptionRenewalCron = null;
 try {
-  const startSubscriptionRenewalCron = await import(
-    "./automations/subscriptionRenewal.js"
-  );
+  const startSubscriptionRenewalCron =
+    await import("./automations/subscriptionRenewal.js");
   const result = startSubscriptionRenewalCron.default();
   subscriptionRenewalCron = startSubscriptionRenewalCron;
 
@@ -101,9 +99,8 @@ try {
 // Initialize trial expiration cron job
 let trialExpirationCron = null;
 try {
-  const startTrialExpirationCron = await import(
-    "./automations/trialExpiration.js"
-  );
+  const startTrialExpirationCron =
+    await import("./automations/trialExpiration.js");
   const result = startTrialExpirationCron.default();
   trialExpirationCron = startTrialExpirationCron;
 
@@ -132,7 +129,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://admin.hr.gomindz.gm",
-  "https://hr.gomindz.gm"
+  "https://hr.gomindz.gm",
 ];
 
 if (process.env.CLIENT_URL) {
@@ -165,6 +162,7 @@ app.use(cookieParser());
 
 // ROUTES
 app.use("/api/auth", authRoutes);
+app.use("/api/superadmin-auth", superadminAuthRoutes);
 app.use("/api/invitation", invitationRoutes);
 app.use("/api/department", departmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -195,9 +193,8 @@ app.get("/api/admin/automation-status", async (req, res) => {
       });
     }
 
-    const { getAutomationStatus } = await import(
-      "./automations/absentAutomation.js"
-    );
+    const { getAutomationStatus } =
+      await import("./automations/absentAutomation.js");
     const status = getAutomationStatus();
 
     res.json({
@@ -225,9 +222,8 @@ app.post("/api/admin/dry-run-absent-automation", async (req, res) => {
     }
 
     console.log(`🧪 Dry run requested at ${new Date().toISOString()}`);
-    const { manuallyTriggerForAllCompanies } = await import(
-      "./automations/absentAutomation.js"
-    );
+    const { manuallyTriggerForAllCompanies } =
+      await import("./automations/absentAutomation.js");
     const result = await manuallyTriggerForAllCompanies(true);
 
     if (result.success) {
@@ -262,9 +258,8 @@ app.post("/api/admin/trigger-absent-automation-manual", async (req, res) => {
       });
     }
 
-    const { manuallyTriggerForAllCompanies } = await import(
-      "./automations/absentAutomation.js"
-    );
+    const { manuallyTriggerForAllCompanies } =
+      await import("./automations/absentAutomation.js");
     const result = await manuallyTriggerForAllCompanies(false);
 
     if (result.success) {
@@ -298,9 +293,8 @@ app.post("/api/admin/stop-all-automations", async (req, res) => {
       });
     }
 
-    const { stopAllAutomations } = await import(
-      "./automations/absentAutomation.js"
-    );
+    const { stopAllAutomations } =
+      await import("./automations/absentAutomation.js");
     const result = stopAllAutomations();
     automationInitialized = false;
 

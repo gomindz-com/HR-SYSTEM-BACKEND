@@ -9,6 +9,7 @@ import {
   sendSelfReviewSubmittedEmail,
   sendManagerReviewSubmittedEmail,
   sendReviewFinalizedEmail,
+  sendReviewFinalizedAdminEmail,
 } from "../emails/performanceEmails.js";
 
 // ============================================
@@ -404,6 +405,13 @@ export const getCycles = async (req, res) => {
     return res.status(400).json({ message: "Company ID is required" });
 
   try {
+    const statusPriority = {
+      ACTIVE: 1,
+      DRAFT: 2,
+      COMPLETED: 3,
+      ARCHIVED: 4,
+    };
+
     const cycles = await prisma.reviewCycle.findMany({
       where: { companyId },
       include: {
@@ -413,6 +421,15 @@ export const getCycles = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    cycles.sort((a, b) => {
+      const priorityA = statusPriority[a.status] || 99;
+      const priorityB = statusPriority[b.status] || 99;
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      // If same status, sort by createdAt desc (newest first)
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
     res.status(200).json({
       success: true,
@@ -727,6 +744,44 @@ export const activateCycle = async (req, res) => {
   }
 };
 
+export const archiveCycle = async (req, res) => {
+  const companyId = req.user.companyId;
+  const { cycleId } = req.params;
+
+  if (!companyId)
+    return res.status(400).json({ message: "Company ID is required" });
+
+  if (!cycleId)
+    return res.status(400).json({ message: "Cycle ID is required" });
+
+  try {
+    const cycle = await prisma.reviewCycle.findFirst({
+      where: { id: cycleId, companyId },
+    });
+
+    if (!cycle)
+      return res.status(404).json({ message: "Review cycle not found" });
+
+    // Don't allow archiving already archived cycles
+    if (cycle.status === "ARCHIVED")
+      return res.status(400).json({
+        message: "Cycle is already archived",
+      });
+
+    await prisma.reviewCycle.update({
+      where: { id: cycleId },
+      data: { status: "ARCHIVED" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Review cycle archived successfully",
+    });
+  } catch (error) {
+    console.log("Error archiving review cycle:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
 //  Complete a cycle (mark as COMPLETED)
 
 export const completeCycle = async (req, res) => {
@@ -801,7 +856,6 @@ export const getMyReviews = async (req, res) => {
 
     if (!reviews.length) {
       console.log("No reviews found");
-      return res.status(404).json({ message: "No reviews found" });
     }
 
     res.status(200).json({
@@ -1070,6 +1124,291 @@ export const getAllReviews = async (req, res) => {
     });
   } catch (error) {
     console.log("Error getting all reviews:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// ============================================
+// DASHBOARD ENDPOINTS
+// ============================================
+
+export const getDashboardStats = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    const [totalReviews, reviewsByStatus, finalizedReviews, averageRating] =
+      await Promise.all([
+        prisma.review.count({ where }),
+        prisma.review.groupBy({
+          by: ["status"],
+          where,
+          _count: true,
+        }),
+        prisma.review.findMany({
+          where: {
+            ...where,
+            status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+          },
+          select: {
+            overallRating: true,
+          },
+        }),
+        prisma.review.aggregate({
+          where: {
+            ...where,
+            status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+            overallRating: { not: null },
+          },
+          _avg: {
+            overallRating: true,
+          },
+        }),
+      ]);
+
+    const statusCounts = {
+      NOT_STARTED: 0,
+      IN_PROGRESS: 0,
+      PENDING_MANAGER: 0,
+      COMPLETED: 0,
+      FINALIZED: 0,
+      ACKNOWLEDGED: 0,
+    };
+
+    reviewsByStatus.forEach((item) => {
+      statusCounts[item.status] = item._count;
+    });
+
+    const completedCount = statusCounts.FINALIZED + statusCounts.ACKNOWLEDGED;
+    const pendingCount =
+      statusCounts.IN_PROGRESS + statusCounts.PENDING_MANAGER;
+
+    res.status(200).json({
+      success: true,
+      message: "Dashboard stats retrieved successfully",
+      data: {
+        totalReviews,
+        completedReviews: completedCount,
+        pendingReviews: pendingCount,
+        averageRating: averageRating._avg.overallRating || 0,
+        statusCounts,
+      },
+    });
+  } catch (error) {
+    console.log("Error getting dashboard stats:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const getDashboardLeaderboard = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+  const limit = parseInt(req.query.limit) || 10;
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+      status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+      overallRating: { not: null },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    // Get all finalized reviews with ratings
+    const reviews = await prisma.review.findMany({
+      where,
+      select: {
+        subjectId: true,
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            profilePic: true,
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        overallRating: true,
+      },
+    });
+
+    // Group by employee and calculate average
+    const employeeRatings = {};
+    reviews.forEach((review) => {
+      const employeeId = review.subjectId;
+      if (!employeeRatings[employeeId]) {
+        employeeRatings[employeeId] = {
+          employee: review.subject,
+          ratings: [],
+        };
+      }
+      if (review.overallRating) {
+        employeeRatings[employeeId].ratings.push(review.overallRating);
+      }
+    });
+
+    // Calculate averages and sort
+    const leaderboard = Object.values(employeeRatings)
+      .map((item) => {
+        const avgRating =
+          item.ratings.reduce((sum, r) => sum + r, 0) / item.ratings.length;
+        return {
+          employeeId: item.employee.id,
+          name: item.employee.name,
+          position: item.employee.position || "No position",
+          department: item.employee.department?.name || "No department",
+          profilePic: item.employee.profilePic,
+          averageRating: Math.round(avgRating * 100) / 100, // Round to 2 decimals
+          reviewCount: item.ratings.length,
+        };
+      })
+      .sort((a, b) => b.averageRating - a.averageRating)
+      .slice(0, limit);
+
+    res.status(200).json({
+      success: true,
+      message: "Leaderboard retrieved successfully",
+      data: leaderboard,
+    });
+  } catch (error) {
+    console.log("Error getting leaderboard:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const getDashboardChartData = async (req, res) => {
+  const companyId = req.user.companyId;
+  const cycleId = req.query.cycleId || "";
+  const period = req.query.period || "12m";
+
+  try {
+    const where = {
+      cycle: {
+        companyId,
+      },
+      status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
+      finalizedAt: { not: null },
+    };
+
+    if (cycleId) {
+      where.cycleId = cycleId;
+    }
+
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate = new Date();
+    switch (period) {
+      case "3m":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "6m":
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case "12m":
+      default:
+        startDate.setMonth(now.getMonth() - 12);
+        break;
+    }
+
+    where.finalizedAt = {
+      gte: startDate,
+      lte: now,
+    };
+
+    const reviews = await prisma.review.findMany({
+      where,
+      select: {
+        finalizedAt: true,
+        overallRating: true,
+      },
+      orderBy: {
+        finalizedAt: "asc",
+      },
+    });
+
+    // Group by month
+    const monthlyData = {};
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    reviews.forEach((review) => {
+      if (review.finalizedAt) {
+        const date = new Date(review.finalizedAt);
+        const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+        const monthIndex = date.getMonth();
+
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
+            month: monthNames[monthIndex],
+            completed: 0,
+            ratings: [],
+          };
+        }
+
+        monthlyData[monthKey].completed += 1;
+        if (review.overallRating) {
+          monthlyData[monthKey].ratings.push(review.overallRating);
+        }
+      }
+    });
+
+    // Convert to array and calculate averages
+    const chartData = Object.entries(monthlyData)
+      .map(([key, data]) => {
+        const avgRating =
+          data.ratings.length > 0
+            ? data.ratings.reduce((sum, r) => sum + r, 0) / data.ratings.length
+            : 0;
+        return {
+          month: data.month,
+          completed: data.completed,
+          avgRating: Math.round(avgRating * 100) / 100,
+        };
+      })
+      .sort((a, b) => {
+        // Sort by month order
+        const monthOrder =
+          monthNames.indexOf(a.month) - monthNames.indexOf(b.month);
+        return monthOrder;
+      });
+
+    res.status(200).json({
+      success: true,
+      message: "Chart data retrieved successfully",
+      data: chartData,
+    });
+  } catch (error) {
+    console.log("Error getting chart data:", error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -1478,8 +1817,10 @@ export const finalizeReview = async (req, res) => {
         overallRatingLabel,
       },
       include: {
-        subject: { select: { id: true, name: true, email: true } },
-        cycle: { select: { companyId: true } },
+        subject: {
+          select: { id: true, name: true, email: true, position: true },
+        },
+        cycle: { select: { companyId: true, name: true } },
       },
     });
 
@@ -1502,6 +1843,62 @@ export const finalizeReview = async (req, res) => {
       }
     } catch (error) {
       console.error("Failed to send notification/email to employee:", error);
+    }
+
+    // Send notifications and emails to all admins
+    try {
+      // Get all admins in the company
+      const admins = await prisma.employee.findMany({
+        where: {
+          companyId: companyId,
+          role: "ADMIN",
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+
+      // Send in-app notifications to all admins
+      for (const admin of admins) {
+        try {
+          await createNotification({
+            companyId: companyId,
+            userId: admin.id,
+            message: `Performance review for ${updatedReview.subject.name} has been finalized.`,
+            type: "REVIEW",
+            category: NOTIFICATION_CATEGORIES.PERFORMANCE,
+            priority: NOTIFICATION_PRIORITIES.NORMAL,
+            redirectUrl: `/performance/reviews/${reviewId}`,
+          });
+        } catch (error) {
+          console.error(
+            `Failed to send notification to admin ${admin.id}:`,
+            error
+          );
+        }
+      }
+
+      // Send emails to all admins if enabled
+      if (enableEmailNotifications) {
+        for (const admin of admins) {
+          try {
+            await sendReviewFinalizedAdminEmail(
+              admin,
+              updatedReview.subject,
+              updatedReview
+            );
+          } catch (error) {
+            console.error(
+              `Failed to send email to admin ${admin.email}:`,
+              error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to send notifications/emails to admins:", error);
     }
 
     res.status(200).json({
