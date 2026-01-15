@@ -9,7 +9,6 @@ import {
   sendSelfReviewSubmittedEmail,
   sendManagerReviewSubmittedEmail,
   sendReviewFinalizedEmail,
-  sendReviewFinalizedAdminEmail,
 } from "../emails/performanceEmails.js";
 
 // ============================================
@@ -1879,26 +1878,8 @@ export const finalizeReview = async (req, res) => {
           );
         }
       }
-
-      // Send emails to all admins if enabled
-      if (enableEmailNotifications) {
-        for (const admin of admins) {
-          try {
-            await sendReviewFinalizedAdminEmail(
-              admin,
-              updatedReview.subject,
-              updatedReview
-            );
-          } catch (error) {
-            console.error(
-              `Failed to send email to admin ${admin.email}:`,
-              error
-            );
-          }
-        }
-      }
     } catch (error) {
-      console.error("Failed to send notifications/emails to admins:", error);
+      console.error("Failed to send notifications to admins:", error);
     }
 
     res.status(200).json({
