@@ -855,7 +855,6 @@ export const getMyReviews = async (req, res) => {
 
     if (!reviews.length) {
       console.log("No reviews found");
-      return res.status(404).json({ message: "No reviews found" });
     }
 
     res.status(200).json({
