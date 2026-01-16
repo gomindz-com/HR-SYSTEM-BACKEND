@@ -11,6 +11,15 @@ import {
   sendReviewFinalizedEmail,
 } from "../emails/performanceEmails.js";
 
+// Helper function to get rating label from rating value
+const getRatingLabel = (rating) => {
+  if (rating >= 4.5) return "Outstanding";
+  if (rating >= 3.5) return "Exceeds Expectations";
+  if (rating >= 2.5) return "Meets Expectations";
+  if (rating >= 1.5) return "Needs Improvement";
+  return "Unsatisfactory";
+};
+
 // ============================================
 // PERFORMANCE SETTINGS
 // ============================================
@@ -1167,10 +1176,10 @@ export const getDashboardStats = async (req, res) => {
           where: {
             ...where,
             status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
-            overallRating: { not: null },
+            averageRating: { not: null },
           },
           _avg: {
-            overallRating: true,
+            averageRating: true,
           },
         }),
       ]);
@@ -1199,7 +1208,7 @@ export const getDashboardStats = async (req, res) => {
         totalReviews,
         completedReviews: completedCount,
         pendingReviews: pendingCount,
-        averageRating: averageRating._avg.overallRating || 0,
+        averageRating: averageRating._avg.averageRating || 0,
         statusCounts,
       },
     });
@@ -1220,7 +1229,7 @@ export const getDashboardLeaderboard = async (req, res) => {
         companyId,
       },
       status: { in: ["FINALIZED", "ACKNOWLEDGED"] },
-      overallRating: { not: null },
+      averageRating: { not: null },
     };
 
     if (cycleId) {
@@ -1245,7 +1254,7 @@ export const getDashboardLeaderboard = async (req, res) => {
             },
           },
         },
-        overallRating: true,
+        averageRating: true,
       },
     });
 
@@ -1259,8 +1268,8 @@ export const getDashboardLeaderboard = async (req, res) => {
           ratings: [],
         };
       }
-      if (review.overallRating) {
-        employeeRatings[employeeId].ratings.push(review.overallRating);
+      if (review.averageRating) {
+        employeeRatings[employeeId].ratings.push(review.averageRating);
       }
     });
 
@@ -1336,7 +1345,7 @@ export const getDashboardChartData = async (req, res) => {
       where,
       select: {
         finalizedAt: true,
-        overallRating: true,
+        averageRating: true,
       },
       orderBy: {
         finalizedAt: "asc",
@@ -1375,8 +1384,8 @@ export const getDashboardChartData = async (req, res) => {
         }
 
         monthlyData[monthKey].completed += 1;
-        if (review.overallRating) {
-          monthlyData[monthKey].ratings.push(review.overallRating);
+        if (review.averageRating) {
+          monthlyData[monthKey].ratings.push(review.averageRating);
         }
       }
     });
@@ -1607,11 +1616,27 @@ export const submitSelfReview = async (req, res) => {
     if (review.selfReviewCompletedAt)
       return res.status(400).json({ message: "Self review already submitted" });
 
+    // Calculate employeeRating from SELF responses (rating questions only)
+    const selfResponses = await prisma.reviewResponse.findMany({
+      where: {
+        reviewId,
+        responseType: "SELF",
+        ratingValue: { not: null },
+      },
+    });
+
+    let employeeRating = null;
+    if (selfResponses.length > 0) {
+      const sum = selfResponses.reduce((acc, r) => acc + r.ratingValue, 0);
+      employeeRating = sum / selfResponses.length;
+    }
+
     const updatedReview = await prisma.review.update({
       where: { id: reviewId },
       data: {
         status: "PENDING_MANAGER",
         selfReviewCompletedAt: new Date(),
+        employeeRating,
       },
       include: {
         subject: {
@@ -1750,6 +1775,7 @@ export const submitManagerReview = async (req, res) => {
 export const finalizeReview = async (req, res) => {
   const companyId = req.user.companyId;
   const { reviewId } = req.params;
+  const { hrRating, hrRatingLabel, hrComments } = req.body;
 
   if (!companyId)
     return res.status(400).json({ message: "Company ID is required" });
@@ -1785,35 +1811,46 @@ export const finalizeReview = async (req, res) => {
         .json({ message: "Only COMPLETED reviews can be finalized" });
     }
 
-    // Calculate overall rating from manager responses if not already set
-    let overallRating = review.overallRating;
-    let overallRatingLabel = review.overallRatingLabel;
-
-    if (!overallRating && review.responses.length > 0) {
-      const ratingResponses = review.responses.filter(
-        (r) => r.ratingValue !== null
-      );
-      if (ratingResponses.length > 0) {
-        const sum = ratingResponses.reduce((acc, r) => acc + r.ratingValue, 0);
-        overallRating = sum / ratingResponses.length;
-        // Simple label mapping (can be enhanced)
-        if (overallRating >= 4.5) overallRatingLabel = "Outstanding";
-        else if (overallRating >= 3.5)
-          overallRatingLabel = "Exceeds Expectations";
-        else if (overallRating >= 2.5)
-          overallRatingLabel = "Meets Expectations";
-        else if (overallRating >= 1.5) overallRatingLabel = "Needs Improvement";
-        else overallRatingLabel = "Unsatisfactory";
-      }
+    // Validate HR rating input
+    if (!hrRating || hrRating < 1 || hrRating > 5) {
+      return res.status(400).json({ 
+        message: "HR rating is required and must be between 1 and 5" 
+      });
     }
+
+    // Get existing ratings
+    const employeeRating = review.employeeRating;
+    const overallRating = review.overallRating; // Manager's rating
+    const finalHrRating = parseFloat(hrRating);
+
+    // Calculate average rating from three ratings
+    let averageRating = null;
+    let averageRatingLabel = null;
+    
+    const ratings = [];
+    if (employeeRating !== null) ratings.push(employeeRating);
+    if (overallRating !== null) ratings.push(overallRating);
+    if (finalHrRating !== null) ratings.push(finalHrRating);
+
+    if (ratings.length > 0) {
+      const sum = ratings.reduce((acc, r) => acc + r, 0);
+      averageRating = sum / ratings.length;
+      averageRatingLabel = getRatingLabel(averageRating);
+    }
+
+    // Use provided hrRatingLabel or calculate from rating
+    const finalHrRatingLabel = hrRatingLabel || getRatingLabel(finalHrRating);
 
     const updatedReview = await prisma.review.update({
       where: { id: reviewId },
       data: {
         status: "FINALIZED",
         finalizedAt: new Date(),
-        overallRating,
-        overallRatingLabel,
+        hrRating: finalHrRating,
+        hrRatingLabel: finalHrRatingLabel,
+        hrComments: hrComments || null,
+        averageRating,
+        averageRatingLabel,
       },
       include: {
         subject: {
@@ -1885,7 +1922,14 @@ export const finalizeReview = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Review finalized successfully",
-      data: { reviewId, overallRating, overallRatingLabel },
+      data: { 
+        reviewId, 
+        employeeRating,
+        overallRating, 
+        hrRating: finalHrRating,
+        averageRating,
+        averageRatingLabel,
+      },
     });
   } catch (error) {
     console.log("Error finalizing review:", error);

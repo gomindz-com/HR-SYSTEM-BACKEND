@@ -256,17 +256,42 @@ export const sendReviewFinalizedEmail = async (employee, review) => {
         </p>
       </div>
 
-      ${review.overallRating ? `
+      ${review.averageRating ? `
       <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
         <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Final Rating</h3>
         <div style="margin-top: 15px;">
-          <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Overall Rating</p>
-          <p style="margin: 0; font-weight: bold; color: #2c3e50; font-size: 24px;">${review.overallRating.toFixed(1)} / 5.0</p>
-          ${review.overallRatingLabel ? `
+          <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Average Rating</p>
+          <p style="margin: 0; font-weight: bold; color: #2c3e50; font-size: 24px;">${review.averageRating.toFixed(1)} / 5.0</p>
+          ${review.averageRatingLabel ? `
           <p style="margin: 10px 0 5px; color: #6c757d; font-size: 14px;">Rating Label</p>
-          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${review.overallRatingLabel}</p>
+          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${review.averageRatingLabel}</p>
           ` : ""}
         </div>
+        ${(review.employeeRating !== null || review.overallRating !== null || review.hrRating !== null) ? `
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <p style="margin: 5px 0; color: #6c757d; font-size: 12px; font-weight: bold;">Rating Breakdown</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px;">
+            ${review.employeeRating !== null ? `
+            <div>
+              <p style="margin: 0; color: #6c757d; font-size: 11px;">Employee</p>
+              <p style="margin: 0; font-weight: bold; color: #2c3e50; font-size: 14px;">${review.employeeRating.toFixed(1)}</p>
+            </div>
+            ` : ""}
+            ${review.overallRating !== null ? `
+            <div>
+              <p style="margin: 0; color: #6c757d; font-size: 11px;">Manager</p>
+              <p style="margin: 0; font-weight: bold; color: #2c3e50; font-size: 14px;">${review.overallRating.toFixed(1)}</p>
+            </div>
+            ` : ""}
+            ${review.hrRating !== null ? `
+            <div>
+              <p style="margin: 0; color: #6c757d; font-size: 11px;">HR</p>
+              <p style="margin: 0; font-weight: bold; color: #2c3e50; font-size: 14px;">${review.hrRating.toFixed(1)}</p>
+            </div>
+            ` : ""}
+          </div>
+        </div>
+        ` : ""}
       </div>
       ` : ""}
 
