@@ -456,3 +456,199 @@ export const getCompanyDetail = async (req, res) => {
     });
   }
 };
+
+
+
+
+// Get all payments with pagination
+export const getPayments = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      search = "",
+      dateFrom,
+      dateTo,
+      status,
+      companyId,
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const pageSizeNum = parseInt(pageSize, 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    // Build where clause
+    const where = {};
+
+    // Search by company name, email, or modemPayReference
+    if (search) {
+      where.OR = [
+        { modemPayReference: { contains: search, mode: "insensitive" } },
+        { company: { companyName: { contains: search, mode: "insensitive" } } },
+        { company: { companyEmail: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    // Filter by date range
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo);
+      }
+    }
+
+    // Filter by payment status
+    if (status) {
+      where.status = status;
+    }
+
+    // Filter by company
+    if (companyId) {
+      where.companyId = parseInt(companyId, 10);
+    }
+
+    // Get payments with related data
+    const [payments, totalCount] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        skip,
+        take: pageSizeNum,
+        orderBy: { createdAt: "desc" },
+        include: {
+          company: {
+            select: {
+              id: true,
+              companyName: true,
+              companyEmail: true,
+            },
+          },
+          subscription: {
+            select: {
+              id: true,
+              status: true,
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.payment.count({ where }),
+    ]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(totalCount / pageSizeNum);
+
+    res.status(200).json({
+      success: true,
+      data: payments,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        pageSize: pageSizeNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({
+      message: "Failed to fetch payments",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getPaymentDetail = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid payment ID is required",
+      });
+    }
+
+    // Fetch payment with related data
+    const payment = await prisma.payment.findUnique({
+      where: { id },
+      include: {
+        company: {
+          select: {
+            id: true,
+            companyName: true,
+            companyEmail: true,
+            companyTin: true,
+            companyAddress: true,
+            hasLifetimeAccess: true,
+          },
+        },
+        subscription: {
+          select: {
+            id: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            trialEndDate: true,
+            plan: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                maxEmployees: true,
+                features: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Check if payment exists
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    // Return payment data
+    return res.status(200).json({
+      success: true,
+      data: payment,
+    });
+  } catch (error) {
+    console.error("Error fetching payment details:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch payment details",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
