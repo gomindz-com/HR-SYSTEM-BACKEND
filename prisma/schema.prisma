@@ -617,6 +617,11 @@ model Review {
   overallRatingLabel String?
   managerComments    String?
   employeeComments   String?
+  employeeRating     Float?
+  hrRating           Float?
+  hrRatingLabel      String?
+  hrComments         String?
+  averageRating      Float?
 
   cycle     ReviewCycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   subject   Employee         @relation("ReviewSubject", fields: [subjectId], references: [id])
@@ -692,3 +697,13 @@ enum QuestionType {
   MULTIPLE_CHOICE
   YES_NO
 }
+
+
+
+
+
+
+
+
+
+
