@@ -622,6 +622,7 @@ model Review {
   hrRatingLabel      String?
   hrComments         String?
   averageRating      Float?
+  averageRatingLabel String?
 
   cycle     ReviewCycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   subject   Employee         @relation("ReviewSubject", fields: [subjectId], references: [id])
