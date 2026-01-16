@@ -698,13 +698,3 @@ enum QuestionType {
   MULTIPLE_CHOICE
   YES_NO
 }
-
-
-
-
-
-
-
-
-
-
