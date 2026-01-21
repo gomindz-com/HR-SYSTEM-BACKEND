@@ -465,10 +465,6 @@ export const getCompanyDocuments = async (req, res) => {
   }
 };
 
-
-
-
-
 export const getMyCompaniesDocuments = async (req, res) => {
   try {
     const { id, companyId } = req.user;
