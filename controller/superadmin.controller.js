@@ -4,12 +4,6 @@ import { SUBSCRIPTION_PLANS } from "../config/plans.config.js";
 // Get all companies with pagination
 export const getCompanies = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        message: "Forbidden: Super admin access required",
-      });
-    }
     const {
       page = 1,
       pageSize = 10,
@@ -474,13 +468,6 @@ function processRevenueByMonth(payments, monthsToShow) {
 // Get company statistics
 export const getCompanyStats = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     // Use Promise.all to fetch all stats in parallel for better performance
     const [
       totalCompanies,
@@ -551,14 +538,6 @@ export const getCompanyStats = async (req, res) => {
 // Get Detail Company
 export const getCompanyDetail = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const { id } = req.params;
 
     // Validate ID
@@ -819,14 +798,6 @@ export const getCompanyDetail = async (req, res) => {
 // Grant lifetime access to a company
 export const grantLifetimeAccess = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const { id } = req.params;
 
     // Validate ID
@@ -913,14 +884,6 @@ export const grantLifetimeAccess = async (req, res) => {
 // Revoke lifetime access from a company
 export const revokeLifetimeAccess = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const { id } = req.params;
 
     // Validate ID
@@ -1049,14 +1012,6 @@ export const revokeLifetimeAccess = async (req, res) => {
 // Get companies with lifetime access
 export const getLifetimeCompanies = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const {
       page = 1,
       pageSize = 10,
@@ -1144,14 +1099,6 @@ export const getLifetimeCompanies = async (req, res) => {
 // List all subscriptions with filters
 export const listSubscriptions = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const {
       page = 1,
       pageSize = 10,
@@ -1288,14 +1235,6 @@ export const listSubscriptions = async (req, res) => {
 // Update subscription
 export const updateSubscription = async (req, res) => {
   try {
-    // Check if user has SUPER_ADMIN role
-    if (req.user?.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Super admin access required",
-      });
-    }
-
     const { id } = req.params;
     const { status, startDate, endDate, trialEndDate, planId } = req.body;
 
