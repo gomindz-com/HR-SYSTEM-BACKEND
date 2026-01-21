@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.config.js";
+import { SUBSCRIPTION_PLANS } from "../config/plans.config.js";
 
 // Get all companies with pagination
 export const getCompanies = async (req, res) => {
@@ -452,6 +453,647 @@ export const getCompanyDetail = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch company details",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Grant lifetime access to a company
+export const grantLifetimeAccess = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid company ID is required",
+      });
+    }
+
+    const companyId = parseInt(id);
+
+    // Check if company exists
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        companyName: true,
+        hasLifetimeAccess: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found",
+      });
+    }
+
+    if (company.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        message: "Company already has lifetime access",
+      });
+    }
+
+    // Delete any existing subscription and grant lifetime access in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete any existing subscription
+      await tx.subscription.deleteMany({
+        where: { companyId },
+      });
+
+      // Grant lifetime access
+      await tx.company.update({
+        where: { id: companyId },
+        data: { hasLifetimeAccess: true },
+      });
+    });
+
+    // Fetch updated company
+    const updatedCompany = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        _count: {
+          select: {
+            employees: true,
+          },
+        },
+        hr: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Lifetime access granted successfully",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    console.error("Error granting lifetime access:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to grant lifetime access",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Revoke lifetime access from a company
+export const revokeLifetimeAccess = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid company ID is required",
+      });
+    }
+
+    const companyId = parseInt(id);
+
+    // Check if company exists
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        companyName: true,
+        hasLifetimeAccess: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found",
+      });
+    }
+
+    if (!company.hasLifetimeAccess) {
+      return res.status(400).json({
+        success: false,
+        message: "Company does not have lifetime access",
+      });
+    }
+
+    // Ensure Basic plan exists
+    const basicPlanData = SUBSCRIPTION_PLANS.basic;
+    const basicPlan = await prisma.subscriptionPlan.upsert({
+      where: { id: basicPlanData.id },
+      update: {
+        name: basicPlanData.name,
+        price: basicPlanData.price,
+        maxEmployees: basicPlanData.maxEmployees,
+        features: basicPlanData.features,
+        isActive: true,
+      },
+      create: {
+        id: basicPlanData.id,
+        name: basicPlanData.name,
+        price: basicPlanData.price,
+        maxEmployees: basicPlanData.maxEmployees,
+        features: basicPlanData.features,
+        isActive: true,
+      },
+    });
+
+    // Revoke lifetime access and create PENDING subscription in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Revoke lifetime access
+      await tx.company.update({
+        where: { id: companyId },
+        data: { hasLifetimeAccess: false },
+      });
+
+      // Delete any existing subscription first (in case one exists)
+      await tx.subscription.deleteMany({
+        where: { companyId },
+      });
+
+      // Create new PENDING subscription with Basic plan
+      await tx.subscription.create({
+        data: {
+          companyId,
+          planId: basicPlan.id,
+          status: "PENDING",
+          startDate: null,
+          endDate: null,
+          trialEndDate: null,
+        },
+      });
+    });
+
+    // Fetch updated company with subscription
+    const updatedCompany = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        _count: {
+          select: {
+            employees: true,
+          },
+        },
+        hr: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        subscription: {
+          include: {
+            plan: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Lifetime access revoked. Basic PENDING subscription created.",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    console.error("Error revoking lifetime access:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to revoke lifetime access",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Get companies with lifetime access
+export const getLifetimeCompanies = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      search = "",
+      dateFrom,
+      dateTo,
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const pageSizeNum = parseInt(pageSize, 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    // Build where clause - only companies with lifetime access
+    const where = {
+      hasLifetimeAccess: true,
+    };
+
+    if (search) {
+      where.OR = [
+        { companyName: { contains: search, mode: "insensitive" } },
+        { companyEmail: { contains: search, mode: "insensitive" } },
+        { companyTin: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo);
+      }
+    }
+
+    // Get companies with related data
+    const [companies, totalCount] = await Promise.all([
+      prisma.company.findMany({
+        where,
+        skip,
+        take: pageSizeNum,
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: {
+              employees: true,
+            },
+          },
+          hr: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      prisma.company.count({ where }),
+    ]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(totalCount / pageSizeNum);
+
+    res.status(200).json({
+      success: true,
+      data: companies,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        pageSize: pageSizeNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching lifetime companies:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch lifetime companies",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// List all subscriptions with filters
+export const listSubscriptions = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const {
+      page = 1,
+      pageSize = 10,
+      status,
+      planId,
+      planName,
+      companyId,
+      search = "",
+      dateFrom,
+      dateTo,
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const pageSizeNum = parseInt(pageSize, 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    // Build where clause
+    const where = {};
+
+    // Filter by status
+    if (status) {
+      where.status = status;
+    }
+
+    // Filter by planId or planName
+    if (planId) {
+      where.planId = planId;
+    } else if (planName) {
+      const plan = await prisma.subscriptionPlan.findFirst({
+        where: { name: planName },
+      });
+      if (plan) {
+        where.planId = plan.id;
+      } else {
+        // If plan not found, return empty result
+        return res.status(200).json({
+          success: true,
+          data: [],
+          pagination: {
+            currentPage: pageNum,
+            totalPages: 0,
+            totalCount: 0,
+            pageSize: pageSizeNum,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        });
+      }
+    }
+
+    // Filter by companyId
+    if (companyId) {
+      where.companyId = parseInt(companyId);
+    }
+
+    // Search by company name/email/tin
+    if (search) {
+      where.company = {
+        OR: [
+          { companyName: { contains: search, mode: "insensitive" } },
+          { companyEmail: { contains: search, mode: "insensitive" } },
+          { companyTin: { contains: search, mode: "insensitive" } },
+        ],
+      };
+    }
+
+    // Filter by date range (subscription createdAt)
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(dateTo);
+      }
+    }
+
+    // Get subscriptions with related data
+    const [subscriptions, totalCount] = await Promise.all([
+      prisma.subscription.findMany({
+        where,
+        skip,
+        take: pageSizeNum,
+        orderBy: { createdAt: "desc" },
+        include: {
+          company: {
+            select: {
+              id: true,
+              companyName: true,
+              companyEmail: true,
+              companyTin: true,
+              hasLifetimeAccess: true,
+            },
+          },
+          plan: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              maxEmployees: true,
+              features: true,
+            },
+          },
+        },
+      }),
+      prisma.subscription.count({ where }),
+    ]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(totalCount / pageSizeNum);
+
+    res.status(200).json({
+      success: true,
+      data: subscriptions,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        pageSize: pageSizeNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error("Error listing subscriptions:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to list subscriptions",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Update subscription
+export const updateSubscription = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { id } = req.params;
+    const { status, startDate, endDate, trialEndDate, planId } = req.body;
+
+    // Validate subscription ID
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscription ID is required",
+      });
+    }
+
+    // Get existing subscription
+    const existingSubscription = await prisma.subscription.findUnique({
+      where: { id },
+      include: {
+        plan: true,
+        company: {
+          select: {
+            id: true,
+            companyName: true,
+            hasLifetimeAccess: true,
+          },
+        },
+      },
+    });
+
+    if (!existingSubscription) {
+      return res.status(404).json({
+        success: false,
+        message: "Subscription not found",
+      });
+    }
+
+    // Validate status enum if provided
+    const validStatuses = ["TRIAL", "PENDING", "ACTIVE", "EXPIRED", "CANCELLED"];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    // Build update data
+    const updateData = {};
+
+    if (status !== undefined) {
+      updateData.status = status;
+    }
+
+    if (startDate !== undefined) {
+      updateData.startDate = startDate ? new Date(startDate) : null;
+    }
+
+    if (endDate !== undefined) {
+      updateData.endDate = endDate ? new Date(endDate) : null;
+    }
+
+    if (trialEndDate !== undefined) {
+      updateData.trialEndDate = trialEndDate ? new Date(trialEndDate) : null;
+    }
+
+    if (planId !== undefined) {
+      // Validate plan exists
+      const plan = await prisma.subscriptionPlan.findUnique({
+        where: { id: planId },
+      });
+
+      if (!plan) {
+        return res.status(404).json({
+          success: false,
+          message: "Plan not found",
+        });
+      }
+
+      updateData.planId = planId;
+    }
+
+    // Validation logic based on status
+    const finalStatus = status || existingSubscription.status;
+    const finalStartDate = updateData.startDate !== undefined ? updateData.startDate : existingSubscription.startDate;
+    const finalEndDate = updateData.endDate !== undefined ? updateData.endDate : existingSubscription.endDate;
+    const finalTrialEndDate = updateData.trialEndDate !== undefined ? updateData.trialEndDate : existingSubscription.trialEndDate;
+
+    // If setting to ACTIVE or CANCELLED, require endDate
+    if ((finalStatus === "ACTIVE" || finalStatus === "CANCELLED") && !finalEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "endDate is required when status is ACTIVE or CANCELLED",
+      });
+    }
+
+    // If setting to TRIAL, require trialEndDate
+    if (finalStatus === "TRIAL" && !finalTrialEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "trialEndDate is required when status is TRIAL",
+      });
+    }
+
+    // Validate trialEndDate is in the future if TRIAL
+    if (finalStatus === "TRIAL" && finalTrialEndDate) {
+      const now = new Date();
+      if (new Date(finalTrialEndDate) <= now) {
+        return res.status(400).json({
+          success: false,
+          message: "trialEndDate must be in the future for TRIAL status",
+        });
+      }
+    }
+
+    // Validate endDate > startDate if both are present
+    if (finalStartDate && finalEndDate) {
+      if (new Date(finalEndDate) <= new Date(finalStartDate)) {
+        return res.status(400).json({
+          success: false,
+          message: "endDate must be after startDate",
+        });
+      }
+    }
+
+    // Update subscription
+    const updatedSubscription = await prisma.subscription.update({
+      where: { id },
+      data: updateData,
+      include: {
+        company: {
+          select: {
+            id: true,
+            companyName: true,
+            companyEmail: true,
+            companyTin: true,
+            hasLifetimeAccess: true,
+          },
+        },
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            maxEmployees: true,
+            features: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Subscription updated successfully",
+      data: updatedSubscription,
+    });
+  } catch (error) {
+    console.error("Error updating subscription:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update subscription",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
