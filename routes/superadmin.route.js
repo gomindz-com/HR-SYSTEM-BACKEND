@@ -1,5 +1,6 @@
 import express from "express";
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { requireRole } from "../middleware/rbac.middleware.js";
 import {
   getCompanies,
   getCompanyDetail,
@@ -13,8 +14,12 @@ import {
 
 const router = express.Router();
 
-// All superadmin routes require authentication (role check is done in controllers)
+// All superadmin routes require authentication and SUPER_ADMIN role
 router.use(verifyToken);
+router.use(requireRole("SUPER_ADMIN"));
+
+// Get companies with lifetime access (must come before /companies to avoid route conflicts)
+router.get("/companies/lifetime", getLifetimeCompanies);
 
 // Get all companies with pagination
 router.get("/companies", getCompanies);
@@ -22,15 +27,12 @@ router.get("/companies", getCompanies);
 // Get company statistics
 router.get("/company-stats", getCompanyStats);
 
-// Get company detail
-router.get("/company/:id", getCompanyDetail);
-
-// Lifetime access management
+// Lifetime access management (must come before /company/:id to avoid route conflicts)
 router.post("/company/:id/lifetime-access/grant", grantLifetimeAccess);
 router.post("/company/:id/lifetime-access/revoke", revokeLifetimeAccess);
 
-// Get companies with lifetime access
-router.get("/companies/lifetime", getLifetimeCompanies);
+// Get company detail
+router.get("/company/:id", getCompanyDetail);
 
 // Subscription management
 router.get("/subscriptions", listSubscriptions);
