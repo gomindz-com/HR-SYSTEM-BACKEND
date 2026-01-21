@@ -314,7 +314,7 @@ model EmployeePayrollProfile {
 
 model Document {
   id           Int              @id @default(autoincrement())
-  employeeId   Int
+  employeeId   Int?
   companyId    Int
   fileName     String
   originalName String
@@ -326,7 +326,7 @@ model Document {
   uploadedBy   Int // Who uploaded the document (admin/HR)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
-  employee     Employee         @relation(fields: [employeeId], references: [id])
+  employee     Employee?        @relation(fields: [employeeId], references: [id])
   company      Company          @relation(fields: [companyId], references: [id])
   uploader     Employee         @relation("DocumentUploader", fields: [uploadedBy], references: [id])
 }
@@ -420,6 +420,9 @@ enum DocumentCategory {
   REFERENCE_LETTER
   DEGREE_CERTIFICATE
   OTHER
+  COMPANY_POLICY
+  HANDBOOK
+  COMPLIANCE
 }
 
 // Subscription Models

@@ -5,6 +5,9 @@ import {
   getEmployeeDocuments,
   deleteDocument,
   getCompanyDocumentStats,
+  addCompanyDocument,
+  getCompanyDocuments,
+  getMyCompaniesDocuments,
 } from "../controller/document.controller.js";
 import { upload } from "../config/cloudinary.config.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
@@ -41,6 +44,31 @@ router.get(
 
 // Get company document statistics
 router.get("/stats", verifyToken, checkSubscription, getCompanyDocumentStats);
+
+// Upload company-wide document (e.g. policies, handbook)
+router.post(
+  "/company/upload",
+  verifyToken,
+  checkSubscription,
+  upload.single("file"),
+  addCompanyDocument
+);
+
+// List company-wide documents
+router.get(
+  "/company",
+  verifyToken,
+  checkSubscription,
+  getCompanyDocuments
+);
+
+// List company-wide documents for employee portal
+router.get(
+  "/company/my-documents",
+  verifyToken,
+  checkSubscription,
+  getMyCompaniesDocuments
+);
 
 // Delete document
 router.delete("/:documentId", verifyToken, checkSubscription, deleteDocument);
