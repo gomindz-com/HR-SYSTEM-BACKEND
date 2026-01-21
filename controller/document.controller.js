@@ -371,17 +371,6 @@ export const addCompanyDocument = async (req, res) => {
 
     const publicUrl = extractCloudinaryUrl(req.file);
 
-    console.log("Company Document Upload Debug:", {
-      fileName,
-      publicId,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      path: req.file.path,
-      url: req.file.url,
-      publicUrl,
-      category,
-    });
-
     const document = await prisma.document.create({
       data: {
         employeeId: null,
