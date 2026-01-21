@@ -428,7 +428,9 @@ export const getCompanyDocuments = async (req, res) => {
 
     const whereClause = {
       companyId,
-      employeeId: null,
+      employee: {
+        is: null,
+      },
     };
 
     if (category) {
@@ -479,7 +481,9 @@ export const getMyCompaniesDocuments = async (req, res) => {
     const documents = await prisma.document.findMany({
       where: {
         companyId,
-        employeeId: null,
+        employee: {
+          is: null,
+        },
       },
       include: {
         uploader: {
