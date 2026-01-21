@@ -339,3 +339,176 @@ export const getCompanyDocumentStats = async (req, res) => {
     });
   }
 };
+
+
+// =================================
+// COMPANY RELATED DOCUMENTS
+// ================================
+
+// Upload a company-wide document (e.g. policies, handbook, compliance docs)
+// File is uploaded to Cloudinary via multer (upload.single("file"))
+export const addCompanyDocument = async (req, res) => {
+  try {
+    const { id: uploadedBy, companyId, role } = req.user;
+    const { category, description } = req.body;
+
+    if (!["ADMIN", "SUPER_ADMIN"].includes(role)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to upload company documents",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded",
+      });
+    }
+
+    const fileName = req.file.filename;
+    const publicId = req.file.public_id || req.file.filename;
+
+    const publicUrl = extractCloudinaryUrl(req.file);
+
+    console.log("Company Document Upload Debug:", {
+      fileName,
+      publicId,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      path: req.file.path,
+      url: req.file.url,
+      publicUrl,
+      category,
+    });
+
+    const document = await prisma.document.create({
+      data: {
+        employeeId: null,
+        companyId,
+        fileName,
+        originalName: req.file.originalname,
+        fileUrl: publicUrl,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        category: category || "COMPANY_POLICY",
+        description: description || null,
+        uploadedBy,
+      },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Company document uploaded successfully",
+      data: document,
+    });
+  } catch (error) {
+    console.error("Error uploading company document:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload company document",
+      error: error.message,
+    });
+  }
+};
+
+export const getCompanyDocuments = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const { category } = req.query;
+
+    const whereClause = {
+      companyId,
+      employeeId: null,
+    };
+
+    if (category) {
+      whereClause.category = category;
+    }
+
+    const documents = await prisma.document.findMany({
+      where: whereClause,
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error("Error fetching company documents:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch company documents",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
+
+export const getMyCompaniesDocuments = async (req, res) => {
+  try {
+    const { id, companyId } = req.user;
+
+    if (!companyId || !id) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID and user ID are required",
+      });
+    }
+
+    const documents = await prisma.document.findMany({
+      where: {
+        companyId,
+        employeeId: null,
+      },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error("Error fetching my companies documents:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch my companies documents",
+      error: error.message,
+    });
+  }
+}; 
