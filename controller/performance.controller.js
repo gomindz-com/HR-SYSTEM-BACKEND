@@ -7,6 +7,7 @@ import {
 import {
   sendCycleActivatedEmail,
   sendSelfReviewSubmittedEmail,
+  sendReviewReadyForHrEmail,
   sendManagerReviewSubmittedEmail,
   sendReviewFinalizedEmail,
 } from "../emails/performanceEmails.js";
@@ -1673,6 +1674,38 @@ export const submitSelfReview = async (req, res) => {
         }
       } catch (error) {
         console.error("Failed to send notification/email to manager:", error);
+      }
+    }
+
+    // When manager review not required: notify and email admins (HR) that review is ready for finalization
+    if (!allowManagersReview) {
+      try {
+        const admins = await prisma.employee.findMany({
+          where: { companyId, role: "ADMIN" },
+          select: { id: true, name: true, email: true },
+        });
+
+        for (const admin of admins) {
+          try {
+            await createNotification({
+              companyId,
+              userId: admin.id,
+              message: `${updatedReview.subject.name} has submitted their self-review. It is ready for HR finalization.`,
+              type: "REVIEW",
+              category: NOTIFICATION_CATEGORIES.PERFORMANCE,
+              priority: NOTIFICATION_PRIORITIES.NORMAL,
+              redirectUrl: `/performance/reviews/${reviewId}`,
+            });
+
+            if (enableEmailNotifications) {
+              await sendReviewReadyForHrEmail(admin, updatedReview.subject, updatedReview);
+            }
+          } catch (err) {
+            console.error(`Failed to notify/email admin ${admin.id}:`, err);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to notify admins for review ready for HR:", error);
       }
     }
 

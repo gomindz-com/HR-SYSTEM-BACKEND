@@ -158,6 +158,75 @@ export const sendSelfReviewSubmittedEmail = async (manager, employee, review) =>
   }
 };
 
+// Email template for self-review ready for HR finalization (to admin, when manager review not required)
+export const sendReviewReadyForHrEmail = async (admin, employee, review) => {
+  try {
+    const cycleName = review.cycle?.name || "Performance Review";
+    const htmlContent = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 30px; color: #6f42c1;">📋</span>
+        </div>
+        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Review Ready for HR Finalization</h1>
+        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Self-review submitted, awaiting HR action</p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Action Required</h2>
+        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
+          Dear <strong>${admin.name}</strong>,<br><br>
+          <strong>${employee.name}</strong> has submitted their self-review for <strong>${cycleName}</strong>. 
+          Manager review is not required for this cycle, so the review is ready for HR finalization.
+        </p>
+      </div>
+
+      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Employee Details</h3>
+        <div style="margin-top: 15px;">
+          <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Employee Name</p>
+          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${employee.name}</p>
+          ${employee.position ? `
+          <p style="margin: 10px 0 5px; color: #6c757d; font-size: 14px;">Position</p>
+          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${employee.position}</p>
+          ` : ""}
+        </div>
+      </div>
+
+      <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+        <p style="margin: 5px 0; color: #856404; font-size: 14px;"><strong>⏳ Next Step:</strong></p>
+        <p style="margin: 5px 0; color: #856404; font-size: 14px;">Please log in to the HR portal, go to Performance → Reviews to Finalize, and complete the finalization for this review.</p>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+          This is an automated notification. Manager review was skipped per company settings.
+        </p>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
+        This is an automated message. Please do not reply to this email.<br>
+        © 2024 HR Management System. All rights reserved.
+      </p>
+    </div>
+  `;
+
+    const mailOptions = {
+      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      to: admin.email,
+      subject: `Performance Review Ready for Finalization: ${employee.name} – ${cycleName}`,
+      html: htmlContent,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to send review ready for HR email:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Email template for manager review submitted notification (to employee)
 export const sendManagerReviewSubmittedEmail = async (employee, manager, review) => {
   try {
