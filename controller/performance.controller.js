@@ -78,24 +78,26 @@ export const updatePerformanceSettings = async (req, res) => {
   }
 
   try {
+    // Build update object with only provided fields
+    const updateData = {};
+    if (defaultRatingScale !== undefined) updateData.defaultRatingScale = defaultRatingScale;
+    if (allowSelfReview !== undefined) updateData.allowSelfReview = allowSelfReview;
+    if (requireManagerReview !== undefined) updateData.requireManagerReview = requireManagerReview;
+    if (enableEmailNotifications !== undefined) updateData.enableEmailNotifications = enableEmailNotifications;
+    if (reminderDaysBefore !== undefined) updateData.reminderDaysBefore = reminderDaysBefore;
+
     const settings = await prisma.performanceSettings.upsert({
       where: { companyId },
 
-      update: {
-        defaultRatingScale,
-        allowSelfReview,
-        requireManagerReview,
-        enableEmailNotifications,
-        reminderDaysBefore,
-      },
+      update: updateData,
 
       create: {
         companyId,
-        defaultRatingScale,
-        allowSelfReview,
-        requireManagerReview,
-        enableEmailNotifications,
-        reminderDaysBefore,
+        defaultRatingScale: defaultRatingScale || "FIVE_POINT",
+        allowSelfReview: allowSelfReview ?? true,
+        requireManagerReview: requireManagerReview ?? true,
+        enableEmailNotifications: enableEmailNotifications ?? true,
+        reminderDaysBefore: reminderDaysBefore || 7,
       },
     });
 
