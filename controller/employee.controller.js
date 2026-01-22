@@ -576,12 +576,8 @@ export const updateEmployeeProfile = async (req, res) => {
       ? updateData.role 
       : updatedEmployee.role;
 
-    if (wasManager) {
-      if (roleChanged && finalRole !== "MANAGER") {
-        await removeDepartmentManager(employee.id, companyId);
-      } else if (departmentChanged || updateData.departmentId === null) {
-        await removeDepartmentManager(employee.id, companyId);
-      }
+    if (wasManager && (roleChanged && finalRole !== "MANAGER" || departmentChanged)) {
+      await removeDepartmentManager(employee.id, companyId);
     }
 
     if (finalRole === "MANAGER" && finalDepartmentId) {
