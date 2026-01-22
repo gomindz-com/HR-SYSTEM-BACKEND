@@ -6,6 +6,66 @@ import {
   ICON_TYPES,
 } from "../lib/activity-utils.js";
 import { getDepartmentFilter } from "../utils/access-control.utils.js";
+
+/**
+ * Helper function to automatically assign manager to department
+ * when an employee's role is updated to MANAGER
+ * Only assigns if department has no manager OR current manager is ADMIN
+ * Prevents having two non-admin managers in the same department
+ */
+const assignDepartmentManager = async (employeeId, departmentId, companyId) => {
+  if (!departmentId) {
+    return; // No department, nothing to do
+  }
+
+  try {
+    // Get the department and check current manager
+    const department = await prisma.department.findFirst({
+      where: {
+        id: departmentId,
+        companyId,
+      },
+      include: {
+        manager: {
+          select: {
+            id: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!department) {
+      return; // Department doesn't exist
+    }
+
+    // Only assign if:
+    // 1. Department has no manager (managerId is null), OR
+    // 2. Current manager is ADMIN (can be overridden)
+    // Do NOT assign if current manager is a non-admin (prevents two managers)
+    const shouldUpdateManager =
+      !department.managerId ||
+      (department.manager && department.manager.role === "ADMIN");
+
+    if (shouldUpdateManager) {
+      await prisma.department.update({
+        where: { id: departmentId },
+        data: { managerId: employeeId },
+      });
+      console.log(
+        `Automatically assigned employee ${employeeId} as manager of department ${departmentId}`
+      );
+    } else if (department.managerId && department.manager && department.manager.role !== "ADMIN") {
+      console.log(
+        `Cannot assign employee ${employeeId} as manager: Department ${departmentId} already has a non-admin manager (ID: ${department.managerId})`
+      );
+    }
+  } catch (error) {
+    console.error("Error assigning department manager:", error);
+    // Don't throw - this is a helper function, shouldn't break main flow
+  }
+};
+
 export const listEmployees = async (req, res) => {
   const companyId = req.user.companyId;
 
@@ -219,6 +279,19 @@ export const updateEmployee = async (req, res) => {
       where: { id: parseInt(id) },
       data: updateData,
     });
+
+    // If role is being updated to MANAGER, automatically assign as department manager
+    // Also handle if departmentId changes and employee is already a MANAGER
+    const finalDepartmentId = updateData.departmentId || updatedEmployee.departmentId;
+    const finalRole = updateData.role || updatedEmployee.role;
+    
+    if (finalDepartmentId && finalRole === "MANAGER") {
+      await assignDepartmentManager(
+        updatedEmployee.id,
+        finalDepartmentId,
+        companyId
+      );
+    }
 
     // Create activity for employee update
     await createActivity({
@@ -482,6 +555,19 @@ export const updateEmployeeProfile = async (req, res) => {
         },
       },
     });
+
+    // If role is being updated to MANAGER, automatically assign as department manager
+    // Also handle if departmentId changes and employee is already a MANAGER
+    const finalDepartmentId = updateData.departmentId || updatedEmployee.departmentId;
+    const finalRole = updateData.role || updatedEmployee.role;
+    
+    if (finalDepartmentId && finalRole === "MANAGER") {
+      await assignDepartmentManager(
+        updatedEmployee.id,
+        finalDepartmentId,
+        companyId
+      );
+    }
 
     // Create activity for employee profile update
     await createActivity({

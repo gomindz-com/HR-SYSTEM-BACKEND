@@ -521,6 +521,53 @@ export const acceptInvitation = async (req, res) => {
       },
     });
 
+    // If role is MANAGER, automatically assign as department manager
+    if (invitation.role === "MANAGER" && invitation.departmentId) {
+      try {
+        const department = await prisma.department.findFirst({
+          where: {
+            id: invitation.departmentId,
+            companyId: invitation.companyId,
+          },
+          include: {
+            manager: {
+              select: {
+                id: true,
+                role: true,
+              },
+            },
+          },
+        });
+
+        if (department) {
+          // Only assign if:
+          // 1. Department has no manager (managerId is null), OR
+          // 2. Current manager is ADMIN (can be overridden)
+          // Do NOT assign if current manager is a non-admin (prevents two managers)
+          const shouldUpdateManager =
+            !department.managerId ||
+            (department.manager && department.manager.role === "ADMIN");
+
+          if (shouldUpdateManager) {
+            await prisma.department.update({
+              where: { id: invitation.departmentId },
+              data: { managerId: newEmployee.id },
+            });
+            console.log(
+              `Automatically assigned employee ${newEmployee.id} as manager of department ${invitation.departmentId} during invitation acceptance`
+            );
+          } else if (department.managerId && department.manager && department.manager.role !== "ADMIN") {
+            console.log(
+              `Cannot assign employee ${newEmployee.id} as manager: Department ${invitation.departmentId} already has a non-admin manager (ID: ${department.managerId})`
+            );
+          }
+        }
+      } catch (managerError) {
+        console.error("Error assigning department manager during invitation:", managerError);
+        // Don't fail the invitation acceptance if manager assignment fails
+      }
+    }
+
     await prisma.invitation.update({
       where: { id: invitation.id },
       data: { status: "ACCEPTED" },
