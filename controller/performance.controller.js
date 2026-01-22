@@ -1607,6 +1607,8 @@ export const submitSelfReview = async (req, res) => {
     });
     const enableEmailNotifications = settings?.enableEmailNotifications ?? true;
 
+    const allowManagersReview = settings?.requireManagerReview ?? true;
+
     const review = await prisma.review.findFirst({
       where: { id: reviewId, subjectId: userId },
     });
@@ -1634,7 +1636,7 @@ export const submitSelfReview = async (req, res) => {
     const updatedReview = await prisma.review.update({
       where: { id: reviewId },
       data: {
-        status: "PENDING_MANAGER",
+        status: allowManagersReview ? "PENDING_MANAGER" : "COMPLETED",
         selfReviewCompletedAt: new Date(),
         employeeRating,
       },
@@ -1648,7 +1650,7 @@ export const submitSelfReview = async (req, res) => {
     });
 
     // Send notification and email to manager
-    if (updatedReview.manager) {
+    if (updatedReview.manager && allowManagersReview) {
       try {
         // Create notification for manager
         await createNotification({
@@ -1677,7 +1679,7 @@ export const submitSelfReview = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Self review submitted successfully",
-      data: review,
+      data: updatedReview,
     });
   } catch (error) {
     console.log("Error submitting self review:", error);
@@ -1813,8 +1815,8 @@ export const finalizeReview = async (req, res) => {
 
     // Validate HR rating input
     if (!hrRating || hrRating < 1 || hrRating > 5) {
-      return res.status(400).json({ 
-        message: "HR rating is required and must be between 1 and 5" 
+      return res.status(400).json({
+        message: "HR rating is required and must be between 1 and 5"
       });
     }
 
@@ -1826,7 +1828,7 @@ export const finalizeReview = async (req, res) => {
     // Calculate average rating from three ratings
     let averageRating = null;
     let averageRatingLabel = null;
-    
+
     const ratings = [];
     if (employeeRating !== null) ratings.push(employeeRating);
     if (overallRating !== null) ratings.push(overallRating);
@@ -1922,10 +1924,10 @@ export const finalizeReview = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Review finalized successfully",
-      data: { 
-        reviewId, 
+      data: {
+        reviewId,
         employeeRating,
-        overallRating, 
+        overallRating,
         hrRating: finalHrRating,
         averageRating,
         averageRatingLabel,
