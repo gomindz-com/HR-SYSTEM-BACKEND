@@ -646,7 +646,8 @@ export const activateCycle = async (req, res) => {
         .status(404)
         .json({ message: "No employees eligible for review" });
 
-    // Validate: Check for employees without managers
+    // Check for employees without managers (for informational purposes)
+    // Reviews for employees without managers will go directly to COMPLETED when submitted
     const employeesWithoutManagers = employees.filter(
       (emp) => !emp.department?.managerId
     );
@@ -655,19 +656,9 @@ export const activateCycle = async (req, res) => {
       const employeeNames = employeesWithoutManagers
         .map((e) => e.name)
         .join(", ");
-      return res.status(400).json({
-        success: false,
-        message: "Some employees do not have assigned managers",
-        error: "MANAGER_MISSING",
-        employeesWithoutManagers: employeesWithoutManagers.map((e) => ({
-          id: e.id,
-          name: e.name,
-          email: e.email,
-          department: e.department?.name || "No Department",
-          departmentId: e.departmentId,
-        })),
-        details: `The following ${employeesWithoutManagers.length} employee(s) need managers assigned: ${employeeNames}. Please assign managers to their departments before activating the review cycle.`,
-      });
+      console.warn(
+        `Warning: ${employeesWithoutManagers.length} employee(s) without managers: ${employeeNames}. Their reviews will go directly to COMPLETED status when submitted.`
+      );
     }
 
     // create review in a  transaction
@@ -1614,6 +1605,13 @@ export const submitSelfReview = async (req, res) => {
 
     const review = await prisma.review.findFirst({
       where: { id: reviewId, subjectId: userId },
+      include: {
+        manager: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!review) return res.status(404).json({ message: "Review not found" });
@@ -1636,10 +1634,19 @@ export const submitSelfReview = async (req, res) => {
       employeeRating = sum / selfResponses.length;
     }
 
+    // Determine next status:
+    // - If manager review is not required → COMPLETED
+    // - If manager review is required but employee has no manager → COMPLETED (skip manager step)
+    // - If manager review is required and employee has manager → PENDING_MANAGER
+    const hasManager = review.managerId !== null && review.manager !== null;
+    const nextStatus = allowManagersReview && hasManager 
+      ? "PENDING_MANAGER" 
+      : "COMPLETED";
+
     const updatedReview = await prisma.review.update({
       where: { id: reviewId },
       data: {
-        status: allowManagersReview ? "PENDING_MANAGER" : "COMPLETED",
+        status: nextStatus,
         selfReviewCompletedAt: new Date(),
         employeeRating,
       },
@@ -1652,8 +1659,8 @@ export const submitSelfReview = async (req, res) => {
       },
     });
 
-    // Send notification and email to manager
-    if (updatedReview.manager && allowManagersReview) {
+    // Send notification and email to manager (only if manager exists and manager review is required)
+    if (updatedReview.manager && allowManagersReview && hasManager) {
       try {
         // Create notification for manager
         await createNotification({
@@ -1679,8 +1686,8 @@ export const submitSelfReview = async (req, res) => {
       }
     }
 
-    // When manager review not required: notify and email admins (HR) that review is ready for finalization
-    if (!allowManagersReview) {
+    // When manager review not required OR employee has no manager: notify and email admins (HR) that review is ready for finalization
+    if (!allowManagersReview || !hasManager) {
       try {
         const admins = await prisma.employee.findMany({
           where: { companyId, role: "ADMIN" },
@@ -1689,10 +1696,14 @@ export const submitSelfReview = async (req, res) => {
 
         for (const admin of admins) {
           try {
+            const message = !hasManager
+              ? `${updatedReview.subject.name} has submitted their self-review. No manager assigned, so it is ready for HR finalization.`
+              : `${updatedReview.subject.name} has submitted their self-review. It is ready for HR finalization.`;
+            
             await createNotification({
               companyId,
               userId: admin.id,
-              message: `${updatedReview.subject.name} has submitted their self-review. It is ready for HR finalization.`,
+              message,
               type: "REVIEW",
               category: NOTIFICATION_CATEGORIES.PERFORMANCE,
               priority: NOTIFICATION_PRIORITIES.NORMAL,
