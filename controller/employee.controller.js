@@ -7,42 +7,19 @@ import {
 } from "../lib/activity-utils.js";
 import { getDepartmentFilter } from "../utils/access-control.utils.js";
 
-/**
- * Helper function to automatically assign manager to department
- * when an employee's role is updated to MANAGER
- * Only assigns if department has no manager OR current manager is ADMIN
- * Prevents having two non-admin managers in the same department
- */
 const assignDepartmentManager = async (employeeId, departmentId, companyId) => {
-  if (!departmentId) {
-    return; // No department, nothing to do
-  }
+  if (!departmentId) return;
 
   try {
-    // Get the department and check current manager
     const department = await prisma.department.findFirst({
-      where: {
-        id: departmentId,
-        companyId,
-      },
+      where: { id: departmentId, companyId },
       include: {
-        manager: {
-          select: {
-            id: true,
-            role: true,
-          },
-        },
+        manager: { select: { id: true, role: true } },
       },
     });
 
-    if (!department) {
-      return; // Department doesn't exist
-    }
+    if (!department) return;
 
-    // Only assign if:
-    // 1. Department has no manager (managerId is null), OR
-    // 2. Current manager is ADMIN (can be overridden)
-    // Do NOT assign if current manager is a non-admin (prevents two managers)
     const shouldUpdateManager =
       !department.managerId ||
       (department.manager && department.manager.role === "ADMIN");
@@ -52,17 +29,26 @@ const assignDepartmentManager = async (employeeId, departmentId, companyId) => {
         where: { id: departmentId },
         data: { managerId: employeeId },
       });
-      console.log(
-        `Automatically assigned employee ${employeeId} as manager of department ${departmentId}`
-      );
-    } else if (department.managerId && department.manager && department.manager.role !== "ADMIN") {
-      console.log(
-        `Cannot assign employee ${employeeId} as manager: Department ${departmentId} already has a non-admin manager (ID: ${department.managerId})`
-      );
     }
   } catch (error) {
     console.error("Error assigning department manager:", error);
-    // Don't throw - this is a helper function, shouldn't break main flow
+  }
+};
+
+const removeDepartmentManager = async (employeeId, companyId) => {
+  try {
+    const departments = await prisma.department.findMany({
+      where: { managerId: employeeId, companyId },
+    });
+
+    for (const dept of departments) {
+      await prisma.department.update({
+        where: { id: dept.id },
+        data: { managerId: null },
+      });
+    }
+  } catch (error) {
+    console.error("Error removing department manager:", error);
   }
 };
 
@@ -269,28 +255,44 @@ export const updateEmployee = async (req, res) => {
   const updateData = {};
 
   allowedUpdates.forEach((field) => {
-    if (req.body[field]) {
-      updateData[field] = req.body[field];
+    const value = req.body[field];
+    if (value === undefined) return;
+    
+    if (field === "departmentId" && (value === "" || value === null)) {
+      updateData[field] = null;
+      return;
+    }
+    
+    if (value) {
+      updateData[field] = value;
     }
   });
 
   try {
+    const roleChanged = updateData.role !== undefined && updateData.role !== employee.role;
+    const departmentChanged = updateData.departmentId !== undefined && 
+      updateData.departmentId !== employee.departmentId;
+    const wasManager = employee.role === "MANAGER";
+    const oldDepartmentId = employee.departmentId;
+
     const updatedEmployee = await prisma.employee.update({
       where: { id: parseInt(id) },
       data: updateData,
     });
 
-    // If role is being updated to MANAGER, automatically assign as department manager
-    // Also handle if departmentId changes and employee is already a MANAGER
-    const finalDepartmentId = updateData.departmentId || updatedEmployee.departmentId;
-    const finalRole = updateData.role || updatedEmployee.role;
-    
-    if (finalDepartmentId && finalRole === "MANAGER") {
-      await assignDepartmentManager(
-        updatedEmployee.id,
-        finalDepartmentId,
-        companyId
-      );
+    const finalDepartmentId = updateData.departmentId !== undefined 
+      ? updateData.departmentId 
+      : updatedEmployee.departmentId;
+    const finalRole = updateData.role !== undefined 
+      ? updateData.role 
+      : updatedEmployee.role;
+
+    if (wasManager && (roleChanged && finalRole !== "MANAGER" || departmentChanged)) {
+      await removeDepartmentManager(employee.id, companyId);
+    }
+
+    if (finalRole === "MANAGER" && finalDepartmentId) {
+      await assignDepartmentManager(updatedEmployee.id, finalDepartmentId, companyId);
     }
 
     // Create activity for employee update
@@ -325,21 +327,23 @@ export const deleteEmployee = async (req, res) => {
   }
 
   try {
-    const employee = await prisma.employee.update({
-      where: {
-        id: parseInt(id),
-        companyId,
-      },
-      data: {
-        deleted: true,
-      },
+    const employee = await prisma.employee.findFirst({
+      where: { id: parseInt(id), companyId },
     });
 
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    // Create activity for employee deletion
+    if (employee.role === "MANAGER") {
+      await removeDepartmentManager(employee.id, companyId);
+    }
+
+    await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: { deleted: true },
+    });
+
     await createActivity({
       companyId,
       type: ACTIVITY_TYPES.EMPLOYEE_DELETED,
@@ -513,10 +517,13 @@ export const updateEmployeeProfile = async (req, res) => {
   allowedUpdates.forEach((field) => {
     const value = req.body[field];
 
-    // Skip undefined values
     if (value === undefined) return;
 
-    // Skip empty strings
+    if (field === "departmentId" && (value === "" || value === null)) {
+      updateData[field] = null;
+      return;
+    }
+
     if (value === "" || value === null) return;
 
     updateData[field] = value;
@@ -543,6 +550,12 @@ export const updateEmployeeProfile = async (req, res) => {
   }
 
   try {
+    const roleChanged = updateData.role !== undefined && updateData.role !== employee.role;
+    const departmentChanged = updateData.departmentId !== undefined && 
+      updateData.departmentId !== employee.departmentId;
+    const wasManager = employee.role === "MANAGER";
+    const oldDepartmentId = employee.departmentId;
+
     const updatedEmployee = await prisma.employee.update({
       where: { id: parseInt(id) },
       data: updateData,
@@ -556,17 +569,23 @@ export const updateEmployeeProfile = async (req, res) => {
       },
     });
 
-    // If role is being updated to MANAGER, automatically assign as department manager
-    // Also handle if departmentId changes and employee is already a MANAGER
-    const finalDepartmentId = updateData.departmentId || updatedEmployee.departmentId;
-    const finalRole = updateData.role || updatedEmployee.role;
-    
-    if (finalDepartmentId && finalRole === "MANAGER") {
-      await assignDepartmentManager(
-        updatedEmployee.id,
-        finalDepartmentId,
-        companyId
-      );
+    const finalDepartmentId = updateData.departmentId !== undefined 
+      ? updateData.departmentId 
+      : updatedEmployee.departmentId;
+    const finalRole = updateData.role !== undefined 
+      ? updateData.role 
+      : updatedEmployee.role;
+
+    if (wasManager) {
+      if (roleChanged && finalRole !== "MANAGER") {
+        await removeDepartmentManager(employee.id, companyId);
+      } else if (departmentChanged || updateData.departmentId === null) {
+        await removeDepartmentManager(employee.id, companyId);
+      }
+    }
+
+    if (finalRole === "MANAGER" && finalDepartmentId) {
+      await assignDepartmentManager(updatedEmployee.id, finalDepartmentId, companyId);
     }
 
     // Create activity for employee profile update
