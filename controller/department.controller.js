@@ -46,7 +46,7 @@ export const addDepartment = async (req, res) => {
       return res.status(400).json({ message: "Department already exists" });
     }
     const department = await prisma.department.create({
-      data: { name, companyId, managerId: id },
+      data: { name, companyId, managerId: null },
     });
     res.status(201).json({
       message: "Department created successfully",
