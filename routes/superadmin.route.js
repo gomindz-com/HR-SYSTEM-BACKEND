@@ -6,6 +6,10 @@ import {
   getCompanyStats,
   getPaymentDetail,
   getPayments,
+  getSubscriptionTrends,
+  getSubscriptionDistribution,
+  getSubscriptionStats,
+  getSubscriptionRevenue,
 } from "../controller/superadmin.controller.js";
 
 const router = express.Router();
@@ -21,9 +25,13 @@ router.get("/company-stats", getCompanyStats);
 
 router.get("/company/:id", getCompanyDetail);
 
+// Subscription analytics routes
+router.get("/subscriptions/trends", getSubscriptionTrends);
+router.get("/subscriptions/distribution", getSubscriptionDistribution);
+router.get("/subscriptions/stats", getSubscriptionStats);
+router.get("/subscriptions/revenue", getSubscriptionRevenue);
 
-
-
+//Get payment
 router.get("/payments", getPayments);
 router.get("/payment/:id",getPaymentDetail)
 

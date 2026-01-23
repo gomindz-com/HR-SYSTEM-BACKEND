@@ -112,6 +112,364 @@ export const getCompanies = async (req, res) => {
   }
 };
 
+
+// controllers/subscriptionController.js
+
+export const getSubscriptionTrends = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { months = 6 } = req.query;
+    const monthsToShow = parseInt(months, 10);
+
+    // Get all subscriptions with necessary fields
+    const subscriptions = await prisma.subscription.findMany({
+      select: {
+        status: true,
+        createdAt: true,
+        trialEndDate: true,
+        startDate: true,
+        endDate: true,
+      },
+    });
+
+    // Process data into monthly buckets
+    const monthlyData = processSubscriptionTrends(subscriptions, monthsToShow);
+
+    res.status(200).json({
+      success: true,
+      data: monthlyData,
+    });
+  } catch (error) {
+    console.error("Error fetching subscription trends:", error);
+    res.status(500).json({
+      message: "Failed to fetch subscription trends",
+      error: error.message,
+    });
+  }
+};
+
+export const getSubscriptionDistribution = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    // Get counts by status
+    const statusCounts = await prisma.subscription.groupBy({
+      by: ["status"],
+      _count: {
+        status: true,
+      },
+    });
+
+    // Format for the chart
+    const distribution = {
+      active: 0,
+      trial: 0,
+      expired: 0,
+      pending: 0,
+      cancelled: 0,
+    };
+
+    statusCounts.forEach((item) => {
+      const count = item._count.status;
+
+      switch (item.status) {
+        case "ACTIVE":
+          distribution.active = count;
+          break;
+        case "TRIAL":
+          distribution.trial = count;
+          break;
+        case "EXPIRED":
+          distribution.expired = count;
+          break;
+        case "PENDING":
+          distribution.pending = count;
+          break;
+        case "CANCELLED":
+          distribution.cancelled = count;
+          break;
+      }
+    });
+
+    // Get total count
+    const totalCount = await prisma.subscription.count();
+
+    res.status(200).json({
+      success: true,
+      data: distribution,
+      totalCount,
+    });
+  } catch (error) {
+    console.error("Error fetching subscription distribution:", error);
+    res.status(500).json({
+      message: "Failed to fetch subscription distribution",
+      error: error.message,
+    });
+  }
+};
+
+export const getSubscriptionStats = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Get various subscription statistics
+    const [
+      totalSubscriptions,
+      activeSubscriptions,
+      trialSubscriptions,
+      expiredSubscriptions,
+      newSubscriptionsThisMonth,
+      expiringThisMonth,
+    ] = await Promise.all([
+      // Total subscriptions
+      prisma.subscription.count(),
+
+      // Active subscriptions
+      prisma.subscription.count({
+        where: { status: "ACTIVE" },
+      }),
+
+      // Trial subscriptions
+      prisma.subscription.count({
+        where: { status: "TRIAL" },
+      }),
+
+      // Expired subscriptions
+      prisma.subscription.count({
+        where: {
+          OR: [{ status: "EXPIRED" }, { status: "CANCELLED" }],
+        },
+      }),
+
+      // New subscriptions in last 30 days
+      prisma.subscription.count({
+        where: {
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+      }),
+
+      // Subscriptions expiring this month
+      prisma.subscription.count({
+        where: {
+          endDate: {
+            gte: new Date(now.getFullYear(), now.getMonth(), 1),
+            lte: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+          },
+          status: "ACTIVE",
+        },
+      }),
+    ]);
+
+    // Calculate growth rate
+    const previousMonthStart = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1
+    );
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const subscriptionsLastMonth = await prisma.subscription.count({
+      where: {
+        createdAt: {
+          gte: previousMonthStart,
+          lte: previousMonthEnd,
+        },
+      },
+    });
+
+    const growthRate =
+      subscriptionsLastMonth > 0
+        ? ((newSubscriptionsThisMonth - subscriptionsLastMonth) /
+            subscriptionsLastMonth) *
+          100
+        : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total: totalSubscriptions,
+        active: activeSubscriptions,
+        trial: trialSubscriptions,
+        expired: expiredSubscriptions,
+        newThisMonth: newSubscriptionsThisMonth,
+        expiringThisMonth,
+        growthRate: Math.round(growthRate * 100) / 100,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching subscription stats:", error);
+    res.status(500).json({
+      message: "Failed to fetch subscription statistics",
+      error: error.message,
+    });
+  }
+};
+
+export const getSubscriptionRevenue = async (req, res) => {
+  try {
+    // Check if user has SUPER_ADMIN role
+    if (req.user?.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Forbidden: Super admin access required",
+      });
+    }
+
+    const { months = 6 } = req.query;
+    const monthsToShow = parseInt(months, 10);
+
+    // Get completed payments with subscription details
+    const payments = await prisma.payment.findMany({
+      where: {
+        status: "COMPLETED",
+      },
+      include: {
+        subscription: {
+          include: {
+            plan: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // Process revenue by month
+    const revenueData = processRevenueByMonth(payments, monthsToShow);
+
+    res.status(200).json({
+      success: true,
+      data: revenueData,
+    });
+  } catch (error) {
+    console.error("Error fetching subscription revenue:", error);
+    res.status(500).json({
+      message: "Failed to fetch subscription revenue",
+      error: error.message,
+    });
+  }
+};
+
+// Helper function to process subscription trends
+function processSubscriptionTrends(subscriptions, monthsToShow) {
+  const now = new Date();
+  const monthlyStats = {};
+
+  // Initialize last N months
+  for (let i = monthsToShow - 1; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthKey = date.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+    monthlyStats[monthKey] = { active: 0, trial: 0, expired: 0 };
+  }
+
+  // Count subscriptions by status for each month
+  subscriptions.forEach((sub) => {
+    const createdDate = new Date(sub.createdAt);
+    const monthKey = createdDate.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+
+    if (monthlyStats[monthKey]) {
+      // Determine current status
+      const status = determineSubscriptionStatus(sub, now);
+
+      if (status === "ACTIVE") {
+        monthlyStats[monthKey].active++;
+      } else if (status === "TRIAL") {
+        monthlyStats[monthKey].trial++;
+      } else if (status === "EXPIRED" || status === "CANCELLED") {
+        monthlyStats[monthKey].expired++;
+      }
+    }
+  });
+
+  // Convert to array format
+  return Object.entries(monthlyStats).map(([month, stats]) => ({
+    month,
+    ...stats,
+  }));
+}
+
+// Helper function to determine subscription status
+function determineSubscriptionStatus(subscription, currentDate) {
+  const { status, trialEndDate, endDate } = subscription;
+
+  // Check if trial has expired
+  if (status === "TRIAL" && trialEndDate && new Date(trialEndDate) < currentDate) {
+    return "EXPIRED";
+  }
+
+  // Check if subscription has expired
+  if (status === "ACTIVE" && endDate && new Date(endDate) < currentDate) {
+    return "EXPIRED";
+  }
+
+  return status;
+}
+
+// Helper function to process revenue by month
+function processRevenueByMonth(payments, monthsToShow) {
+  const now = new Date();
+  const monthlyRevenue = {};
+
+  // Initialize last N months
+  for (let i = monthsToShow - 1; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthKey = date.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+    monthlyRevenue[monthKey] = { revenue: 0, count: 0 };
+  }
+
+  // Sum revenue by month
+  payments.forEach((payment) => {
+    const paidDate = new Date(payment.paidAt || payment.createdAt);
+    const monthKey = paidDate.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+
+    if (monthlyRevenue[monthKey]) {
+      monthlyRevenue[monthKey].revenue += payment.amount;
+      monthlyRevenue[monthKey].count++;
+    }
+  });
+
+  // Convert to array format
+  return Object.entries(monthlyRevenue).map(([month, data]) => ({
+    month,
+    revenue: Math.round(data.revenue * 100) / 100,
+    count: data.count,
+  }));
+}
+
+
 // Get company statistics
 export const getCompanyStats = async (req, res) => {
   try {
