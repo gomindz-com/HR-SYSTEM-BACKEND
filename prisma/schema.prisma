@@ -56,7 +56,7 @@ model CompanyLocation {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   attendances Attendance[]
-  company     Company      @relation(fields: [companyId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model Employee {
@@ -93,7 +93,7 @@ model Employee {
   attendances              Attendance[]             @relation("EmployeeAttendance")
   hrForCompanies           Company[]                @relation("Company_hr")
   managedDepartments       Department[]             @relation("DepartmentManager")
-  company                  Company?                 @relation(fields: [companyId], references: [id])
+  company                  Company?                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department               Department?              @relation(fields: [departmentId], references: [id])
   EmployeeBenefit          EmployeeBenefit[]
   EmployeePayrollProfile   EmployeePayrollProfile?
@@ -119,7 +119,7 @@ model Department {
   managerId  Int?
   createdAt  DateTime     @default(now())
   companyId  Int
-  company    Company      @relation(fields: [companyId], references: [id])
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   manager    Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
   employees  Employee[]
   Invitation Invitation[]
@@ -136,8 +136,8 @@ model Attendance {
   status     AttendanceStatus
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
-  company    Company          @relation(fields: [companyId], references: [id])
-  employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id])
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id], onDelete: Cascade)
   location   CompanyLocation? @relation(fields: [locationId], references: [id])
 
   @@unique([employeeId, date])
@@ -163,8 +163,8 @@ model LeaveRequest {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @default(now())
   approver         Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
-  company          Company     @relation(fields: [companyId], references: [id])
-  employee         Employee    @relation(fields: [employeeId], references: [id])
+  company          Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee         Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model Calendar {
@@ -178,7 +178,7 @@ model Calendar {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company   Company   @relation(fields: [companyId], references: [id])
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy Employee? @relation(fields: [createdById], references: [id])
 
   @@index([companyId])
@@ -216,8 +216,8 @@ model Payroll {
   notes               String?
   hoursWorked         Float?        @default(0)
   createdAt           DateTime      @default(now())
-  company             Company       @relation(fields: [companyId], references: [id])
-  employee            Employee      @relation(fields: [employeeId], references: [id])
+  company             Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee            Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   finalizedByUser     Employee?     @relation("Payroll_finalizedByToEmployee", fields: [finalizedBy], references: [id])
 }
 
@@ -233,7 +233,7 @@ model Notification {
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  company   Company                @relation(fields: [companyId], references: [id])
+  company   Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user      Employee?              @relation(fields: [userId], references: [id])
   userReads UserNotificationRead[]
 
@@ -248,7 +248,7 @@ model UserNotificationRead {
   readAt         DateTime @default(now())
   hidden         Boolean  @default(false)
 
-  user         Employee     @relation(fields: [userId], references: [id])
+  user         Employee     @relation(fields: [userId], references: [id], onDelete: Cascade)
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, notificationId])
@@ -271,8 +271,8 @@ model Invitation {
   expiresAt    DateTime
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
-  company      Company          @relation(fields: [companyId], references: [id])
-  department   Department       @relation(fields: [departmentId], references: [id])
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   inviter      Employee         @relation(fields: [invitedBy], references: [id])
 }
 
@@ -285,7 +285,7 @@ model Activity {
   priority    String   @default("NORMAL")
   icon        String   @default("default")
   createdAt   DateTime @default(now())
-  company     Company  @relation(fields: [companyId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeBenefit {
@@ -297,8 +297,8 @@ model EmployeeBenefit {
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime
-  Company     Company         @relation(fields: [companyId], references: [id])
-  Employee    Employee        @relation(fields: [employeeId], references: [id])
+  Company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  Employee    Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeePayrollProfile {
@@ -309,7 +309,7 @@ model EmployeePayrollProfile {
   customTaxRate      Float?   @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime
-  Employee           Employee @relation(fields: [employeeId], references: [id])
+  Employee           Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model Document {
@@ -327,7 +327,7 @@ model Document {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   employee     Employee?        @relation(fields: [employeeId], references: [id])
-  company      Company          @relation(fields: [companyId], references: [id])
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   uploader     Employee         @relation("DocumentUploader", fields: [uploadedBy], references: [id])
 }
 
@@ -448,7 +448,7 @@ model Subscription {
   endDate      DateTime?
   createdAt    DateTime           @default(now())
 
-  company  Company          @relation(fields: [companyId], references: [id])
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   plan     SubscriptionPlan @relation(fields: [planId], references: [id])
   payments Payment[]
 }
@@ -463,8 +463,8 @@ model Payment {
   paidAt            DateTime?
   createdAt         DateTime      @default(now())
 
-  company      Company      @relation(fields: [companyId], references: [id])
-  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 }
 
 enum SubscriptionStatus {
@@ -491,7 +491,7 @@ model WorkdayDaysConfig {
   friday    Boolean @default(true)
   saturday  Boolean @default(false)
   sunday    Boolean @default(false)
-  company   Company @relation(fields: [companyId], references: [id])
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeWorkDaysConfig {
@@ -504,7 +504,7 @@ model EmployeeWorkDaysConfig {
   friday     Boolean  @default(true)
   saturday   Boolean  @default(false)
   sunday     Boolean  @default(false)
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -520,7 +520,7 @@ model PerformanceSettings {
   enableEmailNotifications Boolean     @default(true)
   reminderDaysBefore       Int         @default(7)
 
-  company   Company  @relation(fields: [companyId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -534,7 +534,7 @@ model ReviewTemplate {
   ratingScale RatingScale @default(FIVE_POINT)
   isActive    Boolean     @default(true)
 
-  company      Company         @relation(fields: [companyId], references: [id])
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sections     ReviewSection[]
   reviewCycles ReviewCycle[]
 
@@ -593,7 +593,7 @@ model ReviewCycle {
   managerReviewDueDate DateTime?
   status               CycleStatus @default(DRAFT)
 
-  company  Company         @relation(fields: [companyId], references: [id])
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   template ReviewTemplate? @relation(fields: [templateId], references: [id])
   reviews  Review[]
 
@@ -628,7 +628,7 @@ model Review {
   averageRatingLabel String?
 
   cycle     ReviewCycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  subject   Employee         @relation("ReviewSubject", fields: [subjectId], references: [id])
+  subject   Employee         @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
   manager   Employee?        @relation("ReviewManager", fields: [managerId], references: [id])
   responses ReviewResponse[]
 
@@ -653,7 +653,7 @@ model ReviewResponse {
   selectedOptions String[]
 
   review Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  author Employee @relation(fields: [authorId], references: [id])
+  author Employee @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
