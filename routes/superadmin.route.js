@@ -10,6 +10,8 @@ import {
   getLifetimeCompanies,
   listSubscriptions,
   updateSubscription,
+  getPaymentDetail,
+  getPayments,
 } from "../controller/superadmin.controller.js";
 
 const router = express.Router();
@@ -37,6 +39,13 @@ router.get("/company/:id", getCompanyDetail);
 // Subscription management
 router.get("/subscriptions", listSubscriptions);
 router.patch("/subscription/:id", updateSubscription);
+
+
+
+
+router.get("/payments", getPayments);
+router.get("/payment/:id",getPaymentDetail)
+
 
 export default router;
 
