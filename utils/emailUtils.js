@@ -128,53 +128,6 @@ const sendSalaryUpdateEmail = async (
   }
 };
 
-const sendPayrollSettingsEmail = async (employee, updatedSettings) => {
-  try {
-    const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
-    const fromName =
-      (process.env.RESEND_FROM_NAME &&
-        process.env.RESEND_FROM_NAME.trim()) ||
-      "GOMINDZ HR SYSTEM";
-
-    const emailContent = {
-      from: `${fromName} <${fromEmail}>`,
-      to: employee.email,
-      subject: "Payroll Settings Update",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
-            <h2 style="color: #ffc107; margin-top: 0;">Payroll Settings Updated</h2>
-            <p>Dear ${employee.name},</p>
-            <p>Your payroll settings have been updated. Please review the changes below:</p>
-            
-            <div style="background: #ffffff; padding: 15px; border-radius: 6px; margin: 20px 0; border: 1px solid #dee2e6;">
-              <h3 style="color: #495057; margin-top: 0;">Updated Settings:</h3>
-              ${updatedSettings.taxBracket !== undefined ? `<p><strong>Tax Bracket:</strong> ${updatedSettings.taxBracket}</p>` : ""}
-              ${updatedSettings.socialSecurityRate !== undefined ? `<p><strong>Social Security Rate:</strong> ${(updatedSettings.socialSecurityRate * 100).toFixed(2)}%</p>` : ""}
-              ${updatedSettings.customTaxRate !== undefined ? `<p><strong>Custom Tax Rate:</strong> ${(updatedSettings.customTaxRate * 100).toFixed(2)}%</p>` : ""}
-            </div>
-            
-            <p>These settings will be applied to your next payroll calculation.</p>
-            <p>If you have any questions about these changes, please contact the HR department.</p>
-            <p>Best regards,<br>HR Team</p>
-          </div>
-        </div>
-      `,
-    };
-
-    await transporter.sendMail(emailContent);
-    console.log(
-      `Payroll settings email sent successfully to ${employee.email}`
-    );
-  } catch (error) {
-    console.error(
-      `Failed to send payroll settings email to ${employee.email}:`,
-      error
-    );
-  }
-};
-
 const sendBonusUpdateEmail = async (employee, oldBonus, newBonus) => {
   try {
     const fromEmail =
@@ -223,6 +176,5 @@ const sendBonusUpdateEmail = async (employee, oldBonus, newBonus) => {
 export {
   sendBenefitEmail,
   sendSalaryUpdateEmail,
-  sendPayrollSettingsEmail,
   sendBonusUpdateEmail,
 };
