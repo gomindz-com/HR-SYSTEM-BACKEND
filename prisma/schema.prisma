@@ -23,6 +23,7 @@ model Company {
   checkInDeadline     Int                  @default(15)
   lateThreshold2      Int                  @default(15)
   checkInDeadline2    Int                  @default(15)
+  employerSocialSecurityRate Float @default(0.10)
   hasLifetimeAccess   Boolean              @default(false)
   createdAt           DateTime             @default(now())
   activities          Activity[]
@@ -305,7 +306,7 @@ model EmployeePayrollProfile {
   id                 String   @id
   employeeId         Int      @unique
   taxBracket         String?
-  socialSecurityRate Float    @default(0)
+  socialSecurityRate Float    @default(0.05)
   customTaxRate      Float?   @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime
@@ -335,6 +336,7 @@ enum Role {
   STAFF
   MANAGER
   ADMIN
+  FINANCE
   SUPER_ADMIN
 }
 
