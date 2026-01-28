@@ -36,16 +36,15 @@ export const sendCycleActivatedEmail = async (employee, cycle) => {
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">End Date</p>
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(cycle.endDate).toLocaleDateString()}</p>
           </div>
-          ${
-            cycle.selfReviewDueDate
-              ? `
+          ${cycle.selfReviewDueDate
+        ? `
           <div>
             <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Self-Review Due</p>
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(cycle.selfReviewDueDate).toLocaleDateString()}</p>
           </div>
           `
-              : ""
-          }
+        : ""
+      }
         </div>
       </div>
 
@@ -70,8 +69,15 @@ export const sendCycleActivatedEmail = async (employee, cycle) => {
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: `Performance Review Cycle Started: ${cycle.name}`,
       html: htmlContent,
@@ -143,8 +149,15 @@ export const sendSelfReviewSubmittedEmail = async (manager, employee, review) =>
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: manager.email,
       subject: `Performance Review Ready: ${employee.name}'s Self-Review Submitted`,
       html: htmlContent,
@@ -212,8 +225,15 @@ export const sendReviewReadyForHrEmail = async (admin, employee, review) => {
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: admin.email,
       subject: `Performance Review Ready for Finalization: ${employee.name} – ${cycleName}`,
       html: htmlContent,
@@ -289,8 +309,15 @@ export const sendManagerReviewSubmittedEmail = async (employee, manager, review)
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Manager Review Completed - Performance Review Update",
       html: htmlContent,
@@ -395,8 +422,15 @@ export const sendReviewFinalizedEmail = async (employee, review) => {
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Performance Review Finalized - Action Required",
       html: htmlContent,
@@ -415,7 +449,7 @@ export const sendSelfReviewReminderEmail = async (employee, cycle, daysLeft) => 
   try {
     const urgencyColor = daysLeft <= 1 ? "#dc3545" : daysLeft <= 3 ? "#ffc107" : "#007bff";
     const urgencyText = daysLeft <= 1 ? "URGENT" : daysLeft <= 3 ? "Reminder" : "Friendly Reminder";
-    
+
     const htmlContent = `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
@@ -475,8 +509,15 @@ export const sendSelfReviewReminderEmail = async (employee, cycle, daysLeft) => 
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: `${daysLeft <= 1 ? "⚠️ URGENT: " : ""}Self-Review Due in ${daysLeft} Day${daysLeft !== 1 ? "s" : ""} - ${cycle.name}`,
       html: htmlContent,
@@ -495,7 +536,7 @@ export const sendManagerReviewReminderEmail = async (manager, employee, cycle, d
   try {
     const urgencyColor = daysLeft <= 1 ? "#dc3545" : daysLeft <= 3 ? "#ffc107" : "#17a2b8";
     const urgencyText = daysLeft <= 1 ? "URGENT" : daysLeft <= 3 ? "Reminder" : "Friendly Reminder";
-    
+
     const htmlContent = `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
@@ -566,8 +607,15 @@ export const sendManagerReviewReminderEmail = async (manager, employee, cycle, d
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: manager.email,
       subject: `${daysLeft <= 1 ? "⚠️ URGENT: " : ""}Manager Review Due in ${daysLeft} Day${daysLeft !== 1 ? "s" : ""} - ${employee.name}`,
       html: htmlContent,

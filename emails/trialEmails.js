@@ -90,8 +90,15 @@ export const sendTrialExpiringEmail = async (
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Trial Expiring in ${daysLeft} Day${daysLeft > 1 ? "s" : ""} - Upgrade Required`,
       html: htmlContent,
@@ -199,8 +206,15 @@ export const sendTrialExpiredEmail = async (company, subscription) => {
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Trial Period Ended - Upgrade Required`,
       html: htmlContent,

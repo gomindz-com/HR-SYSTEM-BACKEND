@@ -21,8 +21,15 @@ export const forgotPasswordEmail = async (to, url) => {
   </div>
 `;
 
+  const fromEmail =
+    process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+  const fromName =
+    (process.env.RESEND_FROM_NAME &&
+      process.env.RESEND_FROM_NAME.trim()) ||
+    "GOMINDZ HR SYSTEM";
+
   const mailOptions = {
-    from: `"HR System" <${process.env.GMAIL_USER}>`,
+    from: `${fromName} <${fromEmail}>`,
     to: to,
     subject: "Your HR System Account - Action Required",
     html: htmlContent,

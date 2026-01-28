@@ -31,8 +31,15 @@ export const sendVerificationEmail = async (to, token, name) => {
   </div>
 `;
 
+  const fromEmail =
+    process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+  const fromName =
+    (process.env.RESEND_FROM_NAME &&
+      process.env.RESEND_FROM_NAME.trim()) ||
+    "GOMINDZ HR SYSTEM";
+
   const mailOptions = {
-    from: `"HR System" <${process.env.GMAIL_USER}>`,
+    from: `${fromName} <${fromEmail}>`,
     to: to,
     subject: "Verify Your Email - HR System",
     html: htmlContent,

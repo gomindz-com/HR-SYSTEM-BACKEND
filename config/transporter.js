@@ -26,7 +26,8 @@ export const transporter = {
         accepted: [toEmail],
         rejected: [],
         envelope: {
-          from: process.env.SENDER_EMAIL || "support@hrsystem.com",
+          from: `${process.env.RESEND_FROM_NAME || "GOMINDZ HR SYSTEM"
+            } <${process.env.RESEND_FROM_EMAIL || "support@datafin.info"}>`,
           to: [toEmail],
         },
       };

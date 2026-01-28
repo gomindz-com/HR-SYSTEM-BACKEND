@@ -102,15 +102,14 @@ export const sendPayslipEmail = async (employee, payrollData, pdfBuffer) => {
         </p>
       </div>
 
-      ${
-        payrollData.notes
-          ? `
+      ${payrollData.notes
+        ? `
       <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
         <h3 style="color: #856404; margin-top: 0; font-size: 16px;">📝 Note from HR</h3>
         <p style="color: #856404; margin: 0; font-size: 14px;">${payrollData.notes}</p>
       </div>
       `
-          : ""
+        : ""
       }
 
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
@@ -135,8 +134,15 @@ export const sendPayslipEmail = async (employee, payrollData, pdfBuffer) => {
       content: base64Content,
     };
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.SENDER_EMAIL || process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: `Your Payslip - ${period}`,
       html: htmlContent,
@@ -187,15 +193,15 @@ export const sendBulkPayslipNotification = async (
         <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Processed Employees</h3>
         <div style="max-height: 200px; overflow-y: auto; margin-top: 15px;">
           ${employeeNames
-            .map(
-              (name) => `
+        .map(
+          (name) => `
             <div style="padding: 8px; border-bottom: 1px solid #e9ecef;">
               <span style="color: #10b981; margin-right: 8px;">✓</span>
               <span style="color: #2c3e50;">${name}</span>
             </div>
           `
-            )
-            .join("")}
+        )
+        .join("")}
         </div>
       </div>
 
@@ -213,8 +219,15 @@ export const sendBulkPayslipNotification = async (
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.SENDER_EMAIL || process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: hrContact.email,
       subject: `Bulk Payroll Processing Complete - ${count} Payslips Sent`,
       html: htmlContent,
