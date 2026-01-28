@@ -44,16 +44,15 @@ export const sendLeaveRequestSubmittedEmail = async (
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          leaveRequest.comments
-            ? `
+        ${leaveRequest.comments
+        ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
           <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Your Comments</p>
           <p style="margin: 0; color: #2c3e50; font-size: 14px;">${leaveRequest.comments}</p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <div style="background: #e7f3ff; border-left: 4px solid #007bff; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
@@ -77,8 +76,15 @@ export const sendLeaveRequestSubmittedEmail = async (
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Leave Request Submitted - Pending Review",
       html: htmlContent,
@@ -138,16 +144,15 @@ export const sendManagerApprovalEmail = async (employee, leaveRequest) => {
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          leaveRequest.comments
-            ? `
+        ${leaveRequest.comments
+        ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
           <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Your Comments</p>
           <p style="margin: 0; color: #2c3e50; font-size: 14px;">${leaveRequest.comments}</p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
@@ -168,8 +173,15 @@ export const sendManagerApprovalEmail = async (employee, leaveRequest) => {
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Leave Request Approved by Manager - Pending HR Review",
       html: htmlContent,
@@ -228,16 +240,15 @@ export const sendManagerRejectionEmail = async (
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          leaveRequest.comments
-            ? `
+        ${leaveRequest.comments
+        ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
           <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Your Comments</p>
           <p style="margin: 0; color: #2c3e50; font-size: 14px;">${leaveRequest.comments}</p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
@@ -265,8 +276,15 @@ export const sendManagerRejectionEmail = async (
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Leave Request Rejected by Manager",
       html: htmlContent,
@@ -343,16 +361,15 @@ export const sendHRApprovalEmail = async (
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          leaveRequest.comments
-            ? `
+        ${leaveRequest.comments
+        ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
           <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Your Comments</p>
           <p style="margin: 0; color: #2c3e50; font-size: 14px;">${leaveRequest.comments}</p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <div style="background: #e7f3ff; border-left: 4px solid #007bff; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
@@ -380,8 +397,15 @@ export const sendHRApprovalEmail = async (
       ? "Leave Request Approved by HR (Override)"
       : "Leave Request Fully Approved by HR";
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: subject,
       html: htmlContent,
@@ -449,16 +473,15 @@ export const sendHRRejectionEmail = async (
             <p style="margin: 0; font-weight: bold; color: #2c3e50;">${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          leaveRequest.comments
-            ? `
+        ${leaveRequest.comments
+        ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
           <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Your Comments</p>
           <p style="margin: 0; color: #2c3e50; font-size: 14px;">${leaveRequest.comments}</p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc3545;">
@@ -480,8 +503,15 @@ export const sendHRRejectionEmail = async (
     </div>
   `;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Leave Request Rejected by HR",
       html: htmlContent,

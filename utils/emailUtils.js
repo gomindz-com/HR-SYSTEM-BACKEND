@@ -31,8 +31,15 @@ const sendBenefitEmail = async (employee, benefit, action) => {
 
     const actionInfo = actionMessages[action] || actionMessages.updated;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: actionInfo.subject,
       html: `
@@ -77,8 +84,15 @@ const sendSalaryUpdateEmail = async (
   adjustmentValue
 ) => {
   try {
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Salary Update Notification",
       html: `
@@ -116,8 +130,15 @@ const sendSalaryUpdateEmail = async (
 
 const sendPayrollSettingsEmail = async (employee, updatedSettings) => {
   try {
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Payroll Settings Update",
       html: `
@@ -156,8 +177,15 @@ const sendPayrollSettingsEmail = async (employee, updatedSettings) => {
 
 const sendBonusUpdateEmail = async (employee, oldBonus, newBonus) => {
   try {
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const emailContent = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: employee.email,
       subject: "Bonus Update Notification",
       html: `

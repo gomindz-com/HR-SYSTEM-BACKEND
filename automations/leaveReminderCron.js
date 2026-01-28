@@ -6,8 +6,15 @@ import { createNotification } from "../utils/notification.utils.js";
 // Function to send reminder email
 const sendLeaveReminderEmail = async (leaveRequest, daysLeft) => {
   try {
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const emailContent = {
-      from: process.env.GMAIL_USER,
+      from: `${fromName} <${fromEmail}>`,
       to: leaveRequest.employee.email,
       subject: `Leave Reminder: ${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining`,
       html: `

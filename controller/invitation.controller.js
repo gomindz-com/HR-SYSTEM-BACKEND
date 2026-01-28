@@ -127,8 +127,15 @@ export const sendInvitation = async (req, res) => {
         : "https://hr.gomindz.gm";
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: normalizedEmail,
       subject: "Invitation to join company",
       html: `
@@ -136,9 +143,8 @@ export const sendInvitation = async (req, res) => {
           <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
             <h2 style="color: #007bff; margin-top: 0;">Company Invitation</h2>
             <p>Hello,</p>
-            <p>You are invited to join <strong>${company.companyName}</strong> as <strong>${
-              position || "Employee"
-            }</strong>.</p>
+            <p>You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"
+        }</strong>.</p>
             <p>Please click the button below to accept the invitation:</p>
             <div style="text-align: center; margin: 30px 0;">
               <a href="${invitationUrl}" style="background: #007bff; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
@@ -372,9 +378,16 @@ export const sendBulkInvitations = async (req, res) => {
 
         const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
+        const fromEmail =
+          process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+        const fromName =
+          (process.env.RESEND_FROM_NAME &&
+            process.env.RESEND_FROM_NAME.trim()) ||
+          "GOMINDZ HR SYSTEM";
+
         try {
           await transporter.sendMail({
-            from: `"HR System" <${process.env.GMAIL_USER}>`,
+            from: `${fromName} <${fromEmail}>`,
             to: normalizedEmail,
             subject: "Invitation to join company",
             html: `

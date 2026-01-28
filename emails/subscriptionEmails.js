@@ -89,8 +89,15 @@ export const sendPaymentSuccessEmail = async (
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Payment Confirmed - ${subscription.plan.name} Plan Activated`,
       html: htmlContent,
@@ -165,17 +172,16 @@ export const sendRenewalReminderEmail = async (
             <p style="margin: 0; font-weight: bold; color: #dc3545;">${new Date(subscription.endDate).toLocaleDateString()}</p>
           </div>
         </div>
-        ${
-          employeeCount > 0
-            ? `
+        ${employeeCount > 0
+        ? `
         <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-top: 15px;">
           <p style="margin: 0; color: #0056b3; font-size: 14px; text-align: center;">
             <strong>Calculation:</strong> ${pricePerUser} GMD × ${employeeCount} employees = ${totalAmount.toLocaleString()} GMD/month
           </p>
         </div>
         `
-            : ""
-        }
+        : ""
+      }
       </div>
 
       <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
@@ -227,8 +233,15 @@ export const sendRenewalReminderEmail = async (
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Urgent: Subscription Expires in ${daysUntilExpiry} Day${daysUntilExpiry > 1 ? "s" : ""} - Action Required`,
       html: htmlContent,
@@ -339,8 +352,15 @@ export const sendSubscriptionExpiredEmail = async (company, subscription) => {
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `URGENT: Subscription Expired - Access Suspended`,
       html: htmlContent,
@@ -448,8 +468,15 @@ export const sendPaymentFailureEmail = async (
       return { success: false, error: "No email address found for company" };
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    const fromName =
+      (process.env.RESEND_FROM_NAME &&
+        process.env.RESEND_FROM_NAME.trim()) ||
+      "GOMINDZ HR SYSTEM";
+
     const mailOptions = {
-      from: `"HR System" <${process.env.GMAIL_USER}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Payment Failed - Action Required for ${subscription.plan.name} Plan`,
       html: htmlContent,
