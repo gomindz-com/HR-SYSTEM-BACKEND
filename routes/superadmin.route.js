@@ -40,18 +40,15 @@ router.post("/company/:id/lifetime-access/revoke", revokeLifetimeAccess);
 // Get company detail
 router.get("/company/:id", getCompanyDetail);
 
-<<<<<<< HEAD
 // Subscription management
 router.get("/subscriptions", listSubscriptions);
 router.patch("/subscription/:id", updateSubscription);
 
-=======
 // Subscription analytics routes
 router.get("/subscriptions/trends", getSubscriptionTrends);
 router.get("/subscriptions/distribution", getSubscriptionDistribution);
 router.get("/subscriptions/stats", getSubscriptionStats);
 router.get("/subscriptions/revenue", getSubscriptionRevenue);
->>>>>>> 1055a85 (update payment page)
 
 //Get payment
 router.get("/payments", getPayments);
