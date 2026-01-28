@@ -1,9 +1,9 @@
-import { sendEmail } from "./brevo.service.js";
+import { sendEmail } from "./resend.service.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Drop-in replacement for nodemailer using Brevo
+// Drop-in replacement for nodemailer using Resend
 export const transporter = {
   async sendMail(mailOptions, callback) {
     try {
@@ -22,7 +22,7 @@ export const transporter = {
 
       const response = {
         messageId: result.messageId,
-        response: `Email sent via Brevo: ${result.messageId}`,
+        response: `Email sent via Resend: ${result.messageId}`,
         accepted: [toEmail],
         rejected: [],
         envelope: {
@@ -46,15 +46,15 @@ export const transporter = {
   },
 
   verify(callback) {
-    if (!process.env.BREVO_API_KEY) {
-      const error = new Error("BREVO_API_KEY is not configured");
+    if (!process.env.RESEND_API_KEY) {
+      const error = new Error("RESEND_API_KEY is not configured");
       console.error("❌ Email transporter verification failed:", error.message);
       if (callback) callback(error, null);
       return Promise.reject(error);
     }
 
-    const success = { message: "Brevo API ready" };
-    console.log("✅ Email server is ready to send messages (via Brevo)");
+    const success = { message: "Resend API ready" };
+    console.log("✅ Email server is ready to send messages (via Resend)");
     if (callback) callback(null, success);
     return Promise.resolve(success);
   },
