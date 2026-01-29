@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node ./bin/index.js",
     "dev": "nodemon ./bin/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "build": "npm run db:generate && npm run db:push:prod",
     "deploy-setup": "node deploy-setup.js",
     "test-absent": "node test-absent-automation.js",
@@ -27,6 +28,7 @@
     "create:trials": "node scripts/create-trial-subscriptions.js",
     "test:migration": "node scripts/test-migration.js",
     "init:workdays": "node scripts/init-workdays.js"
+
   },
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",
