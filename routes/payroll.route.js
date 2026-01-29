@@ -36,18 +36,18 @@ router.use(checkFeatureAccess("payroll_and_payslip_automation"));
 router.post("/generate", requireRole(["FINANCE"]), generateAllEmployeesPayroll);
 
 // Get employee benefits
-router.get("/employees/:employeeId/benefits", requireRole(["ADMIN", "FINANCE"]), getEmployeeBenefits);
+router.get("/employees/:employeeId/benefits", requireRole(["FINANCE"]), getEmployeeBenefits);
 
 // Add benefit to employee
-router.post("/employees/:employeeId/benefits", requireRole(["ADMIN", "FINANCE"]), addEmployeeBenefit);
+router.post("/employees/:employeeId/benefits", requireRole(["FINANCE"]), addEmployeeBenefit);
 
 // Update employee benefit
-router.put("/employees/:employeeId/benefits/:benefitId", requireRole(["ADMIN", "FINANCE"]), updateEmployeeBenefit);
+router.put("/employees/:employeeId/benefits/:benefitId", requireRole(["FINANCE"]), updateEmployeeBenefit);
 
 // Toggle employee benefit active status
 router.put(
   "/employees/:employeeId/benefits/:benefitId/toggle",
-  requireRole(["ADMIN", "FINANCE"]),
+  requireRole(["FINANCE"]),
   toggleEmployeeBenefit
 );
 
@@ -56,54 +56,54 @@ router.put(
 // ============================================
 
 // Bulk assign benefits to multiple employees
-router.post("/bulk/benefits/assign", requireRole(["ADMIN", "FINANCE"]), bulkAssignBenefits);
+router.post("/bulk/benefits/assign", requireRole(["FINANCE"]), bulkAssignBenefits);
 
 // Bulk toggle benefits for multiple employees
-router.post("/bulk/benefits/toggle", requireRole(["ADMIN", "FINANCE"]), bulkToggleBenefits);
+router.post("/bulk/benefits/toggle", requireRole(["FINANCE"]), bulkToggleBenefits);
 
 // Bulk salary adjustment for multiple employees
-router.post("/bulk/salary/adjust", requireRole(["ADMIN", "FINANCE"]), bulkSalaryAdjustment);
+router.post("/bulk/salary/adjust", requireRole(["FINANCE"]), bulkSalaryAdjustment);
 
 
 // Bulk update bonus for multiple employees
-router.post("/bulk/bonus/update", requireRole(["ADMIN", "FINANCE"]), bulkUpdateBonus);
+router.post("/bulk/bonus/update", requireRole(["FINANCE"]), bulkUpdateBonus);
 
 // ============================================
 // NEW PAYROLL WORKFLOW ROUTES (SPECIFIC ROUTES FIRST)
 // ============================================
 
 // Get draft payrolls (for Review & Edit tab)
-router.get("/drafts", requireRole(["ADMIN", "FINANCE"]), getDraftPayrolls);
+router.get("/drafts", requireRole(["FINANCE"]), getDraftPayrolls);
 
 // Get finalized payrolls (for History tab)
-router.get("/finalized", requireRole(["ADMIN", "FINANCE"]), getFinalizedPayrolls);
+router.get("/finalized", requireRole(["FINANCE"]), getFinalizedPayrolls);
 
 // Get paid payrolls (for Paid tab)
-router.get("/paid", requireRole(["ADMIN", "FINANCE"]), getPaidPayrolls);
+router.get("/paid", requireRole(["FINANCE"]), getPaidPayrolls);
 
 // Get payroll preview (before generation)
-router.post("/preview", requireRole(["ADMIN", "FINANCE"]), getPayrollPreview);
+router.post("/preview", requireRole(["FINANCE"]), getPayrollPreview);
 
 // Finalize all draft payrolls
-router.put("/finalize-all", requireRole(["ADMIN", "FINANCE"]), finalizeAllPayrolls);
+router.put("/finalize-all", requireRole(["FINANCE"]), finalizeAllPayrolls);
 
 // ============================================
 // ADDITIONAL PAYROLL ROUTES (PARAMETER ROUTES LAST)
 // ============================================
 
 // Get detailed payroll information
-router.get("/:payrollId", getPayrollDetails);
+router.get("/:payrollId", requireRole(["FINANCE"]), getPayrollDetails);
 
 // Update individual payroll record (for editing)
-router.put("/:payrollId/update", requireRole(["ADMIN", "FINANCE"]), updatePayrollRecord);
+router.put("/:payrollId/update", requireRole(["FINANCE"]), updatePayrollRecord);
 
 // Finalize payroll record
-router.put("/:payrollId/finalize", requireRole(["ADMIN", "FINANCE"]), finalizePayroll);
+router.put("/:payrollId/finalize", requireRole(["FINANCE"]), finalizePayroll);
 
 // Mark individual payroll as paid
-router.put("/:payrollId/mark-paid", requireRole(["ADMIN", "FINANCE"]), markIndividualPayrollAsPaid);
+router.put("/:payrollId/mark-paid", requireRole(["FINANCE"]), markIndividualPayrollAsPaid);
 
 // Mark period as paid (bulk operation)
-router.post("/mark-period-as-paid", requireRole(["ADMIN", "FINANCE"]), markPeriodAsPaid);
+router.post("/mark-period-as-paid", requireRole(["FINANCE"]), markPeriodAsPaid);
 
 export default router;
