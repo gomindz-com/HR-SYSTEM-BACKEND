@@ -25,3 +25,6 @@ export const getAdapter = (vendor) => {
     return adapter;
 }
 
+export const isStreamingDevice = (vendor) => {
+    return vendor.toUpperCase() in adapters && adapters[vendor.toUpperCase()].isStreaming;
+}   
