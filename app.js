@@ -21,6 +21,12 @@ import superadminRoutes from "./routes/superadmin.route.js";
 import superadminAuthRoutes from "./routes/superadmin-auth.route.js";
 import calendarRoutes from "./routes/calendar.router.js";
 import performanceRoutes from "./routes/performance.route.js";
+import deviceRoutes from "./routes/device.route.js";
+import vendorConfigRoutes from "./routes/vendorConfig.route.js";
+import biometricWebhookRoutes from "./routes/biometricWebhook.route.js";
+import { stopAllDevices } from "./services/deviceManager.js";
+
+
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -180,6 +186,10 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/superadmin", superadminRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/performance", performanceRoutes);
+app.use("/api/device", deviceRoutes);
+app.use("/api/vendor-config", vendorConfigRoutes);
+app.use("/api/biometric-webhook", biometricWebhookRoutes);
+
 
 // ESSENTIAL ADMIN ENDPOINTS
 
@@ -310,6 +320,19 @@ app.post("/api/admin/stop-all-automations", async (req, res) => {
       details: error.message,
     });
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await stopAllDevices();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await stopAllDevices();
+  process.exit(0);
 });
 
 export default app;
