@@ -4,7 +4,7 @@ import {
   getVendorConfigsByCompany,
   updateVendorConfig,
   deleteVendorConfig
-} from '../controller/venorConfig.controller.js';
+} from '../controller/vendorConfig.controller.js';
 
 const router = express.Router();
 
