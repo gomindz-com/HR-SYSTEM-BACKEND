@@ -1,9 +1,7 @@
-// services/deviceManager.js
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.config.js';
 import { getAdapter, isStreamingDevice } from '../adapters/registry.js';
 import { recordAttendance } from './biometricAttendanceService.js';
 
-const prisma = new PrismaClient();
 
 // Store cleanup functions for active streaming devices
 const activeDevices = new Map();
