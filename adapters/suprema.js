@@ -1,37 +1,40 @@
-// suprema.js
-import axios from 'axios';
+import WebSocket from 'ws';
 
-/**
- * Parse Suprema webhook payload
- * This is called by your webhook endpoint when Suprema sends data
- */
-const parseWebhookPayload = (payload, device, vendorConfig) => ({
-    companyId: device.companyId,
-    deviceId: device.id,
-    biometricUserId: payload.user_id?.toString(),
-    timestamp: new Date(payload.datetime), // Note: should be 'datetime' not 'timestamp'
-    eventType: payload.event_type_code === 4096 ? 'CHECK_IN' : 'CHECK_OUT'
-});
+const activeSockets = new Map();
+export const isStreaming = true; // WebSocket is a stream
 
-/**
- * Test connection to Suprema API
- */
-const testConnection = async (device, vendorConfig) => {
-    try {
-        const response = await axios({ // Fixed typo: was 'responst'
-            method: 'get',
-            url: `${vendorConfig.apiUrl}/devices/${device.cloudDeviceId}`,
-            headers: {
-                'Authorization': `Bearer ${vendorConfig.apiKey}`
-            },
-            timeout: 5000
-        });
+export const startListening = (device, vendorConfig, onEvent) => {
+    const ws = new WebSocket(`${vendorConfig.apiUrl.replace('http', 'ws')}/notifications`, {
+        headers: { 'Authorization': `Bearer ${vendorConfig.apiKey}` }
+    });
 
-        return response.status === 200;
-    } catch (error) {
-        console.error(`[Suprema] Failed to test connection: ${error.message}`);
-        return false;
-    }
+    ws.on('message', (data) => {
+        const message = JSON.parse(data);
+        if (message.event_type_id) { // Real-time MessageEvent
+            onEvent({
+                companyId: device.companyId,
+                deviceId: device.id,
+                biometricUserId: message.user_id?.toString(),
+                timestamp: new Date(message.datetime),
+                eventType: message.event_type_code === 4096 ? 'CHECK_IN' : 'CHECK_OUT'
+            });
+        }
+    });
+
+    ws.on('error', () => setTimeout(() => startListening(device, vendorConfig, onEvent), 5000));
+    activeSockets.set(device.id, ws);
 };
 
-export { parseWebhookPayload, testConnection };
+export const stopListening = (deviceId) => {
+    const ws = activeSockets.get(deviceId);
+    if (ws) { ws.close(); activeSockets.delete(deviceId); }
+};
+
+// Suprema 2026: Supports testing via Virtual Device API
+export const triggerVirtualEvent = async (vendorConfig, deviceId, userId) => {
+    return axios.post(`${vendorConfig.apiUrl}/api/events/import`, {
+        device_id: deviceId,
+        user_id: userId,
+        event_type_code: 4096 // Access Granted
+    }, { headers: { 'Authorization': `Bearer ${vendorConfig.apiKey}` } });
+};
