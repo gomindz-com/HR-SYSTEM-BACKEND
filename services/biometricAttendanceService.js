@@ -1,64 +1,42 @@
-import e from 'express';
-import prisma from '../config/prisma.config.js'
-import { determineAttendanceStatus } from '../lib/attendance-utils';
-const DUPLICATE_WINDOWS = {
-    CHECK_IN: 2,   // 2 minutes for check-in
-    CHECK_OUT: 5   // 5 minutes for check-out (people might linger)
-};
+// attendanceService.js - UPDATED
+import prisma from '../config/prisma.config.js';
+import { determineAttendanceStatus } from '../lib/attendance-utils.js';
 
+const DUPLICATE_WINDOWS = {
+    CHECK_IN: 2,   // 2 minutes
+    CHECK_OUT: 5   // 5 minutes
+};
 
 const findEmployeeByBiometricId = async (biometricUserId, companyId) => {
     return prisma.employee.findFirst({
-        where: {
-            biometricUserId,
-            companyId
-        },
-        include: {
-            shiftType: true
-        }
-    })
-}
+        where: { biometricUserId, companyId },
+        include: { shiftType: true }
+    });
+};
 
-
-
-
-
-const getOrCreateAttendance = async (employeeId, companyId, deviceId, timestamp) => {
-    const date = new Date(timestamp).setHours(0, 0, 0, 0);
-
+const getOrCreateAttendance = async (employeeId, companyId, timestamp) => {
+    // Ensure we are looking at the correct calendar date (midnight)
+    const date = new Date(timestamp);
+    date.setHours(0, 0, 0, 0);
 
     const company = await prisma.company.findUnique({
-        where: {
-            id: companyId
-        },
-        include: {
-            companySettings: true
-        }
-    })
+        where: { id: companyId },
+        include: { companySettings: true }
+    });
 
-    const employee = await findEmployeeByBiometricId(biometricUserId, companyId);
+    const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: { shiftType: true }
+    });
 
-    const companySettings = company.companySettings;
-    const employeeShiftType = employee.shiftType;
-
-    const attendanceStatus = determineAttendanceStatus(timestamp, companySettings, employeeShiftType);
-
-
-
+    // Fix: determineAttendanceStatus needs the actual objects
+    const attendanceStatus = determineAttendanceStatus(timestamp, company.companySettings, employee.shiftType);
 
     let attendance = await prisma.attendance.findUnique({
         where: {
-            employeeId_date: {
-                employeeId,
-                date
-            }
+            employeeId_date: { employeeId, date }
         }
-    })
-
-
-
-
-    // if doesnt exist create it
+    });
 
     if (!attendance) {
         attendance = await prisma.attendance.create({
@@ -68,107 +46,60 @@ const getOrCreateAttendance = async (employeeId, companyId, deviceId, timestamp)
                 date,
                 status: attendanceStatus,
             }
-        })
-
-        return attendance;
+        });
     }
-}
-
-
-
-
-/**
- * Check if this is a duplicate event (within 2 minutes)
- */
-const isDuplicateEvent = (attendance, timestamp, eventType) => {
-    const relevantTime = eventType === 'CHECK_IN'
-        ? attendance.timeIn
-        : attendance.timeOut;
-
-    if (!relevantTime) return false;
-
-    const diffMinutes = Math.abs(timestamp - new Date(relevantTime)) / 1000 / 60;
-    const windowMinutes = DUPLICATE_WINDOWS[eventType];
-
-    return diffMinutes < windowMinutes;
+    return attendance;
 };
 
+const isDuplicateEvent = (attendance, timestamp, eventType) => {
+    const relevantTime = eventType === 'CHECK_IN' ? attendance.timeIn : attendance.timeOut;
+    if (!relevantTime) return false;
 
-/**
- * Update attendance with check-in or check-out time
- */
-
+    const diffMinutes = Math.abs(new Date(timestamp) - new Date(relevantTime)) / 1000 / 60;
+    return diffMinutes < DUPLICATE_WINDOWS[eventType];
+};
 
 const updateAttendanceTime = async (attendanceId, timestamp, eventType) => {
     const updateData = eventType === 'CHECK_IN' ? { timeIn: timestamp } : { timeOut: timestamp };
 
-
     return prisma.attendance.update({
         where: { id: attendanceId },
-        data: updateData,
-        include: {
-            employee: {
-                Select: {
-                    id: true,
-                    name: true,
-                    email: true
-                }
-            }
-        }
-    })
-
-}
-
-/**
- * Record attendance from normalized event
- */
+        data: updateData
+    });
+};
 
 const recordAttendance = async (normalizedEvent) => {
     try {
-        // find employee
         const employee = await findEmployeeByBiometricId(normalizedEvent.biometricUserId, normalizedEvent.companyId);
 
         if (!employee) {
-            console.warn(
-                `Employee not found for biometric user ID: ${normalizedEvent.biometricUserId}`
-            )
+            console.warn(`[Attendance] No employee for BioID: ${normalizedEvent.biometricUserId}`);
             return null;
         }
 
-        // get or  create today's attendance record
         const attendance = await getOrCreateAttendance(
             employee.id,
             normalizedEvent.companyId,
-            normalizedEvent.deviceId,
             normalizedEvent.timestamp
-        )
-
-        // Check for duplicate
-
+        );
 
         if (isDuplicateEvent(attendance, normalizedEvent.timestamp, normalizedEvent.eventType)) {
-            console.log(`[Attendance] Duplicate ${normalizedEvent.eventType} detected, skipping...`)
             return null;
         }
 
+        const updated = await updateAttendanceTime(attendance.id, normalizedEvent.timestamp, normalizedEvent.eventType);
 
+        // 2026 Health Update: Every punch confirms the device is alive
+        await prisma.biometricDevice.update({
+            where: { id: normalizedEvent.deviceId },
+            data: { lastSeen: new Date() }
+        });
 
-        //  update the time 
-
-        const updatedAttendance = await updateAttendanceTime(attendance.id, normalizedEvent.timestamp, normalizedEvent.eventType);
-        console.log(`[Attendance] Updated attendance for ${employee.name} at ${normalizedEvent.timestamp.toLocaleTimeString()}`)
-        return updatedAttendance;
-
+        return updated;
     } catch (error) {
-        console.error(`[Attendance] Error recording attendance: ${error.message}`)
-        return error;
+        console.error(`[Attendance] Error: ${error.message}`);
+        return null;
     }
-}
+};
 
-export {
-    recordAttendance,
-    findEmployeeByBiometricId,
-    getOrCreateAttendance,
-    isDuplicateEvent,
-    updateAttendanceTime
-}
+export { recordAttendance };
