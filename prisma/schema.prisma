@@ -743,32 +743,36 @@ enum VendorType {
 }
 
 model BiometricDevice {
-  id        String  @id @default(cuid())
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id           String  @id @default(cuid())
+  companyId    Int
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  name   String // Friendly name: "Main Entrance", "Office Floor 2"
-  vendor VendorType // 'DAHUA', 'ZKTECO', 'SUPREMA'
+  name         String
+  vendor       VendorType
+  
+  // NEW: Required for ZKTeco ADMS Push and identifying cloud devices
+  serialNumber String? @unique 
 
-  // For local network devices (Dahua, local ZKTeco)
-  host     String? // IP address: "192.168.1.100"
-  port     Int? // Usually 80 or 4370
-  username String? // Device admin username
-  password String? // Device credentials (encrypted in production)
+  // For local network devices (Dahua)
+  host         String? 
+  port         Int? 
+  username     String? 
+  password     String? 
 
-  // For cloud devices (Suprema, cloud ZKTeco)
+  // For cloud/WebSocket devices (Suprema)
   vendorConfigId String?
   vendorConfig   VendorConfig? @relation(fields: [vendorConfigId], references: [id], onDelete: SetNull)
-  cloudDeviceId  String? // Device ID in vendor's cloud (e.g., "544249623")
+  cloudDeviceId  String? 
 
-  isActive Boolean @default(true)
+  isActive     Boolean  @default(true)
+  lastSeen     DateTime? // Updated: Track device health in 2026
 
-  attendances Attendance[]
+  attendances  Attendance[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([companyId])
   @@index([vendor])
-  @@index([vendorConfigId])
+  @@index([serialNumber]) // New index for fast lookups during push events
 }

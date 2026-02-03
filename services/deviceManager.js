@@ -2,125 +2,88 @@ import prisma from '../config/prisma.config.js';
 import { getAdapter, isStreamingDevice } from '../adapters/registry.js';
 import { recordAttendance } from './biometricAttendanceService.js';
 
-
-// Store cleanup functions for active streaming devices
+// Store cleanup functions and health monitors
 const activeDevices = new Map();
 
 /**
- * Start listening to a single streaming device
- * Only called for devices with host (local/streaming devices)
- * 
- * WHO USES THIS: Admin API when they click "Activate" on a device
- * WHY IT'S USEFUL: Device starts immediately without server restart
+ * Start a device (Streaming for Dahua/Suprema)
  */
 const startDevice = async (device) => {
     try {
-        if (activeDevices.has(device.id)) {
-            console.log(`[DeviceManager] Device ${device.id} already active`);
-            return;
-        }
+        if (activeDevices.has(device.id)) return;
 
-        // Only start if it's a streaming device
+        // Webhook/Push devices (ZKTeco ADMS) don't start a local listener
         if (!isStreamingDevice(device.vendor)) {
-            console.log(`[DeviceManager] Device ${device.name} is webhook-based, no need to start`);
+            console.log(`[DeviceManager] ${device.name} (Push-based) is managed by health monitor only`);
             return;
         }
 
         const adapter = getAdapter(device.vendor);
 
-        // Start listening and store cleanup function
-        const cleanup = adapter.startListening(device, async (normalizedEvent) => {
+        // 2026 Update: Suprema uses WebSockets; Dahua uses Heartbeat-monitored HTTP
+        const cleanup = await adapter.startListening(device, async (normalizedEvent) => {
             await recordAttendance(normalizedEvent);
+            // Update "Last Seen" whenever an event arrives
+            await updateDeviceHealth(device.id); 
         });
 
         activeDevices.set(device.id, cleanup);
-        console.log(`[DeviceManager] Started streaming: ${device.name}`);
+        console.log(`[DeviceManager] Monitoring stream/socket for: ${device.name}`);
 
     } catch (error) {
-        console.error(`[DeviceManager] Failed to start device:`, error);
+        console.error(`[DeviceManager] Failed to start ${device.name}:`, error);
     }
 };
 
 /**
- * Stop listening to a device
- * 
- * WHO USES THIS: Admin API when they click "Deactivate" on a device
- * WHY IT'S USEFUL: Device stops immediately without server restart
+ * Health Monitor: Tracks "Last Seen" for all devices
+ * Essential for ZKTeco ADMS since we don't 'start' them
  */
-const stopDevice = async (deviceId) => {
-    const cleanup = activeDevices.get(deviceId);
-
-    if (cleanup) {
-        cleanup();
-        activeDevices.delete(deviceId);
-        console.log(`[DeviceManager] Stopped device ${deviceId}`);
-    }
+const updateDeviceHealth = async (deviceId) => {
+    await prisma.biometricDevice.update({
+        where: { id: deviceId },
+        data: { lastSeen: new Date() }
+    });
 };
 
 /**
- * Restart a device
- * 
- * WHO USES THIS: Admin API for troubleshooting connection issues
- * WHY IT'S USEFUL: Can fix stuck connections without full restart
+ * Restart Device (Force reconnect for Dahua/Suprema)
  */
 const restartDevice = async (deviceId) => {
     await stopDevice(deviceId);
-
-    const device = await prisma.biometricDevice.findUnique({
-        where: { id: deviceId }
-    });
-
-    if (device && device.host) {
-        await startDevice(device);
-    }
+    const device = await prisma.biometricDevice.findUnique({ where: { id: deviceId } });
+    if (device && device.isActive) await startDevice(device);
 };
 
 /**
- * Start all active streaming devices (devices with host field)
- * Webhook devices don't need to be "started" - they push to us
- * 
- * WHO USES THIS: the application automatically on server startup (app.js)
- * WHY IT'S ESSENTIAL: Without this, no streaming devices work at all
+ * Start All Active Devices on Boot
  */
 const startAllDevices = async () => {
     try {
-        const devices = await prisma.biometricDevice.findMany({
-            where: {
-                isActive: true,
-                host: { not: null }  // Only streaming devices
-            }
-        });
-
-        console.log(`[DeviceManager] Starting ${devices.length} streaming devices...`);
-
+        const devices = await prisma.biometricDevice.findMany({ where: { isActive: true } });
+        
         for (const device of devices) {
-            await startDevice(device);
+            // Dahua/Suprema start listeners; ZKTeco is just registered as 'active'
+            await startDevice(device); 
         }
-
-        console.log('[DeviceManager] All streaming devices started');
+        
+        console.log('[DeviceManager] All device initializations complete');
     } catch (error) {
-        console.error('[DeviceManager] Error starting devices:', error);
+        console.error('[DeviceManager] Startup error:', error);
     }
 };
 
-/**
- * Stop all devices
- * 
- * WHO USES THIS: the application automatically on graceful shutdown
- * WHY IT'S ESSENTIAL: Prevents memory leaks and ensures clean restart
- */
-const stopAllDevices = async () => {
-    for (const [deviceId, cleanup] of activeDevices.entries()) {
-        cleanup();
+const stopDevice = async (deviceId) => {
+    const cleanup = activeDevices.get(deviceId);
+    if (cleanup) {
+        cleanup(); // Closes WebSocket or Destroys Dahua Stream
         activeDevices.delete(deviceId);
     }
-    console.log('[DeviceManager] All devices stopped');
 };
 
-export {
-    startDevice,      // Nice to have - for admin UX
-    stopDevice,       // Nice to have - for admin UX
-    restartDevice,    // Nice to have - for troubleshooting
-    startAllDevices,  // ESSENTIAL - for system to work
-    stopAllDevices    // ESSENTIAL - for clean shutdown
+const stopAllDevices = async () => {
+    for (const [deviceId] of activeDevices.entries()) await stopDevice(deviceId);
+    console.log('[DeviceManager] All active streams/sockets closed');
 };
+
+export { startDevice, stopDevice, restartDevice, startAllDevices, stopAllDevices };
