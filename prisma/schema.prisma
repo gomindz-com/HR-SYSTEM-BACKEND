@@ -743,34 +743,34 @@ enum VendorType {
 }
 
 model BiometricDevice {
-  id           String  @id @default(cuid())
-  companyId    Int
-  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  name         String
-  vendor       VendorType
-  
+  name   String
+  vendor VendorType
+
   // NEW: Required for ZKTeco ADMS Push and identifying cloud devices
-  serialNumber String? @unique 
+  serialNumber String? @unique
 
   // For local network devices (Dahua)
-  host         String? 
-  port         Int? 
-  username     String? 
-  password     String? 
+  host     String?
+  port     Int?
+  username String?
+  password String?
 
   // For cloud/WebSocket devices (Suprema)
   vendorConfigId String?
   vendorConfig   VendorConfig? @relation(fields: [vendorConfigId], references: [id], onDelete: SetNull)
-  cloudDeviceId  String? 
+  cloudDeviceId  String?
 
-  isActive     Boolean  @default(true)
-  lastSeen     DateTime? // Updated: Track device health in 2026
+  isActive Boolean   @default(true)
+  lastSeen DateTime? // Updated: Track device health in 2026
 
-  attendances  Attendance[]
+  attendances Attendance[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([vendor])
