@@ -4,7 +4,7 @@ const activeStreams = new Map();
 export const isStreaming = true; // Added for Registry lookup
 
 const parseDahuaChunk = (chunk) => {
-    const match = chunk.match(/data=({.*?}))/);
+    const match = chunk.match(/data=({.*?})/);
     return match ? JSON.parse(match[1]) : null;
 };
 

@@ -479,9 +479,9 @@ export const updateEmployeeProfile = async (req, res) => {
   }
 
   // RBAC: Only ADMIN can update employee profiles
-  if (req.user.role !== "ADMIN") {
+  if (req.user.role !== "ADMIN" && req.user.role !== "FINANCE") {
     return res.status(403).json({
-      message: "Only administrators can update employee profiles",
+      message: "Only administrators and finance can update employee profiles",
     });
   }
 

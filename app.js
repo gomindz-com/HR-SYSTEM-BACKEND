@@ -24,6 +24,7 @@ import performanceRoutes from "./routes/performance.route.js";
 import deviceRoutes from "./routes/device.route.js";
 import vendorConfigRoutes from "./routes/vendorConfig.route.js";
 import biometricWebhookRoutes from "./routes/biometricWebhook.route.js";
+import {zktecoAdmsController} from "./controller/biometricWebhook.controller.js"
 import { stopAllDevices } from "./services/deviceManager.js";
 
 
