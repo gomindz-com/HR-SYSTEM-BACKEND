@@ -60,7 +60,6 @@
     "nodemon": "^3.1.10",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
-    "puppeteer-core": "^24.19.0",
     "resend": "^4.7.0",
     "sqlite3": "^5.1.7"
   },
