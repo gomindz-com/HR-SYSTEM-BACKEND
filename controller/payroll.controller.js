@@ -10,7 +10,7 @@ import {
   createBulkNotifications,
 } from "../utils/notification.utils.js";
 import { generatePayslipPDF } from "../lib/payslipPDF.js";
-import { sendPayslipEmail } from "../emails/payslipEmails.js";
+// import { sendPayslipEmail } from "../emails/payslipEmails.js";
 import { processBatch } from "../utils/batchProcessing.js";
 
 // ================================
