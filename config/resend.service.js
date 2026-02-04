@@ -17,7 +17,7 @@ const resend = new Resend(resendApiKey);
 export async function sendEmail(to, subject, html, text, attachments = []) {
   try {
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||

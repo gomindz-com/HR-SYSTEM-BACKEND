@@ -91,7 +91,7 @@ export const sendTrialExpiringEmail = async (
     }
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -207,7 +207,7 @@ export const sendTrialExpiredEmail = async (company, subscription) => {
     }
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||

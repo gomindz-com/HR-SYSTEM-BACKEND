@@ -32,7 +32,7 @@ const sendBenefitEmail = async (employee, benefit, action) => {
     const actionInfo = actionMessages[action] || actionMessages.updated;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -85,7 +85,7 @@ const sendSalaryUpdateEmail = async (
 ) => {
   try {
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -131,7 +131,7 @@ const sendSalaryUpdateEmail = async (
 const sendBonusUpdateEmail = async (employee, oldBonus, newBonus) => {
   try {
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||

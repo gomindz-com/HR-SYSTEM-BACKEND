@@ -128,7 +128,7 @@ export const sendInvitation = async (req, res) => {
     const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -379,7 +379,7 @@ export const sendBulkInvitations = async (req, res) => {
         const invitationUrl = `${baseUrl}/accept-invitation/${token}`;
 
         const fromEmail =
-          process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+          process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
         const fromName =
           (process.env.RESEND_FROM_NAME &&
             process.env.RESEND_FROM_NAME.trim()) ||
