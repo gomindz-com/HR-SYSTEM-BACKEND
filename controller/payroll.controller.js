@@ -10,7 +10,7 @@ import {
   createBulkNotifications,
 } from "../utils/notification.utils.js";
 import { generatePayslipPDF } from "../lib/payslipPDF.js";
-// import { sendPayslipEmail } from "../emails/payslipEmails.js";
+import { sendPayslipEmail } from "../emails/payslipEmails.js";
 import { processBatch } from "../utils/batchProcessing.js";
 
 // ================================
@@ -1150,19 +1150,19 @@ export const finalizePayroll = async (req, res) => {
       console.log(
         `📧 Sending payslip email to ${finalizedPayroll.employee.email}...`
       );
-      const emailResult = await sendPayslipEmail(
-        finalizedPayroll.employee,
-        finalizedPayroll,
-        pdfBuffer
-      );
+      // const emailResult = await sendPayslipEmail(
+      //   finalizedPayroll.employee,
+      //   finalizedPayroll,
+      //   pdfBuffer
+      // );
 
-      emailSent = emailResult.success;
+      // emailSent = emailResult.success;
 
-      if (emailSent) {
-        console.log(
-          `✅ Payslip successfully sent to ${finalizedPayroll.employee.email}`
-        );
-      }
+      // if (emailSent) {
+      //   console.log(
+      //     `✅ Payslip successfully sent to ${finalizedPayroll.employee.email}`
+      //   );
+      // }
     } catch (payslipError) {
       console.error(
         "❌ Error generating or sending payslip (continuing with finalization):",
