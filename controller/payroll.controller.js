@@ -9,8 +9,8 @@ import {
   createNotification,
   createBulkNotifications,
 } from "../utils/notification.utils.js";
-import { generatePayslipPDF } from "../lib/payslipPDF.js";
-import { sendPayslipEmail } from "../emails/payslipEmails.js";
+// import { generatePayslipPDF } from "../lib/payslipPDF.js";
+// import { sendPayslipEmail } from "../emails/payslipEmails.js";
 import { processBatch } from "../utils/batchProcessing.js";
 
 // ================================
@@ -1140,16 +1140,16 @@ export const finalizePayroll = async (req, res) => {
       console.log(
         `📄 Generating payslip PDF for ${finalizedPayroll.employee.name}...`
       );
-      const pdfBuffer = await generatePayslipPDF(
-        finalizedPayroll,
-        finalizedPayroll.employee,
-        company
-      );
+      // const pdfBuffer = await generatePayslipPDF(
+      //   finalizedPayroll,
+      //   finalizedPayroll.employee,
+      //   company
+      // );
 
-      // Send email with PDF attachment
-      console.log(
-        `📧 Sending payslip email to ${finalizedPayroll.employee.email}...`
-      );
+      // // Send email with PDF attachment
+      // console.log(
+      //   `📧 Sending payslip email to ${finalizedPayroll.employee.email}...`
+      // );
       // const emailResult = await sendPayslipEmail(
       //   finalizedPayroll.employee,
       //   finalizedPayroll,
@@ -1304,25 +1304,25 @@ export const finalizeAllPayrolls = async (req, res) => {
         async (payroll) => {
           try {
             // Generate PDF payslip
-            const pdfBuffer = await generatePayslipPDF(
-              payroll,
-              payroll.employee,
-              company
-            );
+            // const pdfBuffer = await generatePayslipPDF(
+            //   payroll,
+            //   payroll.employee,
+            //   company
+            // );
 
-            // Send email with PDF attachment
-            const emailResult = await sendPayslipEmail(
-              payroll.employee,
-              payroll,
-              pdfBuffer
-            );
+            // // Send email with PDF attachment
+            // const emailResult = await sendPayslipEmail(
+            //   payroll.employee,
+            //   payroll,
+            //   pdfBuffer
+            // );
 
-            if (emailResult.success) {
-              emailStats.sent++;
-              return { success: true, employeeName: payroll.employee.name };
-            } else {
-              throw new Error(emailResult.error || "Failed to send email");
-            }
+            // if (emailResult.success) {
+            //   emailStats.sent++;
+            //   return { success: true, employeeName: payroll.employee.name };
+            // } else {
+            //   throw new Error(emailResult.error || "Failed to send email");
+            // }
           } catch (error) {
             emailStats.failed++;
             emailStats.failedEmployees.push({
