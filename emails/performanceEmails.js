@@ -70,7 +70,7 @@ export const sendCycleActivatedEmail = async (employee, cycle) => {
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -150,7 +150,7 @@ export const sendSelfReviewSubmittedEmail = async (manager, employee, review) =>
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -226,7 +226,7 @@ export const sendReviewReadyForHrEmail = async (admin, employee, review) => {
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -310,7 +310,7 @@ export const sendManagerReviewSubmittedEmail = async (employee, manager, review)
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -423,7 +423,7 @@ export const sendReviewFinalizedEmail = async (employee, review) => {
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -510,7 +510,7 @@ export const sendSelfReviewReminderEmail = async (employee, cycle, daysLeft) => 
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||
@@ -608,7 +608,7 @@ export const sendManagerReviewReminderEmail = async (manager, employee, cycle, d
   `;
 
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+      process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
     const fromName =
       (process.env.RESEND_FROM_NAME &&
         process.env.RESEND_FROM_NAME.trim()) ||

@@ -22,7 +22,7 @@ export const forgotPasswordEmail = async (to, url) => {
 `;
 
   const fromEmail =
-    process.env.RESEND_FROM_EMAIL || "support@datafin.info";
+    process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
   const fromName =
     (process.env.RESEND_FROM_NAME &&
       process.env.RESEND_FROM_NAME.trim()) ||
