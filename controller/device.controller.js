@@ -39,8 +39,9 @@ const createDevice = async (req, res) => {
     const port = raw.port != null ? (typeof raw.port === 'number' ? raw.port : parseInt(raw.port, 10)) : null;
     const username = raw.username != null ? String(raw.username).trim() : null;
     const password = raw.password != null ? String(raw.password) : null;
-    const vendorConfigId = raw.vendorConfigId != null ? String(raw.vendorConfigId).trim() || null : null;
+    let vendorConfigId = raw.vendorConfigId != null ? String(raw.vendorConfigId).trim() || null : null;
     const cloudDeviceId = raw.cloudDeviceId != null ? String(raw.cloudDeviceId).trim() || null : null;
+    const vendorConfigNested = raw.vendorConfig && typeof raw.vendorConfig === 'object' ? raw.vendorConfig : null;
 
     const errors = [];
 
@@ -51,17 +52,27 @@ const createDevice = async (req, res) => {
     if (vendor === VendorTypes.DAHUA) {
         if (!host) errors.push('host is required for Dahua');
         if (username == null || username === '') errors.push('username is required for Dahua');
-        // port optional (adapter defaults to 80); password optional (some devices use empty)
     }
 
     if (vendor === VendorTypes.ZKTECO) {
         if (!serialNumber) errors.push('serial number is required for ZKTeco');
-        // vendorConfigId optional (only needed for cloud features; push-only uses just serialNumber)
     }
 
     if (vendor === VendorTypes.SUPREMA) {
-        if (!vendorConfigId) errors.push('vendor config is required for Suprema');
+        if (!vendorConfigId && !vendorConfigNested) {
+            errors.push('Suprema requires either vendorConfigId (existing config) or vendorConfig (apiUrl, apiKey)');
+        }
+        if (vendorConfigNested) {
+            const url = vendorConfigNested.apiUrl != null ? String(vendorConfigNested.apiUrl).trim() : '';
+            const key = vendorConfigNested.apiKey != null ? String(vendorConfigNested.apiKey) : '';
+            if (!url) errors.push('vendorConfig.apiUrl is required when creating config inline');
+            if (!key) errors.push('vendorConfig.apiKey is required when creating config inline');
+        }
         if (!cloudDeviceId) errors.push('cloud device id is required for Suprema');
+    }
+
+    if (vendorConfigId && vendorConfigNested) {
+        errors.push('send either vendorConfigId or vendorConfig, not both');
     }
 
     if (errors.length) {
@@ -69,7 +80,22 @@ const createDevice = async (req, res) => {
     }
 
     try {
-
+        if (vendorConfigNested && (vendor === VendorTypes.SUPREMA || vendor === VendorTypes.ZKTECO)) {
+            const existing = await prisma.vendorConfig.findUnique({
+                where: { companyId_vendor: { companyId, vendor } }
+            });
+            if (existing) {
+                vendorConfigId = existing.id;
+            } else {
+                const apiUrl = String(vendorConfigNested.apiUrl ?? '').trim();
+                const apiKey = vendorConfigNested.apiKey != null ? encrypt(String(vendorConfigNested.apiKey)) : undefined;
+                const apiSecret = vendorConfigNested.apiSecret != null ? encrypt(String(vendorConfigNested.apiSecret)) : undefined;
+                const created = await prisma.vendorConfig.create({
+                    data: { companyId, vendor, apiUrl, apiKey, apiSecret }
+                });
+                vendorConfigId = created.id;
+            }
+        }
 
         const encryptedPassword = (password !== null && password !== '') ? encrypt(password) : undefined;
         const portNum = (port != null && !Number.isNaN(port) && port > 0) ? port : undefined;
@@ -89,7 +115,11 @@ const createDevice = async (req, res) => {
                 companyId
             }
         });
-        res.status(201).json({ success: true, message: 'Device created successfully', data: redactDevice(device) });
+        const withConfig = await prisma.biometricDevice.findUnique({
+            where: { id: device.id },
+            include: { vendorConfig: true }
+        });
+        res.status(201).json({ success: true, message: 'Device created successfully', data: redactDevice(withConfig) });
     } catch (error) {
 
         console.log("Error creating device: ", error);
