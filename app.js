@@ -193,9 +193,8 @@ app.use("/api/biometric-webhook", biometricWebhookRoutes);
 
 
 
-// SPECIAL: ZKTeco ADMS often demands the root path
-// This maps [POST/GET] /iclock/cdata directly to the controller
-app.post('/iclock/cdata', zktecoAdmsController); 
+// SPECIAL: ZKTeco ADMS - parse body as text for tab-delimited ATTLOG payloads
+app.post('/iclock/cdata', express.text({ type: 'text/*' }), express.urlencoded({ extended: true }), zktecoAdmsController);
 app.get('/iclock/cdata', zktecoAdmsController); 
 // ESSENTIAL ADMIN ENDPOINTS
 

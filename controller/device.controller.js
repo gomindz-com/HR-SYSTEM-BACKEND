@@ -1,18 +1,85 @@
 import prisma from "../config/prisma.config.js";
 import { getAdapter, isStreamingDevice } from "../adapters/registry.js";
 import { startDevice, stopDevice } from "../services/deviceManager.js";
+import bcrypt from "bcryptjs";
 
+
+const VendorTypes = {
+    DAHUA: 'DAHUA',
+    ZKTECO: 'ZKTECO',
+    SUPREMA: 'SUPREMA',
+}
 const createDevice = async (req, res) => {
+
+    const companyId = req.user.companyId;
+    if (!companyId) {
+        return res.status(400).json({ success: false, message: 'Company id is required' });
+    }
+
+    const { name, vendor, serialNumber, host, port, username, password, vendorConfigId, cloudDeviceId } = req.body;
+
+
+
+
+
+
     try {
+        if (!name || !vendor) {
+            return res.status(400).json({ success: false, message: 'Name and vendor are required' });
+        }
+
+
+        if (!VendorTypes[vendor]) {
+            return res.status(400).json({ success: false, message: 'Invalid vendor type' });
+        }
+
+
+        if (vendor === VendorTypes.DAHUA) {
+            if (!host || !port || !username || !password) {
+                return res.status(400).json({ success: false, message: 'Host, port, username and password are required for Dahua' });
+            }
+        }
+
+
+        if (vendor === VendorTypes.ZKTECO) {
+            if (!serialNumber || !vendorConfigId) {
+                return res.status(400).json({ success: false, message: 'Serial number and vendor config id are required for ZKTeco' });
+            }
+        }
+
+
+        if (vendor === VendorTypes.SUPREMA) {
+            if (!vendorConfigId || !cloudDeviceId) {
+                return res.status(400).json({ success: false, message: 'Vendor config id and cloud device id are required for Suprema' });
+            }
+        }
+
+
+
+
+
+        const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
+
         const device = await prisma.biometricDevice.create({
             data: {
-                ...req.body,
-                isActive: false
+                name,
+                vendor,
+                serialNumber,
+                host,
+                port,
+                username,
+                password: hashedPassword,
+                vendorConfigId,
+                cloudDeviceId,
+                isActive: false,
+                companyId
             }
         });
-        res.json(device);
+        res.status(201).json({ success: true, message: 'Device created successfully', data: device });
     } catch (error) {
-        res.status(400).json({ error: error.message });
+
+        console.log("Error creating device: ", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -27,7 +94,7 @@ const testDeviceConnection = async (req, res) => {
             return res.status(404).json({ error: 'Device not found' });
         }
 
-        const adapter = getAdapter(device.vendor);
+        const adapter = await getAdapter(device.vendor);
         const connected = await adapter.testConnection(device, device.vendorConfig);
 
         res.json({ connected });
@@ -43,8 +110,12 @@ const activateDevice = async (req, res) => {
             data: { isActive: true }
         });
 
-        if (device.host && isStreamingDevice(device.vendor)) {
-            await startDevice(device);
+        if (isStreamingDevice(device.vendor)) {
+            const deviceWithConfig = await prisma.biometricDevice.findUnique({
+                where: { id: device.id },
+                include: { vendorConfig: true }
+            });
+            await startDevice(deviceWithConfig);
         }
 
         res.json({ success: true, device });

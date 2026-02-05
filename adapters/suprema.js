@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import axios from 'axios';
 
 const activeSockets = new Map();
 export const isStreaming = true; // WebSocket is a stream
@@ -23,6 +24,7 @@ export const startListening = (device, vendorConfig, onEvent) => {
 
     ws.on('error', () => setTimeout(() => startListening(device, vendorConfig, onEvent), 5000));
     activeSockets.set(device.id, ws);
+    return () => stopListening(device.id);
 };
 
 export const stopListening = (deviceId) => {

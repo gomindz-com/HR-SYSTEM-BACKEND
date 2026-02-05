@@ -53,6 +53,7 @@ export const startListening = async (device, onEvent) => {
     };
 
     connectToDevice();
+    return () => stopListening(device.id);
 };
 
 export const stopListening = (deviceId) => {

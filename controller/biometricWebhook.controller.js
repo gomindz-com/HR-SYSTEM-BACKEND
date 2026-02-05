@@ -15,17 +15,30 @@ export const zktecoAdmsController = async (req, res) => {
         return res.status(200).send('OK'); // Must be plain text "OK"
     }
 
-    // 2. Handle Data Push (POST)
+    // 2. Handle Data Push (POST) - only process attendance logs (ATTLOG)
     if (req.method === 'POST') {
         try {
+            if (req.query.table !== 'ATTLOG') {
+                return res.status(200).send('OK');
+            }
+
             const device = await prisma.biometricDevice.findUnique({
                 where: { serialNumber: SN }
             });
 
             if (!device) return res.status(200).send('OK'); // ACK to stop retries
 
-            const adapter = getAdapter('ZKTECO');
-            const normalizedEvents = adapter.parsePushPayload(req.body, device);
+            let bodyStr = '';
+            if (typeof req.body === 'string') {
+                bodyStr = req.body;
+            } else if (req.body && typeof req.body === 'object') {
+                bodyStr = req.body.data ?? req.body.content ?? req.body.log ?? req.body.payload ?? (typeof req.body[0] === 'string' ? req.body[0] : Object.values(req.body).find(v => typeof v === 'string')) ?? '';
+            }
+            if (!String(bodyStr).trim()) return res.status(200).send('OK');
+            bodyStr = String(bodyStr);
+
+            const adapter = await getAdapter('ZKTECO');
+            const normalizedEvents = adapter.parsePushPayload(bodyStr, device);
 
             for (const event of normalizedEvents) {
                 await recordAttendance(event);
@@ -57,7 +70,7 @@ export const biometricWebhookController = async (req, res) => {
             return res.status(404).json({ error: 'Device inactive' });
         }
 
-        const adapter = getAdapter(vendor);
+        const adapter = await getAdapter(vendor);
         const normalizedEvent = adapter.parseWebhookPayload(
             req.body,
             device,

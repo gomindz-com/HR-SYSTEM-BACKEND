@@ -14,7 +14,7 @@ const findEmployeeByBiometricId = async (biometricUserId, companyId) => {
     });
 };
 
-const getOrCreateAttendance = async (employeeId, companyId, timestamp) => {
+const getOrCreateAttendance = async (employeeId, companyId, timestamp, deviceId) => {
     // Ensure we are looking at the correct calendar date (midnight)
     const date = new Date(timestamp);
     date.setHours(0, 0, 0, 0);
@@ -29,7 +29,6 @@ const getOrCreateAttendance = async (employeeId, companyId, timestamp) => {
         include: { shiftType: true }
     });
 
-    // Fix: determineAttendanceStatus needs the actual objects
     const attendanceStatus = determineAttendanceStatus(timestamp, company.companySettings, employee.shiftType);
 
     let attendance = await prisma.attendance.findUnique({
@@ -45,6 +44,7 @@ const getOrCreateAttendance = async (employeeId, companyId, timestamp) => {
                 companyId,
                 date,
                 status: attendanceStatus,
+                deviceId: deviceId || undefined,
             }
         });
     }
@@ -59,15 +59,6 @@ const isDuplicateEvent = (attendance, timestamp, eventType) => {
     return diffMinutes < DUPLICATE_WINDOWS[eventType];
 };
 
-const updateAttendanceTime = async (attendanceId, timestamp, eventType) => {
-    const updateData = eventType === 'CHECK_IN' ? { timeIn: timestamp } : { timeOut: timestamp };
-
-    return prisma.attendance.update({
-        where: { id: attendanceId },
-        data: updateData
-    });
-};
-
 const recordAttendance = async (normalizedEvent) => {
     try {
         const employee = await findEmployeeByBiometricId(normalizedEvent.biometricUserId, normalizedEvent.companyId);
@@ -80,14 +71,21 @@ const recordAttendance = async (normalizedEvent) => {
         const attendance = await getOrCreateAttendance(
             employee.id,
             normalizedEvent.companyId,
-            normalizedEvent.timestamp
+            normalizedEvent.timestamp,
+            normalizedEvent.deviceId
         );
 
         if (isDuplicateEvent(attendance, normalizedEvent.timestamp, normalizedEvent.eventType)) {
             return null;
         }
 
-        const updated = await updateAttendanceTime(attendance.id, normalizedEvent.timestamp, normalizedEvent.eventType);
+        const updatePayload = normalizedEvent.eventType === 'CHECK_IN'
+            ? { timeIn: normalizedEvent.timestamp, deviceId: normalizedEvent.deviceId }
+            : { timeOut: normalizedEvent.timestamp };
+        const updated = await prisma.attendance.update({
+            where: { id: attendance.id },
+            data: updatePayload
+        });
 
         // 2026 Health Update: Every punch confirms the device is alive
         await prisma.biometricDevice.update({

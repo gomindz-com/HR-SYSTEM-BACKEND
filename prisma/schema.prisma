@@ -756,16 +756,16 @@ model BiometricDevice {
   // For local network devices (Dahua)
   host     String?
   port     Int?
-  username String?
-  password String?
+  username String?  
+  password String? // Encrypted password
 
   // For cloud/WebSocket devices (Suprema)
   vendorConfigId String?
   vendorConfig   VendorConfig? @relation(fields: [vendorConfigId], references: [id], onDelete: SetNull)
-  cloudDeviceId  String?
+  cloudDeviceId  String? // 
 
   isActive Boolean   @default(true)
-  lastSeen DateTime? // Updated: Track device health in 2026
+  lastSeen DateTime? // Updated: Track device health 
 
   attendances Attendance[]
 

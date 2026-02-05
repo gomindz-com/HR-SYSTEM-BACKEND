@@ -18,16 +18,20 @@ const startDevice = async (device) => {
             return;
         }
 
-        const adapter = getAdapter(device.vendor);
-
-        // 2026 Update: Suprema uses WebSockets; Dahua uses Heartbeat-monitored HTTP
-        const cleanup = await adapter.startListening(device, async (normalizedEvent) => {
+        const adapter = await getAdapter(device.vendor);
+        const onEvent = async (normalizedEvent) => {
             await recordAttendance(normalizedEvent);
-            // Update "Last Seen" whenever an event arrives
-            await updateDeviceHealth(device.id); 
-        });
+            await updateDeviceHealth(device.id);
+        };
 
-        activeDevices.set(device.id, cleanup);
+        // Suprema needs vendorConfig; Dahua only needs (device, onEvent)
+        const cleanup = device.vendor === 'SUPREMA'
+            ? adapter.startListening(device, device.vendorConfig, onEvent)
+            : await adapter.startListening(device, onEvent);
+
+        if (typeof cleanup === 'function') {
+            activeDevices.set(device.id, cleanup);
+        }
         console.log(`[DeviceManager] Monitoring stream/socket for: ${device.name}`);
 
     } catch (error) {
@@ -60,11 +64,13 @@ const restartDevice = async (deviceId) => {
  */
 const startAllDevices = async () => {
     try {
-        const devices = await prisma.biometricDevice.findMany({ where: { isActive: true } });
-        
+        const devices = await prisma.biometricDevice.findMany({
+            where: { isActive: true },
+            include: { vendorConfig: true }
+        });
+
         for (const device of devices) {
-            // Dahua/Suprema start listeners; ZKTeco is just registered as 'active'
-            await startDevice(device); 
+            await startDevice(device);
         }
         
         console.log('[DeviceManager] All device initializations complete');
