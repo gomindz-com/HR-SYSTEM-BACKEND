@@ -142,9 +142,11 @@ const testDeviceConnection = async (req, res) => {
         const adapter = await getAdapter(device.vendor);
         const connected = await adapter.testConnection(deviceWithSecrets, deviceWithSecrets.vendorConfig);
 
-        res.json({ connected });
+        res.json({ success: true, message: 'Device connection tested successfully', data: { connected } });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.log("Error testing device connection: ", error);
+        console.log("Error testing device connection: ", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
