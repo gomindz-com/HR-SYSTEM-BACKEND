@@ -31,61 +31,60 @@ const createDevice = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Company id is required' });
     }
 
-    const { name, vendor, serialNumber, host, port, username, password, vendorConfigId, cloudDeviceId } = req.body;
+    const raw = req.body;
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    const vendor = typeof raw.vendor === 'string' ? raw.vendor.trim().toUpperCase() : '';
+    const serialNumber = raw.serialNumber != null ? String(raw.serialNumber).trim() : null;
+    const host = raw.host != null ? String(raw.host).trim() : null;
+    const port = raw.port != null ? (typeof raw.port === 'number' ? raw.port : parseInt(raw.port, 10)) : null;
+    const username = raw.username != null ? String(raw.username).trim() : null;
+    const password = raw.password != null ? String(raw.password) : null;
+    const vendorConfigId = raw.vendorConfigId != null ? String(raw.vendorConfigId).trim() || null : null;
+    const cloudDeviceId = raw.cloudDeviceId != null ? String(raw.cloudDeviceId).trim() || null : null;
 
+    const errors = [];
 
+    if (!name) errors.push('name is required');
+    if (!vendor) errors.push('vendor is required');
+    else if (!VendorTypes[vendor]) errors.push(`vendor must be one of: ${Object.values(VendorTypes).join(', ')}`);
 
+    if (vendor === VendorTypes.DAHUA) {
+        if (!host) errors.push('host is required for Dahua');
+        if (username == null || username === '') errors.push('username is required for Dahua');
+        // port optional (adapter defaults to 80); password optional (some devices use empty)
+    }
 
+    if (vendor === VendorTypes.ZKTECO) {
+        if (!serialNumber) errors.push('serial number is required for ZKTeco');
+        // vendorConfigId optional (only needed for cloud features; push-only uses just serialNumber)
+    }
 
+    if (vendor === VendorTypes.SUPREMA) {
+        if (!vendorConfigId) errors.push('vendor config is required for Suprema');
+        if (!cloudDeviceId) errors.push('cloud device id is required for Suprema');
+    }
+
+    if (errors.length) {
+        return res.status(400).json({ success: false, message: errors.join('; '), errors });
+    }
 
     try {
-        if (!name || !vendor) {
-            return res.status(400).json({ success: false, message: 'Name and vendor are required' });
-        }
 
 
-        if (!VendorTypes[vendor]) {
-            return res.status(400).json({ success: false, message: 'Invalid vendor type' });
-        }
-
-
-        if (vendor === VendorTypes.DAHUA) {
-            if (!host || !port || !username || !password) {
-                return res.status(400).json({ success: false, message: 'Host, port, username and password are required for Dahua' });
-            }
-        }
-
-
-        if (vendor === VendorTypes.ZKTECO) {
-            if (!serialNumber || !vendorConfigId) {
-                return res.status(400).json({ success: false, message: 'Serial number and vendor config id are required for ZKTeco' });
-            }
-        }
-
-
-        if (vendor === VendorTypes.SUPREMA) {
-            if (!vendorConfigId || !cloudDeviceId) {
-                return res.status(400).json({ success: false, message: 'Vendor config id and cloud device id are required for Suprema' });
-            }
-        }
-
-
-
-
-
-        const encryptedPassword = password ? encrypt(password) : undefined;
+        const encryptedPassword = (password !== null && password !== '') ? encrypt(password) : undefined;
+        const portNum = (port != null && !Number.isNaN(port) && port > 0) ? port : undefined;
 
         const device = await prisma.biometricDevice.create({
             data: {
                 name,
                 vendor,
-                serialNumber,
-                host,
-                port,
-                username,
+                serialNumber: serialNumber || undefined,
+                host: host || undefined,
+                port: portNum,
+                username: username || undefined,
                 password: encryptedPassword,
-                vendorConfigId,
-                cloudDeviceId,
+                vendorConfigId: vendorConfigId || undefined,
+                cloudDeviceId: cloudDeviceId || undefined,
                 isActive: false,
                 companyId
             }
