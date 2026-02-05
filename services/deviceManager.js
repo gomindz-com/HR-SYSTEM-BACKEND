@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.config.js';
 import { getAdapter, isStreamingDevice } from '../adapters/registry.js';
+import { withDecryptedSecrets } from '../lib/encryption.js';
 import { recordAttendance } from './biometricAttendanceService.js';
 
 // Store cleanup functions and health monitors
@@ -18,6 +19,7 @@ const startDevice = async (device) => {
             return;
         }
 
+        const deviceWithSecrets = withDecryptedSecrets(device);
         const adapter = await getAdapter(device.vendor);
         const onEvent = async (normalizedEvent) => {
             await recordAttendance(normalizedEvent);
@@ -26,8 +28,8 @@ const startDevice = async (device) => {
 
         // Suprema needs vendorConfig; Dahua only needs (device, onEvent)
         const cleanup = device.vendor === 'SUPREMA'
-            ? adapter.startListening(device, device.vendorConfig, onEvent)
-            : await adapter.startListening(device, onEvent);
+            ? adapter.startListening(deviceWithSecrets, deviceWithSecrets.vendorConfig, onEvent)
+            : await adapter.startListening(deviceWithSecrets, onEvent);
 
         if (typeof cleanup === 'function') {
             activeDevices.set(device.id, cleanup);

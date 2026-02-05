@@ -1,5 +1,11 @@
-import bcrypt from "bcryptjs";
 import prisma from "../config/prisma.config.js";
+import { encrypt } from "../lib/encryption.js";
+
+function redactVendorConfig(config) {
+    if (!config) return config;
+    const { apiKey, apiSecret, ...rest } = config;
+    return { ...rest, apiKey: apiKey ? '[REDACTED]' : null, apiSecret: apiSecret ? '[REDACTED]' : null };
+}
 
 export const createVendorConfig = async (req, res) => {
 
@@ -19,22 +25,21 @@ export const createVendorConfig = async (req, res) => {
         }
 
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedApiKey = apiKey != null ? await bcrypt.hash(String(apiKey), salt) : undefined;
-        const hashedApiSecret = apiSecret != null ? await bcrypt.hash(String(apiSecret), salt) : undefined;
+        const encryptedApiKey = apiKey != null ? encrypt(String(apiKey)) : undefined;
+        const encryptedApiSecret = apiSecret != null ? encrypt(String(apiSecret)) : undefined;
         const vendorConfig = await prisma.vendorConfig.create({
             data: {
                 companyId,
                 vendor,
                 apiUrl,
-                apiKey: hashedApiKey,
-                apiSecret: hashedApiSecret
+                apiKey: encryptedApiKey,
+                apiSecret: encryptedApiSecret
             }
         });
         return res.status(201).json({
             success: true,
             message: 'Vendor config created successfully',
-            data: vendorConfig
+            data: redactVendorConfig(vendorConfig)
         });
     } catch (error) {
         console.log("Error creating vendor config: ", error);
@@ -52,7 +57,8 @@ export const getVendorConfigsByCompany = async (req, res) => {
                 devices: true
             }
         });
-        return res.status(200).json({ success: true, message: 'Vendor configs fetched successfully', data: configs });
+        const safe = configs.map(redactVendorConfig);
+        return res.status(200).json({ success: true, message: 'Vendor configs fetched successfully', data: safe });
     } catch (error) {
         console.log("Error getting vendor configs: ", error);
         return res.status(500).json({ success: false, message: error.message });
@@ -76,8 +82,7 @@ export const updateVendorConfig = async (req, res) => {
         const value = req.body[field];
         if (value === undefined) continue;
         if (field === "apiKey" || field === "apiSecret") {
-            const salt = await bcrypt.genSalt(10);
-            updateData[field] = await bcrypt.hash(String(value), salt);
+            updateData[field] = encrypt(String(value));
         } else {
             updateData[field] = value;
         }
@@ -88,7 +93,7 @@ export const updateVendorConfig = async (req, res) => {
             where: { companyId, id },
             data: updateData
         });
-        res.status(200).json({ success: true, message: 'Vendor config updated successfully', data: vendorConfig });
+        res.status(200).json({ success: true, message: 'Vendor config updated successfully', data: redactVendorConfig(vendorConfig) });
     } catch (error) {
         console.log("Error updating vendor config: ", error);
         return res.status(500).json({ success: false, message: error.message });

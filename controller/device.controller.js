@@ -1,14 +1,29 @@
 import prisma from "../config/prisma.config.js";
 import { getAdapter, isStreamingDevice } from "../adapters/registry.js";
 import { startDevice, stopDevice } from "../services/deviceManager.js";
-import bcrypt from "bcryptjs";
+import { encrypt, withDecryptedSecrets } from "../lib/encryption.js";
 
 
 const VendorTypes = {
     DAHUA: 'DAHUA',
     ZKTECO: 'ZKTECO',
     SUPREMA: 'SUPREMA',
+};
+
+function redactDevice(device) {
+    if (!device) return device;
+    const { password, vendorConfig, ...rest } = device;
+    const out = { ...rest, password: password ? '[REDACTED]' : undefined };
+    if (vendorConfig) {
+        out.vendorConfig = {
+            ...vendorConfig,
+            apiKey: vendorConfig.apiKey ? '[REDACTED]' : null,
+            apiSecret: vendorConfig.apiSecret ? '[REDACTED]' : null
+        };
+    }
+    return out;
 }
+
 const createDevice = async (req, res) => {
 
     const companyId = req.user.companyId;
@@ -58,7 +73,7 @@ const createDevice = async (req, res) => {
 
 
 
-        const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
+        const encryptedPassword = password ? encrypt(password) : undefined;
 
         const device = await prisma.biometricDevice.create({
             data: {
@@ -68,14 +83,14 @@ const createDevice = async (req, res) => {
                 host,
                 port,
                 username,
-                password: hashedPassword,
+                password: encryptedPassword,
                 vendorConfigId,
                 cloudDeviceId,
                 isActive: false,
                 companyId
             }
         });
-        res.status(201).json({ success: true, message: 'Device created successfully', data: device });
+        res.status(201).json({ success: true, message: 'Device created successfully', data: redactDevice(device) });
     } catch (error) {
 
         console.log("Error creating device: ", error);
@@ -94,8 +109,9 @@ const testDeviceConnection = async (req, res) => {
             return res.status(404).json({ error: 'Device not found' });
         }
 
+        const deviceWithSecrets = withDecryptedSecrets(device);
         const adapter = await getAdapter(device.vendor);
-        const connected = await adapter.testConnection(device, device.vendorConfig);
+        const connected = await adapter.testConnection(deviceWithSecrets, deviceWithSecrets.vendorConfig);
 
         res.json({ connected });
     } catch (error) {
@@ -118,7 +134,7 @@ const activateDevice = async (req, res) => {
             await startDevice(deviceWithConfig);
         }
 
-        res.json({ success: true, device });
+        res.json({ success: true, device: redactDevice(device) });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -133,7 +149,7 @@ const deactivateDevice = async (req, res) => {
             data: { isActive: false }
         });
 
-        res.json({ success: true, device });
+        res.json({ success: true, device: redactDevice(device) });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -146,7 +162,7 @@ const getDevicesByCompany = async (req, res) => {
             include: { vendorConfig: true }
         });
 
-        res.json(devices);
+        res.json(devices.map(redactDevice));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -154,12 +170,16 @@ const getDevicesByCompany = async (req, res) => {
 
 const updateDevice = async (req, res) => {
     try {
+        const { password, ...restBody } = req.body;
+        const data = { ...restBody };
+        if (password !== undefined) data.password = encrypt(password);
+
         const device = await prisma.biometricDevice.update({
             where: { id: req.params.id },
-            data: req.body
+            data
         });
 
-        res.json(device);
+        res.json(redactDevice(device));
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
