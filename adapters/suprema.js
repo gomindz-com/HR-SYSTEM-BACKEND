@@ -32,6 +32,22 @@ export const stopListening = (deviceId) => {
     if (ws) { ws.close(); activeSockets.delete(deviceId); }
 };
 
+/** Test Suprema cloud API connection using vendor config (API URL + key). */
+export const testConnection = async (device, vendorConfig) => {
+    if (!vendorConfig?.apiUrl?.trim() || !vendorConfig?.apiKey?.trim()) return false;
+    try {
+        const base = vendorConfig.apiUrl.replace(/\/$/, '');   // Try base URL; many cloud APIs return 200 or 404 on root
+        const res = await axios.get(base, {
+            headers: { Authorization: `Bearer ${vendorConfig.apiKey}` },
+            timeout: 10000,
+            validateStatus: (s) => s >= 200 && s < 500
+        });
+        return res.status === 200;
+    } catch {
+        return false;
+    }
+};
+
 // Suprema 2026: Supports testing via Virtual Device API
 export const triggerVirtualEvent = async (vendorConfig, deviceId, userId) => {
     return axios.post(`${vendorConfig.apiUrl}/api/events/import`, {
