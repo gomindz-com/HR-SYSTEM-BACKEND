@@ -5,10 +5,14 @@ import {
   updateVendorConfig,
   deleteVendorConfig
 } from '../controller/vendorConfig.controller.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
+import { checkSubscription } from '../middleware/subscription.middleware.js';
 
 const router = express.Router();
 
-router.post('/', createVendorConfig);
+router.use(verifyToken);
+router.use(checkSubscription);
+
 
 router.get('/company/:companyId', getVendorConfigsByCompany);
 

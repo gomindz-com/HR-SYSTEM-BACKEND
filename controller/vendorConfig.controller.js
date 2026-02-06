@@ -7,49 +7,13 @@ function redactVendorConfig(config) {
     return { ...rest, apiKey: apiKey ? '[REDACTED]' : null, apiSecret: apiSecret ? '[REDACTED]' : null };
 }
 
-export const createVendorConfig = async (req, res) => {
-
-    const companyId = req.user.companyId;
-    const { vendor, apiUrl, apiKey, apiSecret } = req.body;
-
-
-    if (!vendor) {
-        return res.status(400).json({ success: false, message: 'Vendor is required' });
-    }
-
-
-    try {
-
-        if (!companyId) {
-            return res.status(401).json({ success: false, message: 'Company ID is required' });
-        }
-
-
-        const encryptedApiKey = apiKey != null ? encrypt(String(apiKey)) : undefined;
-        const encryptedApiSecret = apiSecret != null ? encrypt(String(apiSecret)) : undefined;
-        const vendorConfig = await prisma.vendorConfig.create({
-            data: {
-                companyId,
-                vendor,
-                apiUrl,
-                apiKey: encryptedApiKey,
-                apiSecret: encryptedApiSecret
-            }
-        });
-        return res.status(201).json({
-            success: true,
-            message: 'Vendor config created successfully',
-            data: redactVendorConfig(vendorConfig)
-        });
-    } catch (error) {
-        console.log("Error creating vendor config: ", error);
-        return res.status(500).json({ success: false, message: error.message });
-    }
-};
 
 export const getVendorConfigsByCompany = async (req, res) => {
 
-    const { companyId } = req.user;
+    const companyId = req.user.companyId;
+    if (!companyId) {
+        return res.status(400).json({ success: false, message: 'Company ID is required' });
+    }
     try {
         const configs = await prisma.vendorConfig.findMany({
             where: { companyId },
@@ -68,7 +32,7 @@ export const getVendorConfigsByCompany = async (req, res) => {
 export const updateVendorConfig = async (req, res) => {
 
     const { id } = req.params;
-    const { companyId } = req.user;
+    const companyId = req.user.companyId;
 
 
     if (!id || !companyId) {
@@ -102,7 +66,10 @@ export const updateVendorConfig = async (req, res) => {
 
 export const deleteVendorConfig = async (req, res) => {
     const { id } = req.params;
-    const { companyId } = req.user;
+    const companyId = req.user.companyId;
+    if (!companyId) {
+        return res.status(400).json({ success: false, message: 'Company ID is required' });
+    }
     try {
         await prisma.vendorConfig.delete({
             where: { companyId, id }
