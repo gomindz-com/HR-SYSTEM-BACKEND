@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
+import { renderEmailLayout } from "../emails/emailLayout.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import {
@@ -134,29 +135,24 @@ export const sendInvitation = async (req, res) => {
         process.env.RESEND_FROM_NAME.trim()) ||
       "GOMINDZ HR SYSTEM";
 
+    const htmlContent = renderEmailLayout({
+      preheaderText: "Invitation to join company",
+      mainHeading: "Company invitation",
+      bodyParagraphs: [
+        "Hello,",
+        `You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"}</strong>.`,
+        "Please click the button below to accept the invitation.",
+        "This invitation will expire in 24 hours.",
+        "Thank you, The HR System Team",
+      ],
+      cta: { text: "Accept Invitation", href: invitationUrl },
+    });
+
     const mailOptions = {
       from: `${fromName} <${fromEmail}>`,
       to: normalizedEmail,
       subject: "Invitation to join company",
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
-            <h2 style="color: #007bff; margin-top: 0;">Company Invitation</h2>
-            <p>Hello,</p>
-            <p>You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"
-        }</strong>.</p>
-            <p>Please click the button below to accept the invitation:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${invitationUrl}" style="background: #007bff; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-                Accept Invitation
-              </a>
-            </div>
-            <p style="color: #6c757d; font-size: 14px;">This invitation will expire in 24 hours.</p>
-            <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
-            <p style="color: #6c757d; font-size: 12px; margin-bottom: 0;">Thank you,<br/>The HR System Team</p>
-          </div>
-        </div>
-      `,
+      html: htmlContent,
     };
 
     try {
@@ -386,29 +382,25 @@ export const sendBulkInvitations = async (req, res) => {
           "GOMINDZ HR SYSTEM";
 
         try {
+          const bulkInviteParagraphs = [
+            "Hello,",
+            `You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"}</strong>.`,
+            ...(departmentName ? [`Department: <strong>${departmentName}</strong>`] : []),
+            "Please click the button below to accept the invitation.",
+            "This invitation will expire in 24 hours.",
+            "Thank you, The HR System Team",
+          ];
+          const bulkInviteHtml = renderEmailLayout({
+            preheaderText: "Invitation to join company",
+            mainHeading: "Company invitation",
+            bodyParagraphs: bulkInviteParagraphs,
+            cta: { text: "Accept Invitation", href: invitationUrl },
+          });
           await transporter.sendMail({
             from: `${fromName} <${fromEmail}>`,
             to: normalizedEmail,
             subject: "Invitation to join company",
-            html: `
-              <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
-                  <h2 style="color: #007bff; margin-top: 0;">Company Invitation</h2>
-                  <p>Hello,</p>
-                  <p>You are invited to join <strong>${company.companyName}</strong> as <strong>${position || "Employee"}</strong>.</p>
-                  ${departmentName ? `<p>Department: <strong>${departmentName}</strong></p>` : ""}
-                  <p>Please click the button below to accept the invitation:</p>
-                  <div style="text-align: center; margin: 30px 0;">
-                    <a href="${invitationUrl}" style="background: #007bff; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-                      Accept Invitation
-                    </a>
-                  </div>
-                  <p style="color: #6c757d; font-size: 14px;">This invitation will expire in 24 hours.</p>
-                  <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
-                  <p style="color: #6c757d; font-size: 12px; margin-bottom: 0;">Thank you,<br/>The HR System Team</p>
-                </div>
-              </div>
-            `,
+            html: bulkInviteHtml,
           });
         } catch (emailError) {
           console.error("Failed to send bulk invitation email:", {

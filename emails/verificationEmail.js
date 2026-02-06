@@ -1,6 +1,6 @@
 import { transporter } from "../config/transporter.js";
+import { renderEmailLayout } from "./emailLayout.js";
 
-// Email verification function
 export const sendVerificationEmail = async (to, token, name) => {
   const baseUrl =
     process.env.NODE_ENV === "development"
@@ -9,27 +9,19 @@ export const sendVerificationEmail = async (to, token, name) => {
 
   const verificationUrl = `${baseUrl}/verify-email/${token}`;
 
-  const htmlContent = `
-  <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
-      <h2 style="color: #28a745; margin-top: 0;">Welcome to HR System!</h2>
-      <p>Hello ${name},</p>
-      <p>Thank you for signing up with HR System. To get started, please verify your email address.</p>
-      <p>Click the button below to verify your email:</p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationUrl}" style="background: #28a745; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-          Verify Email Address
-        </a>
-      </div>
-      <p style="color: #6c757d; font-size: 14px;">If you did not create this account, please ignore this email. This link will expire in 24 hours.</p>
-      <p style="color: #6c757d; font-size: 14px;">Or copy and paste this link in your browser:<br/>
-        <a href="${verificationUrl}" style="color: #007bff; word-break: break-all;">${verificationUrl}</a>
-      </p>
-      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
-      <p style="color: #6c757d; font-size: 12px; margin-bottom: 0;">Thank you,<br/>The HR System Team</p>
-    </div>
-  </div>
-`;
+  const htmlContent = renderEmailLayout({
+    preheaderText: "Verify your email",
+    mainHeading: "Welcome to HR System!",
+    bodyParagraphs: [
+      `Hello ${name},`,
+      "Thank you for signing up with HR System. To get started, please verify your email address.",
+      "Click the button below to verify your email:",
+      "If you did not create this account, please ignore this email. This link will expire in 24 hours.",
+      `Or copy and paste this link in your browser: <a href="${verificationUrl}" style="color: rgb(255,90,95); word-break: break-all;">${verificationUrl}</a>`,
+      "Thank you, The HR System Team",
+    ],
+    cta: { text: "Verify Email Address", href: verificationUrl },
+  });
 
   const fromEmail =
     process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";
