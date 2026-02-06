@@ -14,7 +14,7 @@ router.use(verifyToken);
 router.use(checkSubscription);
 
 
-router.get('/company/:companyId', getVendorConfigsByCompany);
+router.get('/company', getVendorConfigsByCompany);
 
 router.patch('/:id', updateVendorConfig);
 
