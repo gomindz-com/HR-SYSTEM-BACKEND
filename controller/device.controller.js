@@ -187,15 +187,20 @@ const deactivateDevice = async (req, res) => {
 };
 
 const getDevicesByCompany = async (req, res) => {
+    const companyId = req.user.companyId;
+    if (!companyId) {
+        return res.status(400).json({ success: false, message: 'Company id is required' });
+    }
     try {
         const devices = await prisma.biometricDevice.findMany({
-            where: { companyId: parseInt(req.params.companyId) },
+            where: { companyId: companyId },
             include: { vendorConfig: true }
         });
 
-        res.json(devices.map(redactDevice));
+        res.json({ success: true, data: devices.map(redactDevice) });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.log("Error getting devices by company: ", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
