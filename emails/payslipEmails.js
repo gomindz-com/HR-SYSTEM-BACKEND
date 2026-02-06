@@ -40,6 +40,14 @@ const formatCurrency = (amount) => {
 };
 
 /**
+ * Humanize payroll status for display
+ */
+const formatStatus = (status) => {
+  if (!status) return "Processed";
+  return String(status).charAt(0).toUpperCase() + String(status).slice(1).toLowerCase();
+};
+
+/**
  * Send payslip email with PDF attachment
  * @param {Object} employee - Employee data with name and email
  * @param {Object} payrollData - Payroll record data
@@ -51,79 +59,113 @@ export const sendPayslipEmail = async (employee, payrollData, pdfBuffer) => {
     const period = formatPeriod(payrollData.periodStart, payrollData.periodEnd);
     const netPayFormatted = formatCurrency(payrollData.netPay);
 
+    const payDate = formatDate(payrollData.finalizedAt || payrollData.processedDate || new Date());
+    const statusLabel = formatStatus(payrollData.status);
+    const showPaymentMethod = payrollData.paymentMethod && payrollData.paymentMethod.trim() !== "";
+
     const htmlContent = `
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
-        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-          <span style="font-size: 30px; color: #2563eb;">💰</span>
-        </div>
-        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Your Payslip is Ready</h1>
-        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Payment processed successfully</p>
-      </div>
-
-      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
-        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Dear ${employee.name},</h2>
-        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
-          Your payslip for <strong>${period}</strong> has been processed and is now ready for your review.
-        </p>
-      </div>
-
-      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Payment Summary</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Pay Period</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${period}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Status</p>
-            <p style="margin: 0; font-weight: bold; color: #10b981;">${payrollData.status}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Date</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${formatDate(payrollData.finalizedAt || new Date())}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Method</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${payrollData.paymentMethod || "Bank Transfer"}</p>
-          </div>
-        </div>
-      </div>
-
-      <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 25px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-        <p style="margin: 0; color: white; font-size: 14px; opacity: 0.9; margin-bottom: 10px;">NET PAY</p>
-        <h2 style="margin: 0; color: white; font-size: 36px; font-weight: bold;">${netPayFormatted} gmd</h2>
-      </div>
-
-      <div style="background: #e7f3ff; border-left: 4px solid #2563eb; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
-        <h3 style="color: #1e40af; margin-top: 0; font-size: 16px;">📎 Payslip Attached</h3>
-        <p style="color: #495057; margin: 0; font-size: 14px;">
-          Your detailed payslip is attached to this email as a PDF document. Please download and keep it for your records.
-        </p>
-      </div>
-
-      ${payrollData.notes
-        ? `
-      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
-        <h3 style="color: #856404; margin-top: 0; font-size: 16px;">📝 Note from HR</h3>
-        <p style="color: #856404; margin: 0; font-size: 14px;">${payrollData.notes}</p>
-      </div>
-      `
-        : ""
-      }
-
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
-        <p style="color: #6c757d; font-size: 14px; margin: 0;">
-          If you have any questions about your payslip, please contact the HR department.
-        </p>
-      </div>
-
-      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
-        This is an automated message. Please do not reply to this email.<br>
-        This document is confidential and intended for the named recipient only.<br>
-        © ${new Date().getFullYear()} HR Management System. All rights reserved.
-      </p>
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+        <tr>
+          <td style="padding: 0 0 24px; border-bottom: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 12px; color: #6b7280; letter-spacing: 0.5px;">PAYSLIP NOTIFICATION</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 28px 0 24px;">
+            <p style="margin: 0 0 8px; font-size: 16px; color: #374151;">Dear ${employee.name},</p>
+            <p style="margin: 0; font-size: 15px; color: #4b5563; line-height: 1.6;">
+              Please find attached your payslip for the period <strong>${period}</strong>. This document is for your records and confirms your earnings and deductions for this pay period.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 0 0 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px 24px;">
+                  <p style="margin: 0 0 16px; font-size: 13px; font-weight: 600; color: #374151;">Summary</p>
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding: 6px 0; font-size: 13px; color: #6b7280;">Pay period</td>
+                      <td style="padding: 6px 0; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${period}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0; font-size: 13px; color: #6b7280;">Pay date</td>
+                      <td style="padding: 6px 0; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${payDate}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0; font-size: 13px; color: #6b7280;">Status</td>
+                      <td style="padding: 6px 0; font-size: 13px; color: #059669; font-weight: 500; text-align: right;">${statusLabel}</td>
+                    </tr>
+                    ${showPaymentMethod ? `
+                    <tr>
+                      <td style="padding: 6px 0; font-size: 13px; color: #6b7280;">Payment method</td>
+                      <td style="padding: 6px 0; font-size: 13px; color: #111827; font-weight: 500; text-align: right;">${payrollData.paymentMethod.trim()}</td>
+                    </tr>
+                    ` : ""}
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 0 0 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #111827; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px 24px; text-align: center;">
+                  <p style="margin: 0 0 4px; font-size: 12px; color: #9ca3af; letter-spacing: 0.5px;">Net pay</p>
+                  <p style="margin: 0; font-size: 28px; font-weight: 600; color: #ffffff;">${netPayFormatted} GMD</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 0 0 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 0 8px 8px 0;">
+              <tr>
+                <td style="padding: 16px 20px;">
+                  <p style="margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #1e40af;">Attachment</p>
+                  <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.5;">Your payslip is attached to this email as a PDF. Please retain it for your records.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        ${payrollData.notes && payrollData.notes.trim() !== ""
+          ? `
+        <tr>
+          <td style="padding: 0 0 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #fffbeb; border-left: 4px solid #d97706; border-radius: 0 8px 8px 0;">
+              <tr>
+                <td style="padding: 16px 20px;">
+                  <p style="margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #92400e;">Note from HR</p>
+                  <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.5;">${payrollData.notes.trim()}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        `
+          : ""}
+        <tr>
+          <td style="padding: 20px 0; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5; text-align: center;">
+              For any questions regarding this payslip, please contact your HR department.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 16px 0 0; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 11px; color: #9ca3af; text-align: center; line-height: 1.5;">
+              This is an automated message. Confidential — for the addressee only.<br>
+              &copy; ${new Date().getFullYear()} HR Management System.
+            </p>
+          </td>
+        </tr>
+      </table>
     </div>
   `;
 
