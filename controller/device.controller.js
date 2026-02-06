@@ -165,7 +165,11 @@ const activateDevice = async (req, res) => {
             await startDevice(deviceWithConfig);
         }
 
-        res.json({ success: true, device: redactDevice(device) });
+        const withConfig = await prisma.biometricDevice.findUnique({
+            where: { id: device.id },
+            include: { vendorConfig: true }
+        });
+        res.json({ success: true, data: redactDevice(withConfig) });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -180,7 +184,11 @@ const deactivateDevice = async (req, res) => {
             data: { isActive: false }
         });
 
-        res.json({ success: true, device: redactDevice(device) });
+        const withConfig = await prisma.biometricDevice.findUnique({
+            where: { id: device.id },
+            include: { vendorConfig: true }
+        });
+        res.json({ success: true, data: redactDevice(withConfig) });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -215,9 +223,13 @@ const updateDevice = async (req, res) => {
             data
         });
 
-        res.json(redactDevice(device));
+        const withConfig = await prisma.biometricDevice.findUnique({
+            where: { id: device.id },
+            include: { vendorConfig: true }
+        });
+        res.json({ success: true, data: redactDevice(withConfig) });
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, message: error.message });
     }
 };
 
