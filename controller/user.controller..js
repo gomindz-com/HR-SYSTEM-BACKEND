@@ -19,11 +19,18 @@ export const updateUserProfile = async (req, res) => {
       "address",
       "dateOfBirth",
       "emergencyContact",
+      "biometricUserId",
     ];
     const updateData = {};
 
     // Handle form data fields
     allowedUpdates.forEach((field) => {
+      if (field === "biometricUserId") {
+        if (req.body[field] === undefined) return;
+        const value = req.body[field];
+        updateData[field] = value === "" || value === null ? null : String(value).trim();
+        return;
+      }
       if (req.body[field]) {
         if (field === "dateOfBirth") {
           updateData[field] = new Date(req.body[field]);
