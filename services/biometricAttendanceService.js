@@ -82,6 +82,11 @@ const recordAttendance = async (normalizedEvent) => {
         if (!hasCheckIn) {
             eventType = 'CHECK_IN';
         } else if (!hasCheckOut) {
+            // Could be real check-out or duplicate check-in (punched again within 2 min)
+            const withinCheckInWindow = isDuplicateEvent(attendance, normalizedEvent.timestamp, 'CHECK_IN');
+            if (withinCheckInWindow) {
+                return null; // treat as duplicate check-in, ignore
+            }
             eventType = 'CHECK_OUT';
         } else {
             // Already have both in and out for today — ignore further punches
