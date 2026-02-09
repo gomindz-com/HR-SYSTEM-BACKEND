@@ -125,6 +125,14 @@ try {
   console.error("❌ Failed to initialize trial expiration cron:", error);
 }
 
+// Initialize Dahua attendance backup cron (hourly recordFinder sync)
+try {
+  const initDahuaBackupCron = (await import("./automations/dahuaBackupCron.js")).default;
+  initDahuaBackupCron();
+} catch (error) {
+  console.error("❌ Failed to initialize Dahua backup cron:", error);
+}
+
 const app = express();
 
 // middleware
@@ -133,6 +141,7 @@ app.use(express.json());
 // CORS configuration
 const allowedOrigins = [
   "http://localhost:8080",
+  "http://localhost:8081",
   "http://localhost:3000",
   "http://localhost:3001",
   "https://admin.hr.gomindz.gm",

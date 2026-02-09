@@ -9,8 +9,7 @@ const DUPLICATE_WINDOWS = {
 
 const findEmployeeByBiometricId = async (biometricUserId, companyId) => {
     return prisma.employee.findFirst({
-        where: { biometricUserId, companyId },
-        include: { shiftType: true }
+        where: { biometricUserId, companyId }
     });
 };
 
@@ -20,16 +19,17 @@ const getOrCreateAttendance = async (employeeId, companyId, timestamp, deviceId)
     date.setHours(0, 0, 0, 0);
 
     const company = await prisma.company.findUnique({
-        where: { id: companyId },
-        include: { companySettings: true }
+        where: { id: companyId }
     });
+    if (!company) throw new Error("Company not found");
 
     const employee = await prisma.employee.findUnique({
-        where: { id: employeeId },
-        include: { shiftType: true }
+        where: { id: employeeId }
     });
+    if (!employee) throw new Error("Employee not found");
 
-    const attendanceStatus = determineAttendanceStatus(timestamp, company.companySettings, employee.shiftType);
+    // Company has workStartTime, workEndTime, lateThreshold etc. directly
+    const attendanceStatus = determineAttendanceStatus(timestamp, company, employee.shiftType);
 
     let attendance = await prisma.attendance.findUnique({
         where: {
@@ -75,17 +75,32 @@ const recordAttendance = async (normalizedEvent) => {
             normalizedEvent.deviceId
         );
 
-        if (isDuplicateEvent(attendance, normalizedEvent.timestamp, normalizedEvent.eventType)) {
+        // First punch = check-in, second = check-out, third+ = skip (device sends all as punch)
+        const hasCheckIn = !!attendance.timeIn;
+        const hasCheckOut = !!attendance.timeOut;
+        let eventType;
+        if (!hasCheckIn) {
+            eventType = 'CHECK_IN';
+        } else if (!hasCheckOut) {
+            eventType = 'CHECK_OUT';
+        } else {
+            // Already have both in and out for today — ignore further punches
             return null;
         }
 
-        const updatePayload = normalizedEvent.eventType === 'CHECK_IN'
+        if (isDuplicateEvent(attendance, normalizedEvent.timestamp, eventType)) {
+            return null;
+        }
+
+        const updatePayload = eventType === 'CHECK_IN'
             ? { timeIn: normalizedEvent.timestamp, deviceId: normalizedEvent.deviceId }
             : { timeOut: normalizedEvent.timestamp };
         const updated = await prisma.attendance.update({
             where: { id: attendance.id },
             data: updatePayload
         });
+
+        console.log(`[Attendance] Recorded ${eventType} for employee ${employee.id} (${employee.name}) at ${normalizedEvent.timestamp.toISOString()}`);
 
         // 2026 Health Update: Every punch confirms the device is alive
         await prisma.biometricDevice.update({

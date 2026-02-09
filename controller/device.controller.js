@@ -144,9 +144,18 @@ const testDeviceConnection = async (req, res) => {
 
         res.json({ success: true, message: 'Device connection tested successfully', data: { connected } });
     } catch (error) {
-        console.log("Error testing device connection: ", error);
-        console.log("Error testing device connection: ", error);
-        return res.status(500).json({ success: false, message: error.message });
+        const detail = {
+            message: error.message,
+            code: error.code,
+            httpStatus: error.response?.status,
+            responseData: error.response?.data,
+        };
+        console.warn("Error testing device connection:", detail);
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+            ...(process.env.NODE_ENV !== "production" && { debug: detail }),
+        });
     }
 };
 
