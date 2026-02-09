@@ -213,7 +213,7 @@ export const switchPlan = async (req, res) => {
     const currentSubscription = await prisma.subscription.findFirst({
       where: {
         companyId,
-        status: { in: ["TRIAL", "PENDING", "ACTIVE", "CANCELLED"] },
+        status: { in: ["TRIAL", "PENDING", "ACTIVE", "CANCELLED", "EXPIRED"] },
       },
       include: { plan: true },
     });

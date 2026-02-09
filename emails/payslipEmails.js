@@ -1,4 +1,5 @@
 import { transporter } from "../config/transporter.js";
+import { renderEmailLayout } from "./emailLayout.js";
 
 /**
  * Format date to readable string
@@ -40,94 +41,52 @@ const formatCurrency = (amount) => {
 };
 
 /**
+ * Humanize payroll status for display
+ */
+const formatStatus = (status) => {
+  if (!status) return "Processed";
+  return String(status).charAt(0).toUpperCase() + String(status).slice(1).toLowerCase();
+};
+
+/**
  * Send payslip email with PDF attachment
- * @param {Object} employee - Employee data with name and email
- * @param {Object} payrollData - Payroll record data
- * @param {Buffer} pdfBuffer - PDF file buffer
- * @returns {Promise<Object>} Result object with success status
  */
 export const sendPayslipEmail = async (employee, payrollData, pdfBuffer) => {
   try {
     const period = formatPeriod(payrollData.periodStart, payrollData.periodEnd);
     const netPayFormatted = formatCurrency(payrollData.netPay);
 
-    const htmlContent = `
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
-        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-          <span style="font-size: 30px; color: #2563eb;">💰</span>
-        </div>
-        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Your Payslip is Ready</h1>
-        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Payment processed successfully</p>
-      </div>
+    const payDate = formatDate(payrollData.finalizedAt || payrollData.processedDate || new Date());
+    const statusLabel = formatStatus(payrollData.status);
+    const showPaymentMethod = payrollData.paymentMethod && payrollData.paymentMethod.trim() !== "";
 
-      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
-        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Dear ${employee.name},</h2>
-        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
-          Your payslip for <strong>${period}</strong> has been processed and is now ready for your review.
-        </p>
-      </div>
+    const summaryLines = [
+      `Pay period: ${period}`,
+      `Pay date: ${payDate}`,
+      `Status: ${statusLabel}`,
+      ...(showPaymentMethod ? [`Payment method: ${payrollData.paymentMethod.trim()}`] : []),
+    ];
+    const highlightBlock = summaryLines.join("<br />");
 
-      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Payment Summary</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Pay Period</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${period}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Status</p>
-            <p style="margin: 0; font-weight: bold; color: #10b981;">${payrollData.status}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Date</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${formatDate(payrollData.finalizedAt || new Date())}</p>
-          </div>
-          <div>
-            <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">Payment Method</p>
-            <p style="margin: 0; font-weight: bold; color: #2c3e50;">${payrollData.paymentMethod || "Bank Transfer"}</p>
-          </div>
-        </div>
-      </div>
+    const bodyParagraphs = [
+      `Dear ${employee.name},`,
+      `Please find attached your payslip for the period <strong>${period}</strong>. This document is for your records and confirms your earnings and deductions for this pay period.`,
+      `Net pay: <strong>${netPayFormatted} GMD</strong>`,
+      "Your payslip is attached to this email as a PDF. Please retain it for your records.",
+    ];
+    if (payrollData.notes && payrollData.notes.trim() !== "") {
+      bodyParagraphs.push(`Note from HR: ${payrollData.notes.trim()}`);
+    }
+    bodyParagraphs.push("For any questions regarding this payslip, please contact your HR department.");
 
-      <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 25px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-        <p style="margin: 0; color: white; font-size: 14px; opacity: 0.9; margin-bottom: 10px;">NET PAY</p>
-        <h2 style="margin: 0; color: white; font-size: 36px; font-weight: bold;">${netPayFormatted} gmd</h2>
-      </div>
+    const htmlContent = renderEmailLayout({
+      preheaderText: "Your payslip is ready",
+      mainHeading: "Your payslip is ready",
+      highlightBlock,
+      bodyParagraphs,
+      footerAddress: `© ${new Date().getFullYear()} HR Management System. Confidential — for the addressee only.`,
+    });
 
-      <div style="background: #e7f3ff; border-left: 4px solid #2563eb; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
-        <h3 style="color: #1e40af; margin-top: 0; font-size: 16px;">📎 Payslip Attached</h3>
-        <p style="color: #495057; margin: 0; font-size: 14px;">
-          Your detailed payslip is attached to this email as a PDF document. Please download and keep it for your records.
-        </p>
-      </div>
-
-      ${payrollData.notes
-        ? `
-      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
-        <h3 style="color: #856404; margin-top: 0; font-size: 16px;">📝 Note from HR</h3>
-        <p style="color: #856404; margin: 0; font-size: 14px;">${payrollData.notes}</p>
-      </div>
-      `
-        : ""
-      }
-
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
-        <p style="color: #6c757d; font-size: 14px; margin: 0;">
-          If you have any questions about your payslip, please contact the HR department.
-        </p>
-      </div>
-
-      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
-        This is an automated message. Please do not reply to this email.<br>
-        This document is confidential and intended for the named recipient only.<br>
-        © ${new Date().getFullYear()} HR Management System. All rights reserved.
-      </p>
-    </div>
-  `;
-
-    // Prepare attachment - ensure content is a proper base64 string
     const base64Content = Buffer.from(pdfBuffer).toString("base64");
     const attachment = {
       filename: `Payslip_${employee.name.replace(/\s+/g, "_")}_${formatPeriod(payrollData.periodStart, payrollData.periodEnd).replace(/\s+/g, "_")}.pdf`,
@@ -161,10 +120,6 @@ export const sendPayslipEmail = async (employee, payrollData, pdfBuffer) => {
 
 /**
  * Send bulk payslip notification email (summary without attachments)
- * @param {Object} hrContact - HR contact information
- * @param {Number} count - Number of payslips processed
- * @param {Array} employeeNames - List of employee names
- * @returns {Promise<Object>} Result object with success status
  */
 export const sendBulkPayslipNotification = async (
   hrContact,
@@ -172,52 +127,22 @@ export const sendBulkPayslipNotification = async (
   employeeNames
 ) => {
   try {
-    const htmlContent = `
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
-        <div style="background: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-          <span style="font-size: 30px; color: #10b981;">✓</span>
-        </div>
-        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Bulk Payroll Processed</h1>
-        <p style="color: white; margin: 10px 0 0; font-size: 16px; opacity: 0.9;">All payslips have been distributed</p>
-      </div>
+    const listHtml = employeeNames
+      .map((name) => `${name}`)
+      .join("<br />");
 
-      <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 20px;">
-        <h2 style="color: #2c3e50; margin-top: 0; font-size: 22px;">Processing Complete</h2>
-        <p style="color: #6c757d; font-size: 16px; line-height: 1.6;">
-          <strong>${count}</strong> payroll records have been finalized and payslips have been sent to the respective employees.
-        </p>
-      </div>
-
-      <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-        <h3 style="color: #495057; margin-top: 0; font-size: 18px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px;">Processed Employees</h3>
-        <div style="max-height: 200px; overflow-y: auto; margin-top: 15px;">
-          ${employeeNames
-        .map(
-          (name) => `
-            <div style="padding: 8px; border-bottom: 1px solid #e9ecef;">
-              <span style="color: #10b981; margin-right: 8px;">✓</span>
-              <span style="color: #2c3e50;">${name}</span>
-            </div>
-          `
-        )
-        .join("")}
-        </div>
-      </div>
-
-      <div style="background: #e7f3ff; border-left: 4px solid #2563eb; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
-        <p style="color: #495057; margin: 0; font-size: 14px;">
-          All employees have received their payslips via email with PDF attachments and in-app notifications.
-        </p>
-      </div>
-
-      <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-      <p style="color: #6c757d; font-size: 12px; text-align: center; margin: 0;">
-        This is an automated notification from the HR Management System.<br>
-        © ${new Date().getFullYear()} HR Management System. All rights reserved.
-      </p>
-    </div>
-  `;
+    const htmlContent = renderEmailLayout({
+      preheaderText: "Bulk payroll processed",
+      mainHeading: "Bulk payroll processed",
+      highlightBlock: `<strong>${count}</strong> payroll records have been finalized and payslips have been sent to the respective employees.`,
+      bodyParagraphs: [
+        "Processed employees:",
+        listHtml,
+        "All employees have received their payslips via email with PDF attachments and in-app notifications.",
+        "This is an automated notification from the HR Management System.",
+      ],
+      footerAddress: `© ${new Date().getFullYear()} HR Management System.`,
+    });
 
     const fromEmail =
       process.env.RESEND_FROM_EMAIL || "support@gomindz.gm";

@@ -50,7 +50,8 @@
     "http-errors": "~1.6.3",
     "jade": "~1.11.0",
     "jsonwebtoken": "^9.0.2",
-    "jspdf": "^3.0.2",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.7",
     "modem-pay": "^1.0.6",
     "moment-timezone": "^0.6.0",
     "morgan": "~1.9.1",
@@ -60,7 +61,6 @@
     "nodemon": "^3.1.10",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
-    "puppeteer-core": "^24.19.0",
     "resend": "^4.7.0",
     "sqlite3": "^5.1.7"
   },

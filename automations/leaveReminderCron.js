@@ -1,9 +1,9 @@
 import cron from "node-cron";
 import prisma from "../config/prisma.config.js";
 import { transporter } from "../config/transporter.js";
+import { renderEmailLayout } from "../emails/emailLayout.js";
 import { createNotification } from "../utils/notification.utils.js";
 
-// Function to send reminder email
 const sendLeaveReminderEmail = async (leaveRequest, daysLeft) => {
   try {
     const fromEmail =
@@ -13,36 +13,34 @@ const sendLeaveReminderEmail = async (leaveRequest, daysLeft) => {
         process.env.RESEND_FROM_NAME.trim()) ||
       "GOMINDZ HR SYSTEM";
 
+    const startStr = new Date(leaveRequest.startDate).toLocaleDateString();
+    const endStr = new Date(leaveRequest.endDate).toLocaleDateString();
+    const highlightBlock = [
+      `Leave type: ${leaveRequest.leaveType}`,
+      `Start date: ${startStr}`,
+      `End date: ${endStr}`,
+      `Duration: ${leaveRequest.days} day(s)`,
+      ...(leaveRequest.comments ? [`Comments: ${leaveRequest.comments}`] : []),
+    ].join("<br />");
+
+    const htmlContent = renderEmailLayout({
+      preheaderText: `Leave reminder: ${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining`,
+      mainHeading: "Leave reminder",
+      highlightBlock,
+      bodyParagraphs: [
+        `Dear ${leaveRequest.employee.name},`,
+        "This is a friendly reminder that your approved leave is ending soon.",
+        `You have <strong>${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining</strong> in your leave period. Please ensure you're ready to return to work on ${endStr}.`,
+        "If you have any questions or need to extend your leave, please contact your supervisor or HR department.",
+        "Best regards, HR Team",
+      ],
+    });
+
     const emailContent = {
       from: `${fromName} <${fromEmail}>`,
       to: leaveRequest.employee.email,
       subject: `Leave Reminder: ${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2c3e50;">Leave Reminder</h2>
-          <p>Dear ${leaveRequest.employee.name},</p>
-          <p>This is a friendly reminder that your approved leave is ending soon.</p>
-          
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #495057;">Leave Details:</h3>
-            <p><strong>Leave Type:</strong> ${leaveRequest.leaveType}</p>
-            <p><strong>Start Date:</strong> ${new Date(leaveRequest.startDate).toLocaleDateString()}</p>
-            <p><strong>End Date:</strong> ${new Date(leaveRequest.endDate).toLocaleDateString()}</p>
-            <p><strong>Duration:</strong> ${leaveRequest.days} day(s)</p>
-            ${leaveRequest.comments ? `<p><strong>Comments:</strong> ${leaveRequest.comments}</p>` : ""}
-          </div>
-          
-          <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
-            <h3 style="margin-top: 0; color: #856404;">Reminder:</h3>
-            <p><strong>You have ${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining in your leave period.</strong></p>
-            <p>Please ensure you're ready to return to work on ${new Date(leaveRequest.endDate).toLocaleDateString()}.</p>
-          </div>
-          
-          <p>If you have any questions or need to extend your leave, please contact your supervisor or HR department immediately.</p>
-          
-          <p>Best regards,<br>HR Team</p>
-        </div>
-      `,
+      html: htmlContent,
     };
 
     await transporter.sendMail(emailContent);
