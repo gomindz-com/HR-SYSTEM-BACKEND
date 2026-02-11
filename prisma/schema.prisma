@@ -764,6 +764,9 @@ model BiometricDevice {
   vendorConfig   VendorConfig? @relation(fields: [vendorConfigId], references: [id], onDelete: SetNull)
   cloudDeviceId  String? // 
 
+
+  agentApiKeyHash String?
+
   isActive Boolean   @default(true)
   lastSeen DateTime? // Updated: Track device health 
 
