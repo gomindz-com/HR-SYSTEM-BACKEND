@@ -24,6 +24,7 @@ import performanceRoutes from "./routes/performance.route.js";
 import deviceRoutes from "./routes/device.route.js";
 import vendorConfigRoutes from "./routes/vendorConfig.route.js";
 import biometricWebhookRoutes from "./routes/biometricWebhook.route.js";
+import dolynkWebhookRoutes from "./routes/dolynkWebhook.route.js";
 import {zktecoAdmsController} from "./controller/biometricWebhook.controller.js"
 import { stopAllDevices } from "./services/deviceManager.js";
 
@@ -135,8 +136,14 @@ try {
 
 const app = express();
 
-// middleware
-app.use(express.json());
+// middleware (rawBody for DoLynk webhook HMAC verification)
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // CORS configuration
 const allowedOrigins = [
@@ -200,7 +207,8 @@ app.use("/api/device", deviceRoutes);
 app.use("/api/vendor-config", vendorConfigRoutes);
 app.use("/api/biometric-webhook", biometricWebhookRoutes);
 
-
+// DoLynk Pro webhook (POST /dahua)
+app.use("/dahua", dolynkWebhookRoutes);
 
 // SPECIAL: ZKTeco ADMS - parse body as text for tab-delimited ATTLOG payloads
 app.post('/iclock/cdata', express.text({ type: 'text/*' }), express.urlencoded({ extended: true }), zktecoAdmsController);

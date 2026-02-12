@@ -19,6 +19,12 @@ const startDevice = async (device) => {
             return;
         }
 
+        // Dahua: fully DoLynk — all events come from DoLynk webhook; never start local stream
+        if (device.vendor === 'DAHUA') {
+            console.log(`[DeviceManager] ${device.name} uses DoLynk; skipping local stream`);
+            return;
+        }
+
         const deviceWithSecrets = withDecryptedSecrets(device);
         const adapter = await getAdapter(device.vendor);
         const onEvent = async (normalizedEvent) => {

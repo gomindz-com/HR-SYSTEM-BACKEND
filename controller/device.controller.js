@@ -50,8 +50,7 @@ const createDevice = async (req, res) => {
     else if (!VendorTypes[vendor]) errors.push(`vendor must be one of: ${Object.values(VendorTypes).join(', ')}`);
 
     if (vendor === VendorTypes.DAHUA) {
-        if (!host) errors.push('host is required for Dahua');
-        if (username == null || username === '') errors.push('username is required for Dahua');
+        if (!serialNumber || !String(serialNumber).trim()) errors.push('serial number is required for Dahua (DoLynk)');
     }
 
     if (vendor === VendorTypes.ZKTECO) {

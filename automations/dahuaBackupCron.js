@@ -22,6 +22,9 @@ async function runDahuaBackup() {
         if (typeof adapter.fetchAttendanceRecords !== "function") return;
 
         for (const device of devices) {
+            // Fully DoLynk: backend never reaches Dahua devices; skip recordFinder
+            if (device.vendor === "DAHUA") continue;
+
             const deviceWithSecrets = withDecryptedSecrets(device);
             const records = await adapter.fetchAttendanceRecords(deviceWithSecrets, start, end);
             for (const rec of records) {
