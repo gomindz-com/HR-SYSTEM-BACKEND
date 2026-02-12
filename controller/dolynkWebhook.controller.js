@@ -2,13 +2,15 @@ import prisma from "../config/prisma.config.js";
 import { recordAttendance } from "../services/biometricAttendanceService.js";
 
 const METHOD_ACCESS_CONTROL = "client.index.accessControl";
+const MSGTYPE_ACCESS_CONTROL = "AccessControl";
 
 /**
- * Parse DoLynk time string (e.g. "2026-02-12 14:00:00") to Date.
+ * Parse DoLynk time: string "YYYY-MM-DD HH:mm:ss" or number (ms since epoch).
  */
-function parseDolynkTime(timeStr) {
-  if (!timeStr) return new Date();
-  const str = String(timeStr).trim();
+function parseDolynkTime(timeStrOrMs) {
+  if (timeStrOrMs == null) return new Date();
+  if (typeof timeStrOrMs === "number") return new Date(timeStrOrMs);
+  const str = String(timeStrOrMs).trim();
   if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(str)) {
     return new Date(str.replace(" ", "T") + "Z");
   }
@@ -16,22 +18,47 @@ function parseDolynkTime(timeStr) {
 }
 
 /**
- * DoLynk Pro webhook: access control events. Verify signature before this.
- * Payload: method, params.data { userID, deviceSN, time }.
+ * Normalize DoLynk payload into { userID, deviceSN, timestamp }.
+ * Supports: (1) msgType "AccessControl" with userId, deviceId, localTime/utcTime
+ *           (2) method "client.index.accessControl" with params.data
  */
+function normalizePayload(body) {
+  if (body.msgType === MSGTYPE_ACCESS_CONTROL) {
+    const userId = body.userId != null ? String(body.userId) : null;
+    const deviceSN = body.deviceId != null ? String(body.deviceId).trim() : null;
+    const ms = body.localTime != null ? body.localTime : body.utcTime;
+    const timestamp = parseDolynkTime(ms);
+    return { userID: userId, deviceSN, timestamp };
+  }
+  if (body.method === METHOD_ACCESS_CONTROL && body.params?.data) {
+    const data = body.params.data;
+    const userID = data.userID != null ? String(data.userID) : null;
+    const deviceSN = data.deviceSN != null ? String(data.deviceSN).trim() : null;
+    const timestamp = parseDolynkTime(data.time);
+    return { userID, deviceSN, timestamp };
+  }
+  return null;
+}
+
+/** Log full webhook body only when explicitly debugging. Leave false in production. */
+const LOG_BODY = process.env.DOLYNK_DEBUG_SIGNATURE === "true";
+
 export async function dolynkWebhookController(req, res) {
   try {
     const body = req.body || {};
-    const method = body.method;
 
-    if (method !== METHOD_ACCESS_CONTROL) {
+    if (LOG_BODY) {
+      console.log("[DoLynk] --- Webhook body (copy this to map attendance fields) ---");
+      console.log(JSON.stringify(body, null, 2));
+      console.log("[DoLynk] --- End webhook body ---");
+    }
+
+    const normalized = normalizePayload(body);
+    if (!normalized) {
       return res.status(200).send("ACK");
     }
 
-    const data = body.params?.data || {};
-    const userID = data.userID != null ? String(data.userID) : null;
-    const deviceSN = data.deviceSN != null ? String(data.deviceSN).trim() : null;
-    const timeStr = data.time;
+    const { userID, deviceSN, timestamp } = normalized;
 
     if (!deviceSN || userID == null) {
       console.warn("[DoLynk] Missing userID or deviceSN in payload");
@@ -46,8 +73,6 @@ export async function dolynkWebhookController(req, res) {
       console.warn(`[DoLynk] Unknown or inactive deviceSN: ${deviceSN}`);
       return res.status(200).send("ACK");
     }
-
-    const timestamp = parseDolynkTime(timeStr);
     const normalizedEvent = {
       companyId: device.companyId,
       deviceId: device.id,
@@ -62,7 +87,7 @@ export async function dolynkWebhookController(req, res) {
       data: { lastSeen: new Date() },
     });
 
-    console.log(`[DoLynk] Punch: deviceSN=${deviceSN}, userID=${userID}, time=${timestamp.toISOString()}`);
+    console.log(`[DoLynk] Punch: deviceSN=${deviceSN}, userId=${userID}, time=${timestamp.toISOString()}`);
     return res.status(200).send("ACK");
   } catch (error) {
     console.error("[DoLynk] Webhook error:", error.message);
