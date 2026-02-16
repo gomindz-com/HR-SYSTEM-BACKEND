@@ -6,7 +6,7 @@
 import crypto from "crypto";
 
 const BASE_URL = process.env.DOLYNK_API_BASE_URL || "https://open.dolynkcloud.com";
-const CATEGORY_ASI = "ASI";
+const CATEGORY_DEFAULT = process.env.DOLYNK_DEVICE_CATEGORY || "ASI";
 
 function getConfig() {
     const ak = process.env.DAHUA_APP_KEY;
@@ -84,13 +84,16 @@ async function openApiFetch(path, options = {}) {
         fetchOptions.body = bodyStr;
     }
 
-    const res = await fetch(`${BASE_URL}${path}`, fetchOptions);
+    const fullUrl = `${BASE_URL}${path}`;
+    const res = await fetch(fullUrl, fetchOptions);
     const data = await res.json();
 
     if (!res.ok) {
         throw new Error(data?.message || data?.msg || `DoLynk API error: ${res.status}`);
     }
-    const isError = data.success === false || (data.code !== undefined && data.code !== 0 && data.code !== 200);
+    const code = data.code;
+    const successCode = code === 0 || code === 200 || code === "0" || code === "200";
+    const isError = data.success === false || (code !== undefined && !successCode);
     if (isError) {
         throw new Error(data?.message || data?.msg || "DoLynk API request failed");
     }
@@ -110,16 +113,16 @@ export async function getDolynkAppAccessToken() {
 
 /**
  * Bind a device to your DoLynk project (add device).
- * @param {string} accessToken - From getDolynkAppAccessToken()
- * @param {string} deviceId - Device serial number
- * @param {string} devicePassword - Device admin password
+ * API body: deviceId (1-128), categoryCode, devCode (device password; API example uses base64-like value).
+ * AppAccessToken is sent in header only.
  */
 export async function dolynkAddDevice(accessToken, deviceId, devicePassword) {
+    const deviceIdStr = String(deviceId || "").trim();
+    const devCode = Buffer.from(String(devicePassword || ""), "utf8").toString("base64");
     const body = {
-        deviceId,
-        categoryCode: CATEGORY_ASI,
-        devicePassword,
-        appAccessToken: accessToken,
+        deviceId: deviceIdStr,
+        categoryCode: CATEGORY_DEFAULT,
+        devCode,
     };
     return openApiFetch("/open-api/api-iot/device/addDevice", {
         auth: false,
