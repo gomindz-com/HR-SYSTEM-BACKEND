@@ -6,6 +6,7 @@
 import crypto from "crypto";
 
 const BASE_URL = process.env.DOLYNK_API_BASE_URL || "https://open.dolynkcloud.com";
+// ASI = access control / biometric; set DOLYNK_DEVICE_CATEGORY in .env to override (e.g. IPC for cameras)
 const CATEGORY_DEFAULT = process.env.DOLYNK_DEVICE_CATEGORY || "ASI";
 
 function getConfig() {
@@ -22,25 +23,23 @@ function guidLike() {
     return crypto.randomBytes(8).toString("hex") + "-" + crypto.randomBytes(4).toString("hex");
 }
 
+/** DoLynk Method 1: devCode = "Dolynk_" + Base64(password). Required for addDevice. */
+function encryptDevCode(password) {
+    const base64Pass = Buffer.from(String(password || ""), "utf8").toString("base64");
+    return `Dolynk_${base64Pass}`;
+}
+
 /**
- * Build request headers.
- * Simplified (no bodyStr): Sign = HMAC-SHA512(ak + ts + Nonce [, + appAccessToken], sk).
- * Standard (bodyStr): stringToSign = 'POST' + '\n' + SHA512(bodyNoSpaces); str = ak + appAccessToken + ts + Nonce + stringToSign; Sign = HMAC-SHA512(str, sk).
+ * Build request headers. Uses simplified signature (Sign-Type: simple): no body in sign.
+ * Auth API: str = ak + ts + Nonce. Business API: str = ak + appAccessToken + ts + Nonce.
  */
-function createApiHeader(ak, sk, productId, appAccessToken, auth, bodyStr) {
+function createApiHeader(ak, sk, productId, appAccessToken, auth) {
     const ts = Date.now();
     const Nonce = `web-${guidLike()}-${ts}`;
 
-    let stringToSign;
-    if (bodyStr) {
-        const bodyNoSpaces = bodyStr.replace(/\s/g, "");
-        stringToSign = "POST\n" + crypto.createHash("sha512").update(bodyNoSpaces, "utf8").digest("hex");
-    } else {
-        stringToSign = "POST";
-    }
     const str = auth
-        ? ak + ts + Nonce + stringToSign
-        : ak + (appAccessToken || "") + ts + Nonce + stringToSign;
+        ? ak + ts + Nonce
+        : ak + (appAccessToken || "") + ts + Nonce;
 
     const sign = crypto
         .createHmac("sha512", sk)
@@ -58,6 +57,7 @@ function createApiHeader(ak, sk, productId, appAccessToken, auth, bodyStr) {
         ProductId: productId,
         "X-TraceId-Header": `tid-${ts}`,
         Version: "V1",
+        "Sign-Type": "simple",
     };
     if (appAccessToken) {
         headers.AppAccessToken = appAccessToken;
@@ -75,7 +75,7 @@ async function openApiFetch(path, options = {}) {
     const { ak, sk, productId } = getConfig();
 
     const bodyStr = body ? JSON.stringify(body) : "";
-    const headers = createApiHeader(ak, sk, productId, appAccessToken, auth, bodyStr);
+    const headers = createApiHeader(ak, sk, productId, appAccessToken, auth);
     const fetchOptions = {
         method: "POST",
         headers,
@@ -113,20 +113,32 @@ export async function getDolynkAppAccessToken() {
 
 /**
  * Bind a device to your DoLynk project (add device).
- * API body: deviceId (1-128), categoryCode, devCode (device password; API example uses base64-like value).
- * AppAccessToken is sent in header only.
+ * Request body: { deviceId, categoryCode, devCode, devAccount? }. devCode = Dolynk_ + Base64(password).
  */
 export async function dolynkAddDevice(accessToken, deviceId, devicePassword) {
     const deviceIdStr = String(deviceId || "").trim();
-    const devCode = Buffer.from(String(devicePassword || ""), "utf8").toString("base64");
     const body = {
         deviceId: deviceIdStr,
         categoryCode: CATEGORY_DEFAULT,
-        devCode,
+        devCode: encryptDevCode(devicePassword),
+        devAccount: "admin",
     };
     return openApiFetch("/open-api/api-iot/device/addDevice", {
         auth: false,
         appAccessToken: accessToken,
         body,
+    });
+}
+
+/**
+ * Remove a device from your DoLynk project.
+ * Request body: { deviceId } (device serial number). Success: { code: "200", success: true, msg: "Operation is successful." }
+ */
+export async function dolynkDeleteDevice(accessToken, deviceId) {
+    const deviceIdStr = String(deviceId || "").trim();
+    return openApiFetch("/open-api/api-iot/device/deleteDevice", {
+        auth: false,
+        appAccessToken: accessToken,
+        body: { deviceId: deviceIdStr },
     });
 }

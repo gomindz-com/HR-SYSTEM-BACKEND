@@ -260,10 +260,22 @@ const updateDevice = async (req, res) => {
 
 const deleteDevice = async (req, res) => {
     try {
-        await stopDevice(req.params.id);
+        const device = await prisma.biometricDevice.findUnique({
+            where: { id: req.params.id },
+        });
+        if (device?.vendor === VendorTypes.DAHUA && device?.serialNumber) {
+            try {
+                const { getDolynkAppAccessToken, dolynkDeleteDevice } = await import("../services/dolynkApi.js");
+                const accessToken = await getDolynkAppAccessToken();
+                await dolynkDeleteDevice(accessToken, device.serialNumber);
+            } catch (dolynkErr) {
+                console.warn("[DoLynk] deleteDevice from DoLynk failed (device will still be removed from app):", dolynkErr.message);
+            }
+        }
 
+        await stopDevice(req.params.id);
         await prisma.biometricDevice.delete({
-            where: { id: req.params.id }
+            where: { id: req.params.id },
         });
 
         res.json({ success: true });
