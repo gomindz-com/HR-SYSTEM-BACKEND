@@ -51,6 +51,7 @@ const createDevice = async (req, res) => {
 
     if (vendor === VendorTypes.DAHUA) {
         if (!serialNumber || !String(serialNumber).trim()) errors.push('serial number is required for Dahua (DoLynk)');
+        if (!password || !String(password).trim()) errors.push('device password is required for DoLynk binding');
     }
     
 
@@ -70,6 +71,7 @@ const createDevice = async (req, res) => {
         }
         if (!cloudDeviceId) errors.push('cloud device id is required for Suprema');
     }
+
 
     if (vendorConfigId && vendorConfigNested) {
         errors.push('send either vendorConfigId or vendorConfig, not both');
@@ -100,6 +102,20 @@ const createDevice = async (req, res) => {
         const encryptedPassword = (password !== null && password !== '') ? encrypt(password) : undefined;
         const portNum = (port != null && !Number.isNaN(port) && port > 0) ? port : undefined;
 
+
+        if (vendor === VendorTypes.DAHUA && password && serialNumber) {
+            const { getDolynkAppAccessToken, dolynkAddDevice } = await import("../services/dolynkApi.js");
+            try {
+                const accessToken = await getDolynkAppAccessToken();
+                const result = await dolynkAddDevice(accessToken, serialNumber, password);
+                console.log("DoLynk device binding result: ", result);
+            } catch (err) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'DoLynk device binding failed: ' + (err.message || 'Unknown error'),
+                });
+            }
+        }
         const device = await prisma.biometricDevice.create({
             data: {
                 name,
