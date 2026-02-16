@@ -7,21 +7,22 @@ import { recordAttendance } from './biometricAttendanceService.js';
 const activeDevices = new Map();
 
 /**
- * Start a device (Streaming for Dahua/Suprema)
+ * Start a device. Only Suprema opens a local stream.
+ * ZKTeco (ADMS push) and Dahua (DoLynk webhook) are event-driven; we don't start a listener for them.
  */
 const startDevice = async (device) => {
     try {
         if (activeDevices.has(device.id)) return;
 
-        // Webhook/Push devices (ZKTeco ADMS) don't start a local listener
+        // ZKTeco: push-based (ADMS webhook); no local listener
         if (!isStreamingDevice(device.vendor)) {
-            console.log(`[DeviceManager] ${device.name} (Push-based) is managed by health monitor only`);
+            console.log(`[DeviceManager] ${device.name} (ZKTeco push) — health monitor only`);
             return;
         }
 
-        // Dahua: fully DoLynk — all events come from DoLynk webhook; never start local stream
+        // Dahua: DoLynk webhook only; no local stream
         if (device.vendor === 'DAHUA') {
-            console.log(`[DeviceManager] ${device.name} uses DoLynk; skipping local stream`);
+            console.log(`[DeviceManager] ${device.name} (DoLynk) — webhook only`);
             return;
         }
 
@@ -32,7 +33,7 @@ const startDevice = async (device) => {
             await updateDeviceHealth(device.id);
         };
 
-        // Suprema needs vendorConfig; Dahua only needs (device, onEvent)
+        // Suprema needs vendorConfig
         const cleanup = device.vendor === 'SUPREMA'
             ? adapter.startListening(deviceWithSecrets, deviceWithSecrets.vendorConfig, onEvent)
             : await adapter.startListening(deviceWithSecrets, onEvent);
@@ -40,7 +41,7 @@ const startDevice = async (device) => {
         if (typeof cleanup === 'function') {
             activeDevices.set(device.id, cleanup);
         }
-        console.log(`[DeviceManager] Monitoring stream/socket for: ${device.name}`);
+        console.log(`[DeviceManager] Suprema stream started: ${device.name}`);
 
     } catch (error) {
         console.error(`[DeviceManager] Failed to start ${device.name}:`, error);
@@ -48,8 +49,7 @@ const startDevice = async (device) => {
 };
 
 /**
- * Health Monitor: Tracks "Last Seen" for all devices
- * Essential for ZKTeco ADMS since we don't 'start' them
+ * Update device lastSeen. Used by Suprema stream; DoLynk and ZKTeco webhooks update lastSeen in their controllers.
  */
 const updateDeviceHealth = async (deviceId) => {
     await prisma.biometricDevice.update({
@@ -59,7 +59,7 @@ const updateDeviceHealth = async (deviceId) => {
 };
 
 /**
- * Restart Device (Force reconnect for Dahua/Suprema)
+ * Restart device: stop then start. Only Suprema has an active stream to reconnect; ZKTeco/Dahua are no-ops.
  */
 const restartDevice = async (deviceId) => {
     await stopDevice(deviceId);
@@ -90,7 +90,7 @@ const startAllDevices = async () => {
 const stopDevice = async (deviceId) => {
     const cleanup = activeDevices.get(deviceId);
     if (cleanup) {
-        cleanup(); // Closes WebSocket or Destroys Dahua Stream
+        cleanup(); // Closes WebSocket or stream
         activeDevices.delete(deviceId);
     }
 };

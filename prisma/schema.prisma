@@ -753,7 +753,7 @@ model BiometricDevice {
   // NEW: Required for ZKTeco ADMS Push and identifying cloud devices
   serialNumber String? @unique
 
-  // For local network devices (Dahua)
+  // Optional: for local/on-prem devices. Dahua with DoLynk uses serialNumber only.
   host     String?
   port     Int?
   username String?  

@@ -52,6 +52,7 @@ const createDevice = async (req, res) => {
     if (vendor === VendorTypes.DAHUA) {
         if (!serialNumber || !String(serialNumber).trim()) errors.push('serial number is required for Dahua (DoLynk)');
     }
+    
 
     if (vendor === VendorTypes.ZKTECO) {
         if (!serialNumber) errors.push('serial number is required for ZKTeco');

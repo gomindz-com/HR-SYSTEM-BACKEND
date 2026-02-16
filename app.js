@@ -126,13 +126,6 @@ try {
   console.error("❌ Failed to initialize trial expiration cron:", error);
 }
 
-// Initialize Dahua attendance backup cron (hourly recordFinder sync)
-try {
-  const initDahuaBackupCron = (await import("./automations/dahuaBackupCron.js")).default;
-  initDahuaBackupCron();
-} catch (error) {
-  console.error("❌ Failed to initialize Dahua backup cron:", error);
-}
 
 const app = express();
 

@@ -8,7 +8,7 @@ const adapters = {
     ZKTECO: zkteco
 };
 
-/** Sync map: which vendors use streaming (Dahua/Suprema) vs push (ZKTeco) */
+/** Which vendors use a local stream (Suprema). DAHUA is true for registry but deviceManager skips starting it (DoLynk webhook only). */
 const STREAMING_VENDORS = { DAHUA: true, SUPREMA: true, ZKTECO: false };
 
 export const getAdapter = async (vendor) => {

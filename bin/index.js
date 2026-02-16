@@ -22,7 +22,8 @@ server.listen(PORT, "0.0.0.0", async () => {
   }
 
 
-  await startAllDevices()
+  // Start active devices: only Suprema opens a stream; ZKTeco (push) and Dahua (DoLynk) are event-driven
+  await startAllDevices();
   console.log(`💪💪Server is running on:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIp}:${PORT}`);
