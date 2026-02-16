@@ -7,44 +7,46 @@ datasource db {
 }
 
 model Company {
-  id                  Int                  @id @default(autoincrement())
-  companyName         String
-  companyEmail        String?              @unique
-  companyTin          String?              @unique
-  companyAddress      String?
-  hrId                Int?
-  companyDescription  String?
-  timezone            String               @default("UTC")
-  workStartTime       String               @default("09:00")
-  workEndTime         String               @default("17:00")
-  workStartTime2      String               @default("17:00")
-  workEndTime2        String               @default("23:59")
-  lateThreshold       Int                  @default(15)
-  checkInDeadline     Int                  @default(15)
-  lateThreshold2      Int                  @default(15)
-  checkInDeadline2    Int                  @default(15)
-  employerSocialSecurityRate Float @default(0.10)
-  hasLifetimeAccess   Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  activities          Activity[]
-  attendances         Attendance[]
-  hr                  Employee?            @relation("Company_hr", fields: [hrId], references: [id])
-  locations           CompanyLocation[]
-  departments         Department[]
-  employees           Employee[]
-  EmployeeBenefit     EmployeeBenefit[]
-  invitations         Invitation[]
-  leaveRequests       LeaveRequest[]
-  payrolls            Payroll[]
-  documents           Document[]
-  subscription        Subscription?
-  payments            Payment[]
-  WorkdayDaysConfig   WorkdayDaysConfig[]
-  notifications       Notification[]
-  calendars           Calendar[]
-  performanceSettings PerformanceSettings?
-  reviewTemplates     ReviewTemplate[]
-  reviewCycles        ReviewCycle[]
+  id                         Int                  @id @default(autoincrement())
+  companyName                String
+  companyEmail               String?              @unique
+  companyTin                 String?              @unique
+  companyAddress             String?
+  hrId                       Int?
+  companyDescription         String?
+  timezone                   String               @default("UTC")
+  workStartTime              String               @default("09:00")
+  workEndTime                String               @default("17:00")
+  workStartTime2             String               @default("17:00")
+  workEndTime2               String               @default("23:59")
+  lateThreshold              Int                  @default(15)
+  checkInDeadline            Int                  @default(15)
+  lateThreshold2             Int                  @default(15)
+  checkInDeadline2           Int                  @default(15)
+  employerSocialSecurityRate Float                @default(0.10)
+  hasLifetimeAccess          Boolean              @default(false)
+  createdAt                  DateTime             @default(now())
+  activities                 Activity[]
+  attendances                Attendance[]
+  hr                         Employee?            @relation("Company_hr", fields: [hrId], references: [id])
+  locations                  CompanyLocation[]
+  departments                Department[]
+  employees                  Employee[]
+  EmployeeBenefit            EmployeeBenefit[]
+  invitations                Invitation[]
+  leaveRequests              LeaveRequest[]
+  payrolls                   Payroll[]
+  documents                  Document[]
+  subscription               Subscription?
+  payments                   Payment[]
+  WorkdayDaysConfig          WorkdayDaysConfig[]
+  notifications              Notification[]
+  calendars                  Calendar[]
+  performanceSettings        PerformanceSettings?
+  reviewTemplates            ReviewTemplate[]
+  reviewCycles               ReviewCycle[]
+  vendorConfigs              VendorConfig[]
+  biometricDevices           BiometricDevice[]
 }
 
 model CompanyLocation {
@@ -85,6 +87,9 @@ model Employee {
   lastLogin            DateTime?
   resetPasswordToken   String?
   resetPasswordExpires DateTime?
+
+  // Link to device user ID
+  biometricUserId String? // Device UserID (e.g "123", "456")
 
   emailVerified            Boolean                  @default(false)
   emailVerificationToken   String?                  @unique
@@ -131,6 +136,7 @@ model Attendance {
   employeeId Int
   companyId  Int
   locationId Int?
+  deviceId   String?
   date       DateTime
   timeIn     DateTime?
   timeOut    DateTime?
@@ -140,6 +146,7 @@ model Attendance {
   company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employee   Employee         @relation("EmployeeAttendance", fields: [employeeId], references: [id], onDelete: Cascade)
   location   CompanyLocation? @relation(fields: [locationId], references: [id])
+  device     BiometricDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@unique([employeeId, date])
 }
@@ -702,4 +709,73 @@ enum QuestionType {
   RATING
   MULTIPLE_CHOICE
   YES_NO
+}
+
+// ===========BIOMETRIC INTEGRATION ENDPOINTS =========================
+
+// Store vendor API credentials per company (not per device)
+model VendorConfig {
+  id        String  @id @default(cuid())
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  vendor VendorType // 'SUPREMA', 'ZKTECO' (only cloud vendors)
+
+  // Cloud API credentials
+  apiUrl    String? // e.g., "https://api.supremainc.com/v2"
+  apiKey    String? // Encrypted API key
+  apiSecret String? // Encrypted API secret
+
+  // Devices using this configuration
+  devices BiometricDevice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, vendor])
+  @@index([companyId])
+}
+
+enum VendorType {
+  DAHUA
+  ZKTECO
+  SUPREMA
+}
+
+model BiometricDevice {
+  id        String  @id @default(cuid())
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name   String
+  vendor VendorType
+
+  // NEW: Required for ZKTeco ADMS Push and identifying cloud devices
+  serialNumber String? @unique
+
+  // Optional: for local/on-prem devices. Dahua with DoLynk uses serialNumber only.
+  host     String?
+  port     Int?
+  username String?  
+  password String? // Encrypted password
+
+  // For cloud/WebSocket devices (Suprema)
+  vendorConfigId String?
+  vendorConfig   VendorConfig? @relation(fields: [vendorConfigId], references: [id], onDelete: SetNull)
+  cloudDeviceId  String? // 
+
+
+  agentApiKeyHash String?
+
+  isActive Boolean   @default(true)
+  lastSeen DateTime? // Updated: Track device health 
+
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([vendor])
+  @@index([serialNumber]) // New index for fast lookups during push events
 }

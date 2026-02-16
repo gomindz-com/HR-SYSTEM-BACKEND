@@ -21,6 +21,14 @@ import superadminRoutes from "./routes/superadmin.route.js";
 import superadminAuthRoutes from "./routes/superadmin-auth.route.js";
 import calendarRoutes from "./routes/calendar.router.js";
 import performanceRoutes from "./routes/performance.route.js";
+import deviceRoutes from "./routes/device.route.js";
+import vendorConfigRoutes from "./routes/vendorConfig.route.js";
+import biometricWebhookRoutes from "./routes/biometricWebhook.route.js";
+import dolynkWebhookRoutes from "./routes/dolynkWebhook.route.js";
+import {zktecoAdmsController} from "./controller/biometricWebhook.controller.js"
+import { stopAllDevices } from "./services/deviceManager.js";
+
+
 // Load environment variables first
 dotenv.config();
 // COMMENTED HERE: FOR ABSENT AUTOMATION TO BE disabled temporarily
@@ -118,14 +126,22 @@ try {
   console.error("❌ Failed to initialize trial expiration cron:", error);
 }
 
+
 const app = express();
 
-// middleware
-app.use(express.json());
+// middleware (rawBody for DoLynk webhook HMAC verification)
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // CORS configuration
 const allowedOrigins = [
   "http://localhost:8080",
+  "http://localhost:8081",
   "http://localhost:3000",
   "http://localhost:3001",
   "https://admin.hr.gomindz.gm",
@@ -154,7 +170,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Dolynk-Signature", "x-dolynk-signature"],
   })
 );
 
@@ -180,7 +196,16 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/superadmin", superadminRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/performance", performanceRoutes);
+app.use("/api/device", deviceRoutes);
+app.use("/api/vendor-config", vendorConfigRoutes);
+app.use("/api/biometric-webhook", biometricWebhookRoutes);
 
+// DoLynk Pro webhook (POST /dahua)
+app.use("/dahua", dolynkWebhookRoutes);
+
+// SPECIAL: ZKTeco ADMS - parse body as text for tab-delimited ATTLOG payloads
+app.post('/iclock/cdata', express.text({ type: 'text/*' }), express.urlencoded({ extended: true }), zktecoAdmsController);
+app.get('/iclock/cdata', zktecoAdmsController); 
 // ESSENTIAL ADMIN ENDPOINTS
 
 // Get automation system status
@@ -310,6 +335,19 @@ app.post("/api/admin/stop-all-automations", async (req, res) => {
       details: error.message,
     });
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await stopAllDevices();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await stopAllDevices();
+  process.exit(0);
 });
 
 export default app;

@@ -16,9 +16,6 @@ export const checkSubscription = async (req, res, next) => {
 
     // Check if company has lifetime access (bypass subscription check)
     if (company.hasLifetimeAccess) {
-      console.log(
-        `Company ${company.companyName} has lifetime access - bypassing subscription check`
-      );
       req.subscription = {
         status: "ACTIVE",
         plan: {

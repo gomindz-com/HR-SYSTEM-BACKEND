@@ -243,6 +243,7 @@ export const updateEmployee = async (req, res) => {
     "position",
     "departmentId",
     "shiftType",
+    "biometricUserId",
   ];
 
   // RBAC: Only ADMIN can update shiftType
@@ -257,12 +258,17 @@ export const updateEmployee = async (req, res) => {
   allowedUpdates.forEach((field) => {
     const value = req.body[field];
     if (value === undefined) return;
-    
+
     if (field === "departmentId" && (value === "" || value === null)) {
       updateData[field] = null;
       return;
     }
-    
+
+    if (field === "biometricUserId") {
+      updateData[field] = value === "" || value === null ? null : value;
+      return;
+    }
+
     if (value) {
       updateData[field] = value;
     }
@@ -478,17 +484,22 @@ export const updateEmployeeProfile = async (req, res) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  // RBAC: Only ADMIN can update employee profiles
-  if (req.user.role !== "ADMIN") {
-    return res.status(403).json({
-      message: "Only administrators can update employee profiles",
-    });
+  const employeeIdNum = parseInt(id);
+  const isOwnProfile = userId === employeeIdNum;
+
+  // RBAC: ADMIN/FINANCE can update any profile; STAFF can update only their own (and only biometricUserId)
+  if (req.user.role !== "ADMIN" && req.user.role !== "FINANCE") {
+    if (!(req.user.role === "STAFF" && isOwnProfile)) {
+      return res.status(403).json({
+        message: "Only administrators and finance can update employee profiles, or staff can update their own biometric ID",
+      });
+    }
   }
 
   // Check if the employee exists and belongs to the company
   const employee = await prisma.employee.findFirst({
     where: {
-      id: parseInt(id),
+      id: employeeIdNum,
       companyId,
     },
   });
@@ -510,17 +521,28 @@ export const updateEmployeeProfile = async (req, res) => {
     "role",
     "status",
     "shiftType",
+    "biometricUserId",
   ];
 
   const updateData = {};
 
-  allowedUpdates.forEach((field) => {
+  // STAFF updating own profile: only allow biometricUserId
+  const fieldsToApply = (req.user.role === "STAFF" && isOwnProfile)
+    ? ["biometricUserId"]
+    : allowedUpdates;
+
+  fieldsToApply.forEach((field) => {
     const value = req.body[field];
 
     if (value === undefined) return;
 
     if (field === "departmentId" && (value === "" || value === null)) {
       updateData[field] = null;
+      return;
+    }
+
+    if (field === "biometricUserId") {
+      updateData[field] = value === "" || value === null ? null : String(value).trim();
       return;
     }
 

@@ -32,7 +32,8 @@
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",
     "@prisma/adapter-pg": "^7.0.1",
-    "@prisma/client": "^7.2.0",
+    "@prisma/client": "^7.3.0",
+    "axios": "^1.13.4",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.9.0",
@@ -63,6 +64,6 @@
   },
   "devDependencies": {
     "jest": "^30.2.0",
-    "prisma": "^7.2.0"
+    "prisma": "^7.3.0"
   }
 }
