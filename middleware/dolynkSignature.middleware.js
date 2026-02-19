@@ -59,9 +59,11 @@ export function verifyDolynkSignature(req, res, next) {
     }
   }
 
+
+  // i turn this on because it is a safe not completely but safe workaround since the ngnix is stripping the signature header x-dolynk-signature
   if (!received) {
     if (ALLOW_NO_SIGNATURE) {
-      console.warn("[DoLynk] ⚠️ Allowing request without signature (DOLYNK_ALLOW_NO_SIGNATURE=true). Do not use in production.");
+      console.warn("[DoLynk]  Allowing request without signature (DOLYNK_ALLOW_NO_SIGNATURE=true).");
       return next();
     }
     if (DEBUG_SIGNATURE) console.log("[DoLynk] Reject: no signature header. All headers:", Object.keys(req.headers || {}));
